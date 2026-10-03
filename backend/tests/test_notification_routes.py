@@ -121,7 +121,7 @@ class TestNotificationRoutes:
         )
 
     async def test_subscribe_push_duplicate_is_an_update(self, notif_client) -> None:
-        """R3: re-sending a known subscription succeeds (re-enabling never gets a 409)."""
+        """Re-sending a known subscription succeeds (re-enabling never gets a 409)."""
         client, _, webpush, _ = notif_client
         webpush.add_subscription.return_value = False
         resp = await client.post("/notifications/push-subscription", json={
@@ -224,7 +224,7 @@ class TestNotificationRoutes:
         assert dispatcher.dispatch.call_args.kwargs["only_channel"] is None
 
     async def test_send_test_to_one_channel(self, notif_client) -> None:
-        """R7: the request's channel is honoured."""
+        """The request's channel is honoured."""
         client, dispatcher, _, _ = notif_client
         dispatcher.dispatch.return_value = ([], {"host_native": "unavailable"})
         resp = await client.post("/notifications/test", json={"channel": "host_native"})
@@ -298,7 +298,7 @@ async def real_client(tmp_path):
 class TestNotificationRoutesWithConfig:
 
     async def test_defaults(self, real_client) -> None:
-        """R5: Web Push on at warning; Host Native off (it needs a desktop session),
+        """Web Push on at warning; Host Native off (it needs a desktop session),
         and so are webhook, ntfy and email (they need an address first)."""
         client, _, _, _ = real_client
         data = (await client.get("/notifications/config")).json()
@@ -309,7 +309,7 @@ class TestNotificationRoutesWithConfig:
             assert data["channels"][name]["min_severity"] == "warning"
 
     async def test_partial_update_changes_only_the_given_field(self, real_client) -> None:
-        """R5 AC2: {min_severity} alone must not enable a disabled channel."""
+        """{min_severity} alone must not enable a disabled channel."""
         client, _, config_path, _ = real_client
         resp = await client.put("/notifications/config", json={"channels": {"host_native": {"min_severity": "error"}}})
         assert resp.status_code == 200
@@ -336,7 +336,7 @@ class TestNotificationRoutesWithConfig:
         assert config_path.read_text() == "[broken"
 
     async def test_status_reports_platform_checks(self, real_client) -> None:
-        """R4/R6: what is missing, the host OS and how it was detected reach the API."""
+        """What is missing, the host OS and how it was detected reach the API."""
         client, _, _, _ = real_client
         data = (await client.get("/notifications/channels/status")).json()
         assert data["channels"]["host_native"] == {
@@ -349,7 +349,7 @@ class TestNotificationRoutesWithConfig:
         assert data["unknown_channels"] == []
 
     async def test_status_reports_config_errors(self, real_client) -> None:
-        """R8: a broken settings file and unknown channel names reach the settings page."""
+        """A broken settings file and unknown channel names reach the settings page."""
         client, dispatcher, config_path, _ = real_client
         config_path.write_text(toml.dumps({"notifications": {"channels": {
             "webpush": {"min_severity": "loud"}, "e-mail": {"enabled": True},

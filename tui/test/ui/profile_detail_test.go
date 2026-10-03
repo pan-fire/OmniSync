@@ -93,7 +93,7 @@ func view(m ui.ProfileDetailModel) string {
 	return stripANSI(m.View().Content)
 }
 
-// TUI-7 / R4: 'p' then 'n' sends no sync request. The only request is the
+// 'p' then 'n' sends no sync request. The only request is the
 // side-effect-free preview that produces the counts shown in the prompt.
 func TestProfileDetail_PushThenNoSendsNoSyncRequest(t *testing.T) {
 	b := detailBackend(t)
@@ -358,7 +358,7 @@ func TestProfileDetail_PromptIgnoresOtherKeys(t *testing.T) {
 	}
 }
 
-// TUI-6: opening another profile shows that profile and syncs it, not the
+// Opening another profile shows that profile and syncs it, not the
 // first one.
 func TestProfileDetail_OpenAnotherProfile(t *testing.T) {
 	b := detailBackend(t)

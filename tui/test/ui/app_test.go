@@ -133,7 +133,7 @@ func TestApp_HelpAndQuit(t *testing.T) {
 	}
 }
 
-// TUI-4: while a view captures input, q ? 1-8 Tab and Ctrl+T go to it.
+// While a view captures input, q ? 1-8 Tab and Ctrl+T go to it.
 func TestApp_CapturingViewGetsGlobalKeys(t *testing.T) {
 	app, stubs := newApp(t, "http://127.0.0.1:1")
 	app = connected(t, app)
@@ -160,7 +160,7 @@ func TestApp_CapturingViewGetsGlobalKeys(t *testing.T) {
 	}
 }
 
-// TUI-10: every frame uses the alternate screen.
+// Every frame uses the alternate screen.
 func TestApp_AltScreenOnEveryFrame(t *testing.T) {
 	app, _ := newApp(t, "http://127.0.0.1:1")
 	if !app.View().AltScreen {
@@ -183,7 +183,7 @@ func TestApp_AltScreenOnEveryFrame(t *testing.T) {
 	}
 }
 
-// TUI-6: opening a profile works for every profile, with a value-receiver
+// Opening a profile works for every profile, with a value-receiver
 // Profile Detail view as main registers it.
 func TestApp_NavigateOpensEveryProfile(t *testing.T) {
 	b := newBackend(t)

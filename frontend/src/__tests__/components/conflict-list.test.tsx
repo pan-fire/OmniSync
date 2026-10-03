@@ -48,11 +48,7 @@ function uniqueUnresolvedConflictsArb (min: number, max: number): fc.Arbitrary<C
 
 const ACTION_LABELS = ['Keep Local', 'Keep Remote', 'Keep Both', 'Dismiss'];
 
-// --- Property 11 ---
-
-// Feature: frontend-dashboard, Property 11: Conflict list rendering completeness
-describe('Property 11: Conflict list rendering completeness', () => {
-  // Validates: Requirements 6.1
+describe('Conflict list rendering completeness', () => {
   it("for any non-empty unresolved Conflict array, the rendered list contains each conflict's file_path and its four actions", () => {
     fc.assert(
       fc.property(uniqueUnresolvedConflictsArb(1, 5), (conflicts: Conflict[]) => {

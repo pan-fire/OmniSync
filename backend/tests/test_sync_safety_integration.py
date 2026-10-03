@@ -98,7 +98,7 @@ async def job_errors(factory, job_id: int) -> list[str]:
         return [r.message for r in rows]
 
 
-# --- R1: refuse syncs that would wipe the other side ---
+# --- Refuse syncs that would wipe the other side ---
 
 
 async def test_push_from_empty_local_is_refused(env):
@@ -156,7 +156,7 @@ async def test_first_sync_writes_the_marker_on_both_sides(env):
     assert (remote / "a.txt").read_text() == "hello"
 
 
-# --- R2: a missing local folder is never created ---
+# --- A missing local folder is never created ---
 
 
 async def test_missing_local_dir_is_not_created_and_profile_pauses(env, tmp_path):
@@ -174,7 +174,7 @@ async def test_missing_local_dir_is_not_created_and_profile_pauses(env, tmp_path
         await engine.stop()
 
 
-# --- R3: delete bound and recoverable backups ---
+# --- Delete bound and recoverable backups ---
 
 
 async def test_max_delete_stops_a_mass_deletion(env, monkeypatch):
@@ -291,7 +291,7 @@ async def test_trash_is_never_synced_to_the_other_side(env):
     assert (remote / TRASH_DIR / stamp / "secret-old.txt").exists()
 
 
-# --- DS-4 / DS-5: per-file actions touch exactly the chosen file ---
+# --- Per-file actions touch exactly the chosen file ---
 
 
 def cache_diff(engine: SyncEngine, *paths: str, category=ChangeCategory.LOCAL_ONLY) -> None:
@@ -341,7 +341,7 @@ async def test_keep_both_keeps_both_versions_on_both_sides(env):
         assert conflict == ["remote edit"], (side, files)
 
 
-# --- DS-11 / ARC-8: job history is saved, selective jobs are readable ---
+# --- Job history is saved, selective jobs are readable ---
 
 
 async def test_selective_jobs_are_saved_and_readable(env):
@@ -372,7 +372,7 @@ async def test_failed_per_file_action_marks_the_job_failed(env):
     assert (await last_job(factory)).status == "failed"
 
 
-# --- DS-6: one operation per profile at a time ---
+# --- One operation per profile at a time ---
 
 
 async def test_syncs_of_one_profile_never_overlap(env):
@@ -550,7 +550,7 @@ async def test_mirror_resume_after_paused_edits_that_left_no_difference(env):
         await engine.stop()
 
 
-# --- DS-7: long transfers are never killed by a wall-clock limit ---
+# --- Long transfers are never killed by a wall-clock limit ---
 
 
 @pytest.mark.parametrize(("method", "args"), [

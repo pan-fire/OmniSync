@@ -134,7 +134,7 @@ class TestWebPushChannel:
             assert subs[0].endpoint == "https://push.example.com/sub1"
 
     async def test_add_duplicate_updates_the_keys(self, webpush_deps) -> None:
-        """R3: re-subscribing the same browser is idempotent (no 409 on re-enable)."""
+        """Re-subscribing the same browser is idempotent (no 409 on re-enable)."""
         channel, factory = webpush_deps
         assert await channel.add_subscription("https://push.example.com/dup", "k", "a") is True
         assert await channel.add_subscription("https://push.example.com/dup", "k2", "a2") is False
@@ -171,7 +171,7 @@ class TestWebPushChannel:
             assert call_kwargs[1]["subscription_info"]["endpoint"] == "https://push.example.com/send"
 
     async def test_send_runs_off_the_event_loop_with_a_timeout(self, webpush_deps) -> None:
-        """ARC-2: the synchronous pywebpush call never blocks the loop."""
+        """The synchronous pywebpush call never blocks the loop."""
         import threading
 
         channel, _ = webpush_deps
@@ -242,7 +242,7 @@ class TestWebPushChannel:
             assert len(result.scalars().all()) == 0
 
     async def test_all_subscriptions_failing_raises(self, webpush_deps) -> None:
-        """R7: a push that reached no browser is not reported as delivered."""
+        """A push that reached no browser is not reported as delivered."""
         from pywebpush import WebPushException
 
         channel, _ = webpush_deps

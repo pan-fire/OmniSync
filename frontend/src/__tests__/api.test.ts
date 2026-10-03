@@ -2,8 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import fc from 'fast-check';
 import { apiFetch } from '@/lib/api';
 
-// Feature: frontend-dashboard, Property 13: API path prefixing
-describe('Property 13: API path prefixing', () => {
+describe('API path prefixing', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
@@ -11,7 +10,6 @@ describe('Property 13: API path prefixing', () => {
   });
 
   it('for any endpoint path, the constructed fetch URL starts with /api', async () => {
-    // Validates: Requirements 9.4
     await fc.assert(
       fc.asyncProperty(
         fc.stringMatching(/^\/[a-zA-Z0-9/_\-?.=&]*$/).filter((s) => s.length >= 1),

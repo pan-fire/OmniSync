@@ -46,7 +46,7 @@ async def wizard_client(mock_rclone_service: AsyncMock):
     wizard._session_manager = original_manager
 
 
-# --- Requirement 1.2, 1.3: Provider list returns all 7 providers ---
+# --- Provider list returns all 7 providers ---
 
 
 class TestListProviders:
@@ -81,7 +81,7 @@ class TestListProviders:
             assert "default_name" in p
 
 
-# --- Requirement 3.4: Key-based remote creation happy path ---
+# --- Key-based remote creation happy path ---
 
 
 class TestCreateRemote:
@@ -151,7 +151,7 @@ class TestCreateRemote:
         assert "Unknown provider" in response.json()["detail"]
 
 
-# --- Requirement 4.1: OAuth authorize starts subprocess and returns auth_url ---
+# --- OAuth authorize starts subprocess and returns auth_url ---
 
 
 class TestAuthorize:
@@ -301,7 +301,7 @@ class TestRedirectUri:
         assert "Session expired" in response.text
 
 
-# --- Requirement 5.1, 5.2, 5.3: Connection test success and failure paths ---
+# --- Connection test success and failure paths ---
 
 
 class TestConnectionTest:
@@ -362,7 +362,7 @@ class TestConnectionTest:
         assert "connection refused" in caplog.text
 
 
-# --- Requirement 7.4: Max 3 concurrent sessions enforced ---
+# --- Max 3 concurrent sessions enforced ---
 
 
 class TestMaxConcurrentSessions:
@@ -391,7 +391,7 @@ class TestMaxConcurrentSessions:
         assert "Maximum" in response.json()["detail"]
 
 
-# --- Requirement 10.3: Rclone not installed returns 503 ---
+# --- Rclone not installed returns 503 ---
 
 
 class TestRcloneNotInstalled:

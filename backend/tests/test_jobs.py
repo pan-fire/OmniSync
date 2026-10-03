@@ -1,6 +1,4 @@
 """Tests for the jobs endpoints, through HTTP against seeded rows.
-
-Feature: project-foundation, Property 12: Jobs endpoint returns results sorted by most recent first
 """
 
 from __future__ import annotations
@@ -28,7 +26,7 @@ async def _seed(factory, *rows) -> list[int]:
         return [r.id for r in rows]
 
 
-# --- Property 12 ---
+# --- Jobs are listed most recent first ---
 
 
 @settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -37,12 +35,10 @@ async def _seed(factory, *rows) -> list[int]:
     limit=st.integers(min_value=1, max_value=10),
 )
 async def test_jobs_sorted_by_most_recent_first(test_client, test_db_factory, offsets: list[int], limit: int) -> None:
-    """Feature: project-foundation, Property 12: Jobs endpoint returns results sorted by most recent first
+    """Jobs endpoint returns results sorted by most recent first.
 
     Pages of GET /jobs, read one after the other, return every job exactly
     once, newest first; jobs started at the same time come newest-row first.
-
-    **Validates: Requirements 7.4**
     """
     async with test_db_factory() as session:
         await session.execute(delete(SyncJob))

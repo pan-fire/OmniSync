@@ -195,7 +195,7 @@ func withFastPolling(t *testing.T) {
 	t.Cleanup(func() { cli.SyncPollInterval = prev })
 }
 
-// TUI-3: push waits for the whole sync instead of failing on a timeout.
+// Push waits for the whole sync instead of failing on a timeout.
 func TestPush_WaitsForLongSync(t *testing.T) {
 	isolate(t)
 	withFastPolling(t)

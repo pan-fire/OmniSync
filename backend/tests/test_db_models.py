@@ -1,8 +1,5 @@
-"""Property-based tests for database ORM models.
-
-Feature: project-foundation, Property 1: Job lifecycle consistency
-Feature: project-foundation, Property 2: File change recording integrity
-Feature: project-foundation, Property 3: SyncJob JSON round-trip
+"""Property-based tests for database ORM models: job lifecycle, file change
+recording and the SyncJob JSON round-trip.
 """
 
 import json
@@ -87,12 +84,10 @@ def test_syncjob_json_round_trip(
     conflicts: int,
     errors: int,
 ) -> None:
-    """Feature: project-foundation, Property 3: SyncJob JSON round-trip
+    """SyncJob JSON round-trip.
 
     For any valid SyncJob data, serializing to JSON then deserializing back
     should produce an equivalent SyncJob record.
-
-    **Validates: Requirements 3.7**
     """
     # Build the field dict
     original = syncjob_field_dict(
@@ -155,7 +150,7 @@ async def _make_session() -> tuple[AsyncSession, AsyncEngine]:
     return session, engine
 
 
-# --- Property 1: Job lifecycle consistency ---
+# --- Job lifecycle consistency ---
 
 
 @settings(max_examples=100)
@@ -173,12 +168,10 @@ def test_job_lifecycle_consistency(
     files_changed: int,
     errors: int,
 ) -> None:
-    """Feature: project-foundation, Property 1: Job lifecycle consistency
+    """Job lifecycle consistency.
 
     For any valid direction and arbitrary completion data, creating a job then
     completing it should result in a record matching all provided fields.
-
-    **Validates: Requirements 3.3, 3.4**
     """
     import asyncio
 
@@ -224,7 +217,7 @@ def test_job_lifecycle_consistency(
     asyncio.run(_run())
 
 
-# --- Property 2: File change recording integrity ---
+# --- File change recording integrity ---
 
 
 @settings(max_examples=100)
@@ -242,12 +235,10 @@ def test_file_change_recording_integrity(
     action: str,
     size_bytes: int | None,
 ) -> None:
-    """Feature: project-foundation, Property 2: File change recording integrity
+    """File change recording integrity.
 
     For any file path, action type, and associated job, recording a file change
     should result in a record that exactly matches the provided data.
-
-    **Validates: Requirements 3.5**
     """
     import asyncio
 

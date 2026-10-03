@@ -1,4 +1,4 @@
-"""Which notifications the engine and the backup service send (R1).
+"""Which notifications the engine and the backup service send.
 
 A recording fake stands in for the dispatcher: the engine hands events to
 its emit() (background, the sync never waits), the backup service awaits
@@ -115,7 +115,7 @@ async def test_auth_error(tmp_path, env: Env):
 
 
 async def test_the_sync_does_not_wait_for_the_channels(tmp_path, env: Env):
-    """R2: a slow channel never holds up a sync: the engine only emits."""
+    """A slow channel never holds up a sync: the engine only emits."""
     await _profile_row(env, tmp_path)
     rclone = AsyncMock()
     rclone.list_top_level = AsyncMock(return_value=[])

@@ -9,7 +9,7 @@ import (
 	"github.com/pan-fire/OmniSync/tui/internal/ui/components"
 )
 
-// TUI-4: ordinary input must reach the field: spaces, digits, 'q' and
+// Ordinary input must reach the field: spaces, digits, 'q' and
 // multi-byte characters.
 func TestForm_AcceptsOrdinaryInput(t *testing.T) {
 	f := makeForm()
@@ -73,7 +73,7 @@ func TestForm_SubmitCarriesID(t *testing.T) {
 	}
 }
 
-// TUI-5: a refresh must not move the cursor to another row.
+// A refresh must not move the cursor to another row.
 func TestTable_SetRowsKeepsCursorOnSameKey(t *testing.T) {
 	tbl := makeTable()
 	tbl.Update(keyPress(tea.KeyDown))
@@ -123,7 +123,7 @@ func TestTable_SetRowsClampsWhenRowGone(t *testing.T) {
 	}
 }
 
-// TUI-11: the highlighted row is marked without relying on colour.
+// The highlighted row is marked without relying on colour.
 func TestTable_CursorMarkerVisibleWithoutColour(t *testing.T) {
 	tbl := makeTable()
 	tbl.Update(keyPress(tea.KeyDown))

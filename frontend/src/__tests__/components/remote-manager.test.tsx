@@ -20,11 +20,7 @@ const nonEmptyRemotesArb = fc
     remotes.map((r, i) => ({ ...r, name: `${r.name}${i}` }))
   );
 
-// --- Property 7 ---
-
-// Feature: frontend-dashboard, Property 7: Remote list rendering completeness
-describe('Property 7: Remote list rendering completeness', () => {
-  // Validates: Requirements 4.4
+describe('Remote list rendering completeness', () => {
   it("for any non-empty Remote array, the rendered list contains each remote's name and type", () => {
     fc.assert(
       fc.property(nonEmptyRemotesArb, (remotes: Remote[]) => {

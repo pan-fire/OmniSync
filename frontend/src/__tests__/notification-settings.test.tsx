@@ -94,7 +94,7 @@ afterEach(() => {
   delete (globalThis as unknown as Record<string, unknown>).Notification;
 });
 
-// --- ChannelCard: status indicators and guidance (R6) ---
+// --- ChannelCard: status indicators and guidance ---
 
 describe('ChannelCard status', () => {
   const on: ChannelConfig = { enabled: true, min_severity: 'warning' };

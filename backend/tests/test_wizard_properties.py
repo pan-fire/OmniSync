@@ -22,8 +22,7 @@ from backend.services.provider_registry import (
 from backend.services.wizard_sessions import WizardSessionManager
 
 
-# Feature: remote-setup-wizard, Property 1: Provider registry structural completeness
-# Validates: Requirements 1.1, 1.4, 1.5, 8.4, 10.2
+# Provider registry structural completeness
 class TestProviderRegistryStructuralCompleteness:
     """Every provider in the registry must have complete, valid structure."""
 
@@ -112,15 +111,14 @@ class TestProviderRegistryStructuralCompleteness:
             )
 
 
-# Feature: remote-setup-wizard, Property 13: Remote name validation
-# Validates: Requirements 8.2
+# Remote name validation
 class TestRemoteNameValidation:
     """For any string, validate_remote_name returns True iff it matches ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ (no leading '-', which rclone would read as a flag)."""
 
     @settings(max_examples=100)
     @given(name=st.text())
     def test_remote_name_validation_matches_regex(self, name: str) -> None:
-        """**Validates: Requirements 8.2**"""
+        """A name is accepted exactly when it matches the rclone remote-name pattern."""
         import re
 
         pattern = re.compile(r'^[a-zA-Z0-9_][a-zA-Z0-9_-]*$')
@@ -130,8 +128,7 @@ class TestRemoteNameValidation:
         )
 
 
-# Feature: remote-setup-wizard, Property 10: Session ID uniqueness
-# Validates: Requirements 7.1
+# Session ID uniqueness
 class TestSessionIDUniqueness:
     """For any two wizard sessions created by the session manager (even if
     created for the same provider), their session IDs must be distinct."""
@@ -147,7 +144,7 @@ class TestSessionIDUniqueness:
     async def test_all_session_ids_are_unique(
         self, num_sessions: int, provider_id: str
     ) -> None:
-        """**Validates: Requirements 7.1**"""
+        """Every session created gets a distinct id."""
         manager = WizardSessionManager(max_sessions=num_sessions)
         sessions = []
         for _ in range(num_sessions):
@@ -160,8 +157,7 @@ class TestSessionIDUniqueness:
         )
 
 
-# Feature: remote-setup-wizard, Property 9: Expired session cleanup
-# Validates: Requirements 4.7, 7.2
+# Expired session cleanup
 class TestExpiredSessionCleanup:
     """For any wizard session whose created_at timestamp is more than 10 minutes
     in the past, after cleanup_expired() runs, the session must no longer exist
@@ -178,7 +174,7 @@ class TestExpiredSessionCleanup:
     async def test_expired_sessions_are_cleaned_up(
         self, provider_id: str, extra_minutes: int
     ) -> None:
-        """**Validates: Requirements 4.7, 7.2**"""
+        """A session past its timeout is removed and its rclone process stopped."""
         manager = WizardSessionManager(max_sessions=5)
         session = await manager.create_session(provider_id)
 
@@ -207,8 +203,7 @@ class TestExpiredSessionCleanup:
         mock_process.terminate.assert_called_once()
 
 
-# Feature: remote-setup-wizard, Property 11: Cancel terminates and removes session
-# Validates: Requirements 7.3
+# Cancel terminates and removes session
 class TestCancelTerminatesAndRemovesSession:
     """For any active wizard session, calling cancel_session(session_id) must
     remove the session from the session manager. After cancellation,
@@ -224,7 +219,7 @@ class TestCancelTerminatesAndRemovesSession:
     async def test_cancel_removes_session(
         self, provider_id: str
     ) -> None:
-        """**Validates: Requirements 7.3**"""
+        """Cancelling a session removes it."""
         manager = WizardSessionManager(max_sessions=5)
         session = await manager.create_session(provider_id)
         session_id = session.session_id
@@ -239,8 +234,7 @@ class TestCancelTerminatesAndRemovesSession:
         )
 
 
-# Feature: remote-setup-wizard, Property 6: Rclone authorize output parsing
-# Validates: Requirements 4.2, 4.5
+# Rclone authorize output parsing
 class TestRcloneAuthorizeOutputParsing:
     """For any string containing a URL matching http(s)://... in rclone authorize
     output format, the auth URL parser must extract a valid URL. For any string
@@ -258,7 +252,7 @@ class TestRcloneAuthorizeOutputParsing:
     def test_auth_url_extracted_from_rclone_output(
         self, prefix: str, suffix: str, scheme: str, domain: str, path: str
     ) -> None:
-        """**Validates: Requirements 4.2**"""
+        """The auth URL is found in rclone authorize output."""
         from backend.services.rclone import parse_auth_url
 
         url = f"{scheme}://{domain}{path}"
@@ -283,7 +277,7 @@ class TestRcloneAuthorizeOutputParsing:
     def test_auth_token_extracted_from_rclone_output(
         self, prefix: str, suffix: str, access_token: str, token_type: str
     ) -> None:
-        """**Validates: Requirements 4.5**"""
+        """The token JSON is found in rclone authorize output."""
         import json as json_mod
 
         from backend.services.rclone import parse_auth_token
@@ -311,7 +305,7 @@ class TestRcloneAuthorizeOutputParsing:
     @settings(max_examples=100)
     @given(text=st.text(max_size=200).filter(lambda t: "http" not in t.lower()))
     def test_no_url_returns_none(self, text: str) -> None:
-        """**Validates: Requirements 4.2**"""
+        """Output without a URL yields None."""
         from backend.services.rclone import parse_auth_url
 
         result = parse_auth_url(text)
@@ -320,15 +314,14 @@ class TestRcloneAuthorizeOutputParsing:
     @settings(max_examples=100)
     @given(text=st.text(max_size=200).filter(lambda t: "access_token" not in t))
     def test_no_token_returns_none(self, text: str) -> None:
-        """**Validates: Requirements 4.5**"""
+        """Output without a token yields None."""
         from backend.services.rclone import parse_auth_token
 
         result = parse_auth_token(text)
         assert result is None, f"Should return None for text without token, got: {result}"
 
 
-# Feature: remote-setup-wizard, Property 8: Custom OAuth credentials forwarding
-# Validates: Requirements 4.8
+# Custom OAuth credentials forwarding
 class TestCustomOAuthCredentialsForwarding:
     """For any non-empty client_id and client_secret values provided in an
     authorize request, the constructed rclone authorize command arguments
@@ -352,7 +345,7 @@ class TestCustomOAuthCredentialsForwarding:
     async def test_oauth_credentials_in_authorize_command(
         self, remote_type: str, client_id: str, client_secret: str
     ) -> None:
-        """**Validates: Requirements 4.8**"""
+        """Custom client id and secret reach the rclone authorize command."""
         captured_cmd: list[str] = []
 
         async def mock_create_subprocess_exec(
@@ -391,8 +384,7 @@ class TestCustomOAuthCredentialsForwarding:
         assert remote_type in captured_cmd
 
 
-# Feature: remote-setup-wizard, Property 12: Duplicate remote name rejection
-# Validates: Requirements 6.3
+# Duplicate remote name rejection
 class TestDuplicateRemoteNameRejection:
     """For any remote name that already exists in the rclone remote list,
     create_remote() with that name must raise a ValueError and must not
@@ -407,7 +399,7 @@ class TestDuplicateRemoteNameRejection:
     async def test_duplicate_name_raises_value_error(
         self, remote_name: str, remote_type: str
     ) -> None:
-        """**Validates: Requirements 6.3**"""
+        """Creating a remote under an existing name raises ValueError."""
         from unittest.mock import patch
 
         from backend.api.schemas import RemoteResponse
@@ -432,8 +424,7 @@ class TestDuplicateRemoteNameRejection:
                 mock_run.assert_not_called()
 
 
-# Feature: remote-setup-wizard, Property 7: Rclone error propagation
-# Validates: Requirements 3.5, api-security R9
+# Rclone error propagation
 class TestRcloneErrorPropagation:
     """For any non-zero exit code and any non-empty stderr string from an
     rclone subprocess, the wizard API response must have a non-2xx status
@@ -462,7 +453,7 @@ class TestRcloneErrorPropagation:
         remote_name: str,
         provider_id: str,
     ) -> None:
-        """**Validates: Requirements 3.5**"""
+        """An rclone error reaches the client as a generic message; the details go to the log."""
         import logging
 
         from httpx import ASGITransport, AsyncClient

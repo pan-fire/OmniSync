@@ -42,7 +42,7 @@ func TestPolling_BackoffSequence(t *testing.T) {
 	}
 }
 
-// TUI-10: exactly one tick loop. Init starts it, each tick re-arms it once,
+// Exactly one tick loop. Init starts it, each tick re-arms it once,
 // and neither connection results nor retries start another.
 func TestPolling_SingleTickLoop(t *testing.T) {
 	b := newBackend(t)
@@ -80,7 +80,7 @@ func TestPolling_SingleTickLoop(t *testing.T) {
 	}
 }
 
-// TUI-10: health keeps being checked while connected, so a backend that goes
+// Health keeps being checked while connected, so a backend that goes
 // away is noticed and "Reconnecting..." appears.
 func TestPolling_HealthCheckedWhileConnected(t *testing.T) {
 	b := newBackend(t)
@@ -114,7 +114,7 @@ func TestPolling_HealthCheckedWhileConnected(t *testing.T) {
 	}
 }
 
-// TUI-10: poll intervals come from each view's own data.
+// Poll intervals come from each view's own data.
 func TestPolling_PerViewPollState(t *testing.T) {
 	b := newBackend(t)
 	b.json("GET", "/sync/status/aggregate", 200, map[string]any{"overall_state": "idle"})

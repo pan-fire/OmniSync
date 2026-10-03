@@ -17,12 +17,10 @@ function shouldApplyDarkClass (
   return systemPrefersDark;
 }
 
-// Feature: frontend-dashboard, Property 14: Theme mode applies correct class
-describe('Property 14: Theme mode applies correct class', () => {
+describe('Theme mode applies correct class', () => {
   const themeModeArb = fc.constantFrom<ThemeMode>('dark', 'light', 'system');
   const systemPrefArb = fc.boolean();
 
-  // Validates: Requirements 11.1, 11.2, 11.7
   it('for any theme mode, the correct dark class presence is determined', () => {
     fc.assert(
       fc.property(themeModeArb, systemPrefArb, (theme, systemPrefersDark) => {
@@ -43,7 +41,6 @@ describe('Property 14: Theme mode applies correct class', () => {
     );
   });
 
-  // Validates: Requirements 11.1
   it('dark mode always applies dark class regardless of system preference', () => {
     fc.assert(
       fc.property(systemPrefArb, (systemPrefersDark) => {
@@ -53,7 +50,6 @@ describe('Property 14: Theme mode applies correct class', () => {
     );
   });
 
-  // Validates: Requirements 11.1
   it('light mode never applies dark class regardless of system preference', () => {
     fc.assert(
       fc.property(systemPrefArb, (systemPrefersDark) => {
@@ -63,7 +59,6 @@ describe('Property 14: Theme mode applies correct class', () => {
     );
   });
 
-  // Validates: Requirements 11.2
   it('system mode matches OS preference exactly', () => {
     fc.assert(
       fc.property(systemPrefArb, (systemPrefersDark) => {
@@ -76,7 +71,7 @@ describe('Property 14: Theme mode applies correct class', () => {
   });
 });
 
-// frontend-dashboard R11: the Zinc palette, a cool gray with a slight blue
+// The Zinc palette, a cool gray with a slight blue
 // hue (about 286), not shadcn's zero-chroma "neutral".
 describe('Zinc palette', () => {
   const css = readFileSync(path.resolve(__dirname, '../../app/globals.css'), 'utf8');

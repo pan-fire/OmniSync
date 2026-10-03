@@ -42,7 +42,7 @@ async def test_health_database_ok(test_client, rclone_present):
 
 
 async def test_rclone_is_detected_without_any_profile(test_client, rclone_present):
-    # ARC-7: rclone_installed used to come from the first profile's engine.
+    # rclone_installed used to come from the first profile's engine.
     health.set_manager(None)
     data = (await test_client.get("/health")).json()
     assert data["rclone_installed"] is True

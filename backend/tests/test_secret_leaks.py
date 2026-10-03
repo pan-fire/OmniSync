@@ -1,10 +1,10 @@
-"""No secret in logs or API responses (api-security R9).
+"""No secret in logs or API responses.
 
-A1: creating a remote whose token is SECRET123 leaves no trace of it in the
-    captured logs or in GET /logs.
-A2: the OAuth token never reaches the client; /wizard/create takes the
-    session_id of a completed authorization instead.
-A3: error responses carry a generic message; rclone/OS details go to the log.
+- Creating a remote whose token is SECRET123 leaves no trace of it in the
+  captured logs or in GET /logs.
+- The OAuth token never reaches the client; /wizard/create takes the
+  session_id of a completed authorization instead.
+- Error responses carry a generic message; rclone/OS details go to the log.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ async def client():
         yield c
 
 
-# --- A1 + A2: a real remote creation, end to end ---
+# --- a real remote creation, end to end ---
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ async def test_key_remote_secret_never_logged_or_returned(client, log_capture, r
     assert SECRET not in await _all_logs(client)
 
 
-# --- A2: the wizard contract ---
+# --- the wizard contract ---
 
 
 @pytest.fixture
@@ -248,7 +248,7 @@ async def test_key_provider_ignores_session_and_needs_no_token(client, wizard_mo
     assert "token" not in args[2]
 
 
-# --- A3: generic error details, specifics in the log ---
+# --- generic error details, specifics in the log ---
 
 
 LEAK = "rclone: Failed to create file system: /home/alice/.config/secret-path SECRET123"

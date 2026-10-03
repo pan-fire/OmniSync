@@ -80,7 +80,7 @@ async def env(tmp_path: Path):
     await db.dispose()
 
 
-# --- DS-15: strict parsing of rclone check ---
+# --- Strict parsing of rclone check ---
 
 
 async def test_check_keeps_spaces_in_names_and_classifies(env):
@@ -170,7 +170,7 @@ class Event:
         self.event_type = "modified"
 
 
-# --- DS-3: the startup check fails closed ---
+# --- The startup check fails closed ---
 
 
 async def test_failed_startup_check_pauses_intervals(env):
@@ -250,7 +250,7 @@ async def test_save_during_startup_check_waits_for_the_decision(env, monkeypatch
         await engine.stop()
 
 
-# --- DS-11: what each sync did is recorded ---
+# --- What each sync did is recorded ---
 
 
 async def test_push_records_created_modified_and_deleted_files(env):
@@ -292,7 +292,7 @@ async def test_pull_records_changes_on_the_local_side(env):
 
 
 async def test_jobs_of_real_syncs_are_read_back_through_the_api(env):
-    """test-strategy R2: what a real push and pull wrote, as GET /jobs serves it."""
+    """What a real push and pull wrote, as GET /jobs serves it."""
     from httpx import ASGITransport, AsyncClient
 
     from backend.db.database import get_session
@@ -372,7 +372,7 @@ async def test_failed_sync_records_what_it_did_before_failing(env, monkeypatch):
     assert len(deleted) == len(trashed) and job.files_changed >= len(trashed)
 
 
-# --- DS-12: failed listings fail the diff; actions re-check first ---
+# --- Failed listings fail the diff; actions re-check first ---
 
 
 async def test_diff_fails_when_a_listing_fails_and_drops_the_old_diff(env, monkeypatch):
@@ -463,7 +463,7 @@ async def test_unchanged_file_is_pushed_and_the_replaced_version_kept(env):
     assert await job_changes(factory, job.id) == [("doc.txt", "modified", 10)]
 
 
-# --- DS-13: stop stops rclone; the pause state machine ---
+# --- Stop stops rclone; the pause state machine ---
 
 
 async def test_stop_terminates_rclone_and_keeps_the_engine_running(env, tmp_path):

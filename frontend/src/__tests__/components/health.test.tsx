@@ -24,9 +24,7 @@ const HEALTHY: Health = {
   database_ok:       true,
 };
 
-// Feature: frontend-dashboard, Property 12: Health indicator rendering with failure warnings
-describe('Property 12: Health indicator rendering with failure warnings', () => {
-  // Validates: Requirements 8.1, 8.2
+describe('Health indicator rendering with failure warnings', () => {
   it('for any Health object, getHealthChecks returns the local checks with correct ok values', () => {
     fc.assert(
       fc.property(healthArb, (health: Health) => {

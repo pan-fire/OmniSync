@@ -361,7 +361,7 @@ class TestManualFlagsEndpoints:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests: selective_sync pending_changes update (Task 1.4)
+# Integration tests: selective_sync pending_changes update
 # ---------------------------------------------------------------------------
 
 
@@ -395,7 +395,7 @@ def _build_diff_response(files: list[FileDiff]) -> DiffResponse:
 def listing_as_diffed(engine):
     """A mock lsjson_paths: each side holds exactly the files the cached diff saw there.
 
-    The engine re-checks the cached diff before per-file actions (DS-12).
+    The engine re-checks the cached diff before per-file actions.
     """
     async def lsjson_paths(root, paths):
         diff = {f.path: f for f in engine._state.cached_diff.files} if engine._state.cached_diff else {}
@@ -570,7 +570,7 @@ class TestSelectiveSyncPendingChanges:
 
 
 # ---------------------------------------------------------------------------
-# Pagination tests for POST /profiles/{slug}/diff (Task 3.3)
+# Pagination tests for POST /profiles/{slug}/diff
 # ---------------------------------------------------------------------------
 
 from hypothesis import given, settings

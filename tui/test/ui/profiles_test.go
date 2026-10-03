@@ -33,7 +33,7 @@ func bodyOf(b *backend, prefix string) map[string]any {
 	return nil
 }
 
-// TUI-4: the create form takes spaces, digits, 'q' and umlauts, and Tab
+// The create form takes spaces, digits, 'q' and umlauts, and Tab
 // moves between fields.
 func TestProfiles_CreateFormAcceptsOrdinaryInput(t *testing.T) {
 	b := profilesBackend(t)
@@ -67,7 +67,7 @@ func TestProfiles_CreateFormAcceptsOrdinaryInput(t *testing.T) {
 	}
 }
 
-// TUI-5: the edit form writes to the profile it was opened for, even if a
+// The edit form writes to the profile it was opened for, even if a
 // poll reorders the table while it is open.
 func TestProfiles_EditUsesCapturedProfile(t *testing.T) {
 	b := profilesBackend(t)
@@ -85,7 +85,7 @@ func TestProfiles_EditUsesCapturedProfile(t *testing.T) {
 	_ = m
 }
 
-// TUI-2 + TUI-5: delete asks, then sends ?confirm=true for the captured row.
+// Delete asks, then sends ?confirm=true for the captured row.
 func TestProfiles_DeleteConfirmsCapturedProfile(t *testing.T) {
 	b := profilesBackend(t)
 	m := open(t, ui.NewProfilesModel(b.client()))

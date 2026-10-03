@@ -18,11 +18,7 @@ const logEntryArb: fc.Arbitrary<LogEntry> = fc.record({
 
 const nonEmptyLogsArb = fc.array(logEntryArb, { minLength: 1, maxLength: 10 });
 
-// --- Property 8 ---
-
-// Feature: frontend-dashboard, Property 8: Log entry rendering completeness
-describe('Property 8: Log entry rendering completeness', () => {
-  // Validates: Requirements 5.1
+describe('Log entry rendering completeness', () => {
   it("for any non-empty LogEntry array, the rendered view contains each entry's timestamp, level, and message", () => {
     fc.assert(
       fc.property(nonEmptyLogsArb, (logs: LogEntry[]) => {
@@ -49,11 +45,7 @@ describe('Property 8: Log entry rendering completeness', () => {
   });
 });
 
-// --- Property 9 ---
-
-// Feature: frontend-dashboard, Property 9: Log level filtering correctness
-describe('Property 9: Log level filtering correctness', () => {
-  // Validates: Requirements 5.2
+describe('Log level filtering correctness', () => {
   it('for any LogEntry array and selected filter level, filtered entries all match the selected level', () => {
     const filterLevelArb = fc.constantFrom('ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR');
 
@@ -83,11 +75,7 @@ describe('Property 9: Log level filtering correctness', () => {
   });
 });
 
-// --- Property 10 ---
-
-// Feature: frontend-dashboard, Property 10: Log entry ordering
-describe('Property 10: Log entry ordering', () => {
-  // Validates: Requirements 5.4
+describe('Log entry ordering', () => {
   it('for any LogEntry array, sorted entries are in reverse chronological order', () => {
     fc.assert(
       fc.property(

@@ -1,4 +1,4 @@
-"""Backup and restore tests that run the real rclone binary (audit finding DS-10).
+"""Backup and restore tests that run the real rclone binary.
 
 Same pattern as test_sync_safety_integration.py: remotes of type `local` in
 a temp rclone.conf and a real in-memory SQLite database. Skipped when rclone

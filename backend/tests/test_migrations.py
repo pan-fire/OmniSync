@@ -1,4 +1,4 @@
-"""Versioned schema migrations and referential integrity (sync-data-safety R5).
+"""Versioned schema migrations and referential integrity.
 
 Covers fresh databases, databases created by the pre-Alembic startup code
 (create_all plus a hand-written ALTER list), foreign key enforcement on every
@@ -584,7 +584,7 @@ async def test_bwlimit_window_and_user_pause_revision_leaves_profiles_unlimited(
     assert_current_schema(db)
 
 
-# --- cascades through the ORM (A1, DS-11) ---
+# --- cascades through the ORM ---
 
 
 async def _factory(tmp_path):
