@@ -3,6 +3,7 @@ rclone's option parser, rclone.conf, the filesystem and the network."""
 
 from __future__ import annotations
 
+import os
 import stat
 from unittest.mock import AsyncMock
 
@@ -194,6 +195,24 @@ async def test_browse_symlink_out_of_root_is_403(browse_client):
     (root / "escape").symlink_to(tmp / "outside")
     resp = await client.get("/browse/local", params={"path": str(root / "escape")})
     assert resp.status_code == 403
+
+
+async def test_browse_sibling_with_root_as_prefix_is_403(browse_client):
+    # "/x/root-other" starts with "/x/root" but is not inside it.
+    client, root, _ = browse_client
+    sibling = root.parent / (root.name + "-other")
+    sibling.mkdir()
+    resp = await client.get("/browse/local", params={"path": str(sibling)})
+    assert resp.status_code == 403
+
+
+async def test_browse_root_slash_allows_everything(browse_client, monkeypatch):
+    client, root, _ = browse_client
+    monkeypatch.setenv("OMNISYNC_BROWSE_ROOTS", "/")
+    resp = await client.get("/browse/local", params={"path": str(root)})
+    assert resp.status_code == 200
+    assert resp.json()["current"] == os.path.realpath(root)
+    assert (await client.get("/browse/local", params={"path": "/"})).json()["parent"] is None
 
 
 # --- Web Push endpoints must be real push services ---
