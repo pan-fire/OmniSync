@@ -14,7 +14,7 @@
 # is pulled); Dependabot (docker ecosystem) moves both together.
 
 # ---- Dependencies ----
-FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS deps
+FROM node:26-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS deps
 
 # Exact pnpm release, same major as CI (.github/workflows/ci.yml).
 ARG PNPM_VERSION=10.34.5
@@ -32,7 +32,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Runtime ----
-FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
+FROM node:26-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS runtime
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
