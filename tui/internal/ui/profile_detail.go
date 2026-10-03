@@ -1128,7 +1128,7 @@ func (m ProfileDetailModel) View() tea.View {
 		return tea.NewView(b.String())
 	}
 	if m.checking != nil {
-		b.WriteString(fmt.Sprintf("  Counting what a %s of %q would change (nothing is changed yet)...\n\n", strings.ToLower(directionVerb(m.checking.dir)), m.checking.name))
+		fmt.Fprintf(&b, "  Counting what a %s of %q would change (nothing is changed yet)...\n\n", strings.ToLower(directionVerb(m.checking.dir)), m.checking.name)
 		b.WriteString(mutedText("  Esc: cancel"))
 		return tea.NewView(b.String())
 	}
@@ -1177,7 +1177,7 @@ func (m ProfileDetailModel) renderOverviewTab() string {
 
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("  State: %s", components.RenderBadge(string(p.State))))
+	fmt.Fprintf(&b, "  State: %s", components.RenderBadge(string(p.State)))
 	if m.syncing {
 		b.WriteString("  " + m.spinner.View())
 	}
@@ -1211,26 +1211,26 @@ func (m ProfileDetailModel) renderOverviewTab() string {
 	if !p.Enabled {
 		enabled = "no (sync engine stopped)"
 	}
-	b.WriteString(fmt.Sprintf("  Mode: %s\n", valueStyle.Render(syncModeSummary(p.SyncMode))))
-	b.WriteString(fmt.Sprintf("  Enabled: %s\n", valueStyle.Render(enabled)))
-	b.WriteString(fmt.Sprintf("  Local:  %s\n", valueStyle.Render(p.LocalDir)))
-	b.WriteString(fmt.Sprintf("  Remote: %s\n", valueStyle.Render(p.RemoteDir)))
-	b.WriteString(fmt.Sprintf("  Last sync: %s\n", mutedText(formatTimePtr(p.LastSync, "never"))))
-	b.WriteString(fmt.Sprintf("  Files: %s  Errors: %s  Pending: %s\n",
+	fmt.Fprintf(&b, "  Mode: %s\n", valueStyle.Render(syncModeSummary(p.SyncMode)))
+	fmt.Fprintf(&b, "  Enabled: %s\n", valueStyle.Render(enabled))
+	fmt.Fprintf(&b, "  Local:  %s\n", valueStyle.Render(p.LocalDir))
+	fmt.Fprintf(&b, "  Remote: %s\n", valueStyle.Render(p.RemoteDir))
+	fmt.Fprintf(&b, "  Last sync: %s\n", mutedText(formatTimePtr(p.LastSync, "never")))
+	fmt.Fprintf(&b, "  Files: %s  Errors: %s  Pending: %s\n",
 		valueStyle.Render(fmt.Sprintf("%d", p.FilesProcessed)),
 		valueStyle.Render(fmt.Sprintf("%d", p.Errors)),
-		valueStyle.Render(fmt.Sprintf("%d", p.PendingChanges)),
-	))
+		valueStyle.Render(fmt.Sprintf("%d", p.PendingChanges)))
+
 	limit := deleteLimitShort(p.MaxDelete)
 	if p.TwoWay() && p.MaxDelete != nil {
 		limit += " on each side (checked before a two-way sync changes anything)"
 	}
-	b.WriteString(fmt.Sprintf("  Delete limit: %s\n", valueStyle.Render(limit)))
+	fmt.Fprintf(&b, "  Delete limit: %s\n", valueStyle.Render(limit))
 	if p.Bwlimit != nil && *p.Bwlimit != "" {
-		b.WriteString(fmt.Sprintf("  Bandwidth limit: %s\n", valueStyle.Render(*p.Bwlimit)))
+		fmt.Fprintf(&b, "  Bandwidth limit: %s\n", valueStyle.Render(*p.Bwlimit))
 	}
 	if p.SyncWindow != nil {
-		b.WriteString(fmt.Sprintf("  Sync window: %s (server time; automatic syncs only)\n", valueStyle.Render(formatSyncWindow(p.SyncWindow))))
+		fmt.Fprintf(&b, "  Sync window: %s (server time; automatic syncs only)\n", valueStyle.Render(formatSyncWindow(p.SyncWindow)))
 	}
 	if status := windowStatus(p.OutsideSyncWindow, p.WaitingForWindow, p.NextWindowStart); status != "" {
 		b.WriteString(mutedText("  "+status) + "\n")

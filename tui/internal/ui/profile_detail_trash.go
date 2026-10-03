@@ -241,7 +241,7 @@ func (m ProfileDetailModel) renderTrashTab() string {
 	if m.trash.side == api.TrashSideRemote {
 		side = "remote folder"
 	}
-	b.WriteString(fmt.Sprintf("  Trash of the %s (.omnisync-trash): files syncs replaced or deleted\n", side))
+	fmt.Fprintf(&b, "  Trash of the %s (.omnisync-trash): files syncs replaced or deleted\n", side)
 	switch {
 	case m.trash.err != nil:
 		b.WriteString(errorLine(m.trash.err))

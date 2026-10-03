@@ -590,15 +590,15 @@ func (m DashboardModel) renderAggregatePanel() string {
 		last = formatTime(lastSync)
 	}
 
-	b.WriteString(fmt.Sprintf("  State: %s  Pending: %s\n",
+	fmt.Fprintf(&b, "  State: %s  Pending: %s\n",
 		components.RenderBadge(string(s.OverallState)),
-		valueStyle.Render(fmt.Sprintf("%d", s.TotalPendingChanges)),
-	))
-	b.WriteString(fmt.Sprintf("  Profiles: %s  Syncing: %s  Last sync: %s\n",
+		valueStyle.Render(fmt.Sprintf("%d", s.TotalPendingChanges)))
+
+	fmt.Fprintf(&b, "  Profiles: %s  Syncing: %s  Last sync: %s\n",
 		valueStyle.Render(fmt.Sprintf("%d", len(s.ProfilesSummary))),
 		valueStyle.Render(fmt.Sprintf("%d", activeCount)),
-		labelStyle.Render(last),
-	))
+		labelStyle.Render(last))
+
 	warn := lipgloss.NewStyle().Foreground(theme.Current.Warning)
 	for _, p := range s.PausedProfiles {
 		if p.UserPaused && p.PendingChanges == 0 {
@@ -610,7 +610,7 @@ func (m DashboardModel) renderAggregatePanel() string {
 	}
 	for _, p := range s.ProfilesSummary {
 		if line := progressLine(p.Progress); line != "" && p.State.Busy() {
-			b.WriteString(fmt.Sprintf("  %s: %s\n", p.Name, valueStyle.Render(line)))
+			fmt.Fprintf(&b, "  %s: %s\n", p.Name, valueStyle.Render(line))
 		}
 	}
 	for _, p := range s.ProfilesSummary {
@@ -643,21 +643,21 @@ func (m DashboardModel) renderHealthPanel() string {
 
 	h := m.health
 	status := checkMark(h.Healthy()) + " " + h.Status
-	b.WriteString(fmt.Sprintf("  status: %s  rclone: %s  database: %s  uptime: %s\n",
+	fmt.Fprintf(&b, "  status: %s  rclone: %s  database: %s  uptime: %s\n",
 		status,
 		checkMark(h.RcloneInstalled),
 		checkMark(h.DatabaseOK),
-		labelStyle.Render(formatUptime(h.UptimeSeconds)),
-	))
+		labelStyle.Render(formatUptime(h.UptimeSeconds)))
+
 	b.WriteString(m.renderRemotesLine())
 
 	switch {
 	case m.network != nil:
-		b.WriteString(fmt.Sprintf("  dns: %s  internet: %s  rclone network: %s\n",
+		fmt.Fprintf(&b, "  dns: %s  internet: %s  rclone network: %s\n",
 			checkMark(m.network.DNSGoogle.OK),
 			checkMark(m.network.HttpxCloudflare.OK),
-			checkMark(m.network.RcloneNetwork.OK),
-		))
+			checkMark(m.network.RcloneNetwork.OK))
+
 	case m.networkErr != nil:
 		b.WriteString(labelStyle.Render("  network check failed: " + m.networkErr.Error()))
 		b.WriteString("\n")

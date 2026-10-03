@@ -417,7 +417,7 @@ func (m RemotesModel) View() tea.View {
 		b.WriteString("  Importing...")
 		return tea.NewView(b.String())
 	case remotesModeCheckingDeps:
-		b.WriteString(fmt.Sprintf("  Checking what uses %q...\n\n", m.pendingName))
+		fmt.Fprintf(&b, "  Checking what uses %q...\n\n", m.pendingName)
 		b.WriteString(mutedText("  Esc: cancel"))
 		return tea.NewView(b.String())
 	}

@@ -99,7 +99,7 @@ func (m ProfileDetailModel) askSelective(action api.FileAction) (tea.Model, tea.
 func (m ProfileDetailModel) renderDiffTab() string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("  Filter: %s\n", mutedText(diffFilterLabels[m.diffFilter])))
+	fmt.Fprintf(&b, "  Filter: %s\n", mutedText(diffFilterLabels[m.diffFilter]))
 
 	if m.diffErr != nil {
 		b.WriteString(errorLine(m.diffErr))
@@ -116,8 +116,9 @@ func (m ProfileDetailModel) renderDiffTab() string {
 	}
 
 	s := m.diffData.Summary
-	b.WriteString(fmt.Sprintf("  Total: %d  Local only: %d  Remote only: %d  Mod local: %d  Mod remote: %d  Mod both: %d  Manual: %d\n",
-		s.Total, s.LocalOnly, s.RemoteOnly, s.ModifiedLocal, s.ModifiedRemote, s.ModifiedBoth, s.Manual))
+	fmt.Fprintf(&b, "  Total: %d  Local only: %d  Remote only: %d  Mod local: %d  Mod remote: %d  Mod both: %d  Manual: %d\n",
+		s.Total, s.LocalOnly, s.RemoteOnly, s.ModifiedLocal, s.ModifiedRemote, s.ModifiedBoth, s.Manual)
+
 	if m.diffData.Error != nil && *m.diffData.Error != "" {
 		b.WriteString(errorLine(fmt.Errorf("%s", *m.diffData.Error)))
 	}
@@ -130,9 +131,9 @@ func (m ProfileDetailModel) renderDiffTab() string {
 	}
 	b.WriteString(mutedText("  Space:select  a:all  p:push  l:pull  s:skip  m:manual  f:filter  n/N:page  r:reload"))
 	if selected := m.diffTable.SelectedCount(); selected > 0 {
-		b.WriteString(fmt.Sprintf("\n  %d selected %s p/l/s/m apply to the selection", selected, theme.Glyphs().EmDash))
+		fmt.Fprintf(&b, "\n  %d selected %s p/l/s/m apply to the selection", selected, theme.Glyphs().EmDash)
 	} else if row := m.diffTable.SelectedRow(); row != nil {
-		b.WriteString(fmt.Sprintf("\n  Current file: %s %s p/l/s/m apply to this file", mutedText(row.Key), theme.Glyphs().EmDash))
+		fmt.Fprintf(&b, "\n  Current file: %s %s p/l/s/m apply to this file", mutedText(row.Key), theme.Glyphs().EmDash)
 	}
 
 	return b.String()
