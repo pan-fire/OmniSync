@@ -51,6 +51,10 @@ release notes.
 - The images are labelled with the repository
   (`org.opencontainers.image.source`, also on the multi-platform index),
   so GHCR links each package to `github.com/pan-fire/OmniSync`.
+- The `osync` TUI and CLI are built with Go 1.27.1 (toolchain), and the
+  web UI's dependencies are updated, among them lucide-react 1.49.
+  Building `osync` from the source still needs Go 1.25 or newer, which
+  fetches the 1.27.1 toolchain by itself.
 
 ### Removed
 
