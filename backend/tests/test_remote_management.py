@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import configparser
 import json
+import logging
 import shutil
 from pathlib import Path
 
@@ -262,6 +263,15 @@ class TestEditRemote:
         assert resp.status_code == 200
         section = _read_conf(conf)["box"]
         assert "pass" not in section and section["key_file"] == "/keys/id"
+
+    async def test_update_logs_option_names_not_values(self, client, conf, sftp, caplog) -> None:
+        with caplog.at_level(logging.INFO, logger="backend.services.rclone"):
+            resp = await client.put("/remotes/box", json={"params": {"host": "h2.example", "pass": "s3cret-pw"}})
+        assert resp.status_code == 200
+        assert "Updated remote 'box' (changed: host, pass; removed: -)" in caplog.text
+        obscured = _read_conf(conf)["box"]["pass"]
+        assert "s3cret-pw" not in caplog.text and obscured not in caplog.text
+        assert "h2.example" not in caplog.text
 
     @pytest.mark.parametrize("body", [
         {"params": {"ssh": "touch /tmp/pwned"}},
