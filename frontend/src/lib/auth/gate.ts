@@ -135,8 +135,9 @@ export function isSecureRequest (request: NextRequest, isAllowedHost: (host: str
 export function clientAddress (request: NextRequest): string {
   const entries = request.headers.get('x-forwarded-for')?.split(',') ?? [];
   const last = entries[entries.length - 1]?.trim() ?? '';
-  // Only characters of IPv4/IPv6 addresses: the value goes into the log.
-  return /^[0-9A-Fa-f.:[\]%a-z]{1,64}$/.test(last) ? last : 'unknown';
+  // Only characters of IPv4/IPv6 addresses (hex digits, '.', ':', brackets)
+  // and a lowercase zone id after '%': the value goes into the log.
+  return /^[0-9a-zA-F.:[\]%]{1,64}$/.test(last) ? last : 'unknown';
 }
 
 /** The valid session the request carries, if any. */
