@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from './axe';
 import { PROFILE, mockBackend } from './mock-backend';
 import fa from '../src/i18n/locales/fa.json';
+import packageJson from '../package.json';
 
 // The login is off on this server (project "app" in playwright.config.ts).
 
@@ -23,6 +24,10 @@ test('the dashboard loads', async ({ page }) => {
   await expect(page.getByText(PROFILE.name).first()).toBeVisible();
   // The login is off: no logout button.
   await expect(page.getByRole('button', { name: 'Log out' })).toHaveCount(0);
+  // The mocked backend runs the UI's version: no mismatch note.
+  const version = page.getByTestId('version-info');
+  await expect(version).toContainText(packageJson.version);
+  await expect(version).not.toContainText('Backend');
   await expectNoSeriousA11yViolations(page);
 });
 

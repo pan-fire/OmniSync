@@ -2,6 +2,7 @@ import type { Page, Route } from '@playwright/test';
 import type {
   AggregateStatus, ErrorResponse, GlobalConfig, Health, ProfileStatus, Remote, RemoteHealthResponse, SyncJob,
 } from '@/types';
+import packageJson from '../package.json';
 
 // The backend, mocked in the browser: every /api request the pages make is
 // answered here (Playwright route interception), so the suite needs no
@@ -59,7 +60,8 @@ const HEALTH: Health = {
   remote_accessible: null,
   uptime_seconds:    3600,
   database_ok:       true,
-  version:           '0.9.0',
+  // The version the UI was built with, so the sidebar shows no mismatch.
+  version:           packageJson.version,
 };
 
 const REMOTES: Remote[] = [{
