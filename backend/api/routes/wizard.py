@@ -424,6 +424,27 @@ async def cancel_session(session_id: str) -> dict[str, str]:
     return {"detail": "Session cancelled"}
 
 
+def _session_app(session: WizardSession, params: dict[str, str]) -> dict[str, str]:
+    """The OAuth app (client_id, client_secret) the session's token was issued to.
+
+    A client_id or client_secret in ``params`` must be that app's: anything
+    else is refused (``oauth_client_mismatch``), since the remote would hold
+    a token its app cannot refresh. Empty values count as not sent.
+    """
+    app = {"client_id": session.client_id or ""}
+    if session.client_secret:
+        app["client_secret"] = session.client_secret
+    for key in ("client_id", "client_secret"):
+        sent = (params.get(key) or "").strip()
+        if sent and sent != app.get(key, ""):
+            raise api_error(
+                422, "oauth_client_mismatch",
+                "The client ID or secret differs from the app this authorization was started with. "
+                "Start the sign-in again with the app you want the remote to use.",
+            )
+    return app
+
+
 @router.post("/create")
 async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
     """Create an rclone remote.
@@ -431,7 +452,9 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
     Key-based providers pass their settings in ``params``. OAuth providers
     pass the ``session_id`` of a completed authorization; the token is taken
     from that session on the server and the session ends once the remote
-    exists. Clients never see or send the token.
+    exists. Clients never see or send the token. The remote stores the OAuth
+    app (client_id, client_secret) the authorization was started with; a
+    different one in ``params`` is refused (``oauth_client_mismatch``).
     """
     rclone = _get_rclone()
 
@@ -442,6 +465,7 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
     token: str | None = None
     session_id: str | None = None
     extra_config: dict[str, str] = {}
+    app: dict[str, str] = {}
     if provider.auth_type == AuthType.OAUTH:
         if not request.session_id:
             raise api_error(
@@ -463,6 +487,15 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
         token = session.token
         session_id = session.session_id
         extra_config = session.extra_config
+        app = _session_app(session, request.params)
+
+    params_in = dict(request.params)
+    if provider.auth_type == AuthType.OAUTH:
+        # The token belongs to the app the authorization was started with:
+        # that app goes into the remote, never one sent along with the token.
+        params_in.pop("client_id", None)
+        params_in.pop("client_secret", None)
+        params_in.update(app)
 
     if not validate_remote_name(request.name):
         raise api_error(
@@ -475,13 +508,13 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
 
     existing = await existing_remote_names(rclone, provider)
     errors = validate_remote_params(
-        provider, request.params, has_token=token is not None, existing_remotes=existing, own_name=request.name,
+        provider, params_in, has_token=token is not None, existing_remotes=existing, own_name=request.name,
     )
-    errors += missing_required(provider, request.params)
+    errors += missing_required(provider, params_in)
     if errors:
         raise api_error(422, "invalid_params", "; ".join(errors), errors=errors)
 
-    params = await obscure_secrets(rclone, provider, {k: v for k, v in request.params.items() if v != ""}, request.name)
+    params = await obscure_secrets(rclone, provider, {k: v for k, v in params_in.items() if v != ""}, request.name)
     if token is not None:
         params["token"] = token
         # Found by the sign-in (OneDrive's drive_id and drive_type).

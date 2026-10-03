@@ -150,17 +150,19 @@ class TestOwnAppRequired:
         shown = await client.get("/wizard/oauth/redirect-uri")
         assert shown.json() == {"redirect_uri": "https://sync.lan/api/wizard/oauth/callback"}
 
-    async def test_create_needs_the_client_id_too(self, client, token_endpoint) -> None:
+    async def test_create_stores_the_app_the_session_was_authorized_with(self, client, token_endpoint) -> None:
+        """The remote gets the authorize call's app, which issued the token; another app is refused."""
         sid = (await client.post("/wizard/authorize", json={
             "provider_id": "dropbox", **OWN_APPS["dropbox"],
         })).json()["session_id"]
         await client.get("/wizard/oauth/callback", params={"code": CODE, "state": sid})
         refused = await client.post("/wizard/create", json={
-            "name": "box", "provider_id": "dropbox", "params": {}, "session_id": sid,
+            "name": "box", "provider_id": "dropbox", "params": {"client_id": "someoneelse"}, "session_id": sid,
         })
         assert refused.status_code == 422
+        assert refused.json()["code"] == "oauth_client_mismatch"
         created = await client.post("/wizard/create", json={
-            "name": "box", "provider_id": "dropbox", "params": OWN_APPS["dropbox"], "session_id": sid,
+            "name": "box", "provider_id": "dropbox", "params": {}, "session_id": sid,
         })
         assert created.status_code == 200, created.text
         name, provider, params = client.rclone.create_remote.await_args.args

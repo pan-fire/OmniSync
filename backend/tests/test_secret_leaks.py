@@ -147,6 +147,9 @@ def wizard_mock(monkeypatch):
 
 async def _completed_session(manager: WizardSessionManager, provider: str = "drive", token: str = '{"t":1}'):
     session = await manager.create_session(provider)
+    # The app POST /wizard/authorize was started with.
+    session.client_id = "own.apps"
+    session.client_secret = "own-app-secret"
     session.status = "completed"
     session.token = token
     return session
@@ -174,6 +177,52 @@ async def test_create_takes_token_from_session_and_ends_it(client, wizard_mock):
     )
     assert manager.get_session(session.session_id) is None
     assert (await client.get(f"/wizard/sessions/{session.session_id}")).status_code == 404
+
+
+async def test_create_stores_the_sessions_app_when_params_omit_it(client, wizard_mock):
+    mock, manager = wizard_mock
+    session = await _completed_session(manager, token='{"access_token":"abc"}')
+    resp = await client.post("/wizard/create", json={
+        "name": "gdrive", "provider_id": "drive", "session_id": session.session_id,
+        "params": {"client_id": "", "client_secret": ""},
+    })
+    assert resp.status_code == 200, resp.text
+    mock.create_remote.assert_awaited_once_with(
+        "gdrive", "drive",
+        {"client_id": "own.apps", "client_secret": "own-app-secret", "token": '{"access_token":"abc"}'},
+    )
+
+
+@pytest.mark.parametrize("params", [
+    {"client_id": "other.apps", "client_secret": "own-app-secret"},
+    {"client_id": "own.apps", "client_secret": "other-secret"},
+    {"client_id": "other.apps"},
+])
+async def test_create_refuses_an_app_other_than_the_sessions(client, wizard_mock, params):
+    """The token was issued to the session's app: another app could never refresh it."""
+    mock, manager = wizard_mock
+    session = await _completed_session(manager)
+    resp = await client.post("/wizard/create", json={
+        "name": "gdrive", "provider_id": "drive", "params": params, "session_id": session.session_id,
+    })
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "oauth_client_mismatch"
+    assert "other" not in resp.text
+    mock.create_remote.assert_not_awaited()
+    assert manager.get_session(session.session_id) is not None
+
+
+async def test_create_refuses_a_secret_for_an_app_authorized_without_one(client, wizard_mock):
+    mock, manager = wizard_mock
+    session = await _completed_session(manager, provider="dropbox")
+    session.client_secret = None
+    resp = await client.post("/wizard/create", json={
+        "name": "box", "provider_id": "dropbox", "session_id": session.session_id,
+        "params": {"client_id": "own.apps", "client_secret": "added-later"},
+    })
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "oauth_client_mismatch"
+    mock.create_remote.assert_not_awaited()
 
 
 async def test_create_rejects_a_client_supplied_token(client, wizard_mock):

@@ -189,6 +189,7 @@ only in the OmniSync log.
 | `too_many_sessions` | 429 | Too many wizard sessions at once |
 | `wizard_session_not_found` | 404 | Unknown or expired wizard session |
 | `session_mismatch` | 422 | The session belongs to another provider or remote |
+| `oauth_client_mismatch` | 422 | `/wizard/create` got a client ID or secret other than the app the sign-in was started with |
 | `wrong_oauth_flow` | 422 | The step does not fit this session (new remote or reconnect) |
 | `authorization_pending` | 409 | The authorization is not complete yet |
 | `authorization_required` | 422 | The provider needs a completed authorization (`session_id`) |
