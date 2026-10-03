@@ -133,6 +133,8 @@ async def env(request, tmp_path: Path, monkeypatch):
                              f"testremote:{tempfile.gettempdir()}/osync-xxxxxxxx/remote"):
             pytest.skip("TMPDIR is too long for the real-path variant; set TMPDIR=/tmp to run it")
         base = Path(tempfile.mkdtemp(prefix="osync-"))
+        # Removed even when the test or the checks after it fail.
+        request.addfinalizer(lambda: shutil.rmtree(base, ignore_errors=True))
     else:
         base = tmp_path / ("deep-" + "d" * 100) / ("folder-" + "f" * 30)
     local, remote = base / "local", base / "remote"
@@ -180,8 +182,6 @@ async def env(request, tmp_path: Path, monkeypatch):
     assert bisync_files_named_after(workdir) <= {expected}
     if (workdir / "omnisync-state.json").is_file() and bisync_files_named_after(workdir):
         assert '"names": "%s"' % request.param in (workdir / "omnisync-state.json").read_text()
-    if request.param == "paths":
-        shutil.rmtree(base, ignore_errors=True)
     profile_routes.set_manager(None)
     profile_routes.set_profile_service(None)
     conflict_routes.set_manager(None)
