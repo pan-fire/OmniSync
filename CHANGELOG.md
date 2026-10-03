@@ -12,6 +12,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-03
+
 ### Breaking changes and upgrade notes
 
 - **OAuth providers need your own app; existing remotes keep working.**
@@ -711,4 +713,5 @@ never published.
   Python dependencies are installed from an exact lock file.
 - The OAuth token stays on the server and is never returned by the API.
 
-[Unreleased]: https://github.com/pan-fire/OmniSync/commits/main
+[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0
