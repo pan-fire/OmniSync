@@ -33,8 +33,22 @@ would destroy data.
 - **Web UI** in English, German and Persian, and **`osync`**, a terminal UI
   with scripting subcommands
 
+## Why OmniSync?
+
+rclone reaches more than 70 storage providers, but on its own it is a
+command line: two-way sync (`rclone bisync`) needs scripts, schedules and
+care to run safely. Syncthing syncs between your own devices but not to
+cloud storage; Nextcloud brings a whole server stack; Insync and similar
+clients are proprietary and cover a few providers. OmniSync puts rclone's
+reach behind a web UI and a terminal UI, runs two-way sync for you with
+guards against the classic data-loss mistakes (an unmounted folder, a
+mass deletion, a lost sync state), and adds scheduled, optionally
+encrypted backups. It is self-hosted, keeps your credentials on your own
+machine, and is free software under the GPL-3.0.
+
 ## Contents
 
+- [Why OmniSync?](#why-omnisync)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
 - [Install a release](#install-a-release) ([verify it](#verify-a-release))

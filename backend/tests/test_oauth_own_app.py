@@ -232,6 +232,17 @@ class TestExchange:
         assert "invalid_grant" in caplog.text
         assert CODE not in caplog.text
 
+    @pytest.mark.parametrize("error", [f"bad code {CODE}", "x" * 65, ["invalid_grant"]])
+    async def test_provider_error_that_is_no_code_is_not_logged(self, token_endpoint, caplog, error) -> None:
+        # Only a short code-like "error" value is logged; a provider echoing
+        # the request (or anything else) into the field is dropped.
+        token_endpoint.status = 400
+        token_endpoint.body = {"error": error}
+        with caplog.at_level(logging.ERROR):
+            assert await exchange_code_for_token("drive", CODE, redirect_uri=CALLBACK, client_id="k") is None
+        assert "Token exchange failed for drive: HTTP 400 " in [r.getMessage() for r in caplog.records]
+        assert CODE not in caplog.text and "xxxx" not in caplog.text
+
     async def test_answer_without_access_token_returns_none(self, token_endpoint) -> None:
         token_endpoint.body = {"token_type": "Bearer"}
         assert await exchange_code_for_token("drive", CODE, redirect_uri=CALLBACK, client_id="k") is None
@@ -252,6 +263,35 @@ class TestExchange:
 
 
 # --- No built-in credentials anywhere ---
+
+
+async def test_sign_in_failure_shows_only_the_fixed_message(client, monkeypatch) -> None:
+    """The session and the callback page carry the constant for the error's
+    code, never the exception's own text."""
+
+    class LeakyFlowError(oauth.OAuthFlowError):
+        code = "onedrive_drive_lookup_failed"
+
+        def __str__(self) -> str:
+            return "Traceback (most recent call last): access_token=ya29.leak"
+
+    monkeypatch.setattr(wizard, "exchange_code_for_token", AsyncMock(side_effect=LeakyFlowError()))
+    sid = (await client.post("/wizard/authorize", json={
+        "provider_id": "dropbox", **OWN_APPS["dropbox"],
+    })).json()["session_id"]
+    page = await client.get("/wizard/oauth/callback", params={"code": CODE, "state": sid})
+    status = await client.get(f"/wizard/sessions/{sid}")
+    expected = oauth.OAUTH_FLOW_MESSAGES["onedrive_drive_lookup_failed"]
+    assert "ya29.leak" not in page.text and "Traceback" not in page.text
+    assert "OneDrive could not be read" in page.text
+    assert status.json()["error"] == expected
+    assert status.json()["error_code"] == "onedrive_drive_lookup_failed"
+
+
+def test_every_flow_error_code_has_a_message() -> None:
+    assert str(oauth.OneDriveDriveError()) == oauth.OAUTH_FLOW_MESSAGES[oauth.OneDriveDriveError.code]
+    assert str(oauth.OAuthFlowError()) == oauth.OAUTH_FLOW_MESSAGES[oauth.OAuthFlowError.code]
+    assert oauth.oauth_flow_message("unknown") == oauth.OAUTH_FLOW_MESSAGES["oauth_failed"]
 
 
 def test_no_builtin_client_fields_remain() -> None:

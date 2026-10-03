@@ -44,30 +44,45 @@ GRAPH_ME_DRIVE_URL = "https://graph.microsoft.com/v1.0/me/drive"
 ONEDRIVE_DRIVE_TYPES = frozenset({"personal", "business", "documentLibrary"})
 # Drive ids seen in practice: personal "0123abcd...", business "b!AbC-_...".
 _DRIVE_ID_RE = re.compile(r"^[A-Za-z0-9!._~-]{1,256}$")
+# An error code from a provider's error body, as logged: short and code-like.
+_ERROR_CODE_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+
+
+# The fixed English message of each OAuthFlowError code (the web UI shows
+# its own translation, keyed by the code).
+OAUTH_FLOW_MESSAGES: dict[str, str] = {
+    "oauth_failed": "The sign-in failed. Start it again.",
+    "onedrive_drive_lookup_failed": (
+        "Signed in, but your OneDrive could not be read, so no remote was saved. "
+        "If OneDrive was never opened with this account, open it once in the browser, "
+        "then start the sign-in again."
+    ),
+}
+
+
+def oauth_flow_message(code: str) -> str:
+    """The message shown for OAuthFlowError ``code``: a constant, never exception text."""
+    return OAUTH_FLOW_MESSAGES.get(code, OAUTH_FLOW_MESSAGES["oauth_failed"])
 
 
 class OAuthFlowError(Exception):
     """A sign-in failure the user can act on.
 
     ``code`` is stable and machine-readable (the web UI translates it);
-    ``str(e)`` is a fixed English message safe to show. Neither carries
-    anything from the provider's answer.
+    callers show ``oauth_flow_message(e.code)``, a fixed English message.
+    Neither carries anything from the provider's answer.
     """
 
     code = "oauth_failed"
+
+    def __init__(self) -> None:
+        super().__init__(oauth_flow_message(self.code))
 
 
 class OneDriveDriveError(OAuthFlowError):
     """The OneDrive account's drive could not be read after the sign-in."""
 
     code = "onedrive_drive_lookup_failed"
-
-    def __init__(self) -> None:
-        super().__init__(
-            "Signed in, but your OneDrive could not be read, so no remote was saved. "
-            "If OneDrive was never opened with this account, open it once in the browser, "
-            "then start the sign-in again."
-        )
 
 
 @dataclass
@@ -209,7 +224,7 @@ async def exchange_code_for_token(
             # never the request with the code and secret.
             reason = type(e).__name__
             if isinstance(e, httpx.HTTPStatusError):
-                reason = f"HTTP {e.response.status_code} {_oauth_error_code(e.response)}"
+                reason = f"HTTP {e.response.status_code} {_token_error_code(e.response)}"
             logger.error("Token exchange failed for %s: %s", provider_id, reason)
             return None
 
@@ -277,17 +292,21 @@ def _graph_error_code(response: httpx.Response) -> str:
         return ""
     error = body.get("error") if isinstance(body, dict) else None
     code = error.get("code") if isinstance(error, dict) else None
-    return code[:64] if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_.-]+", code) else ""
+    return code if isinstance(code, str) and _ERROR_CODE_RE.fullmatch(code) else ""
 
 
-def _oauth_error_code(response: httpx.Response) -> str:
-    """The RFC 6749 ``error`` field of a token endpoint's error body, if any."""
+def _token_error_code(response: httpx.Response) -> str:
+    """The RFC 6749 ``error`` field of a token endpoint's error body, if any.
+
+    Only a short code-like value (e.g. ``invalid_grant``) is returned, so a
+    provider echoing anything else into the field never reaches the log.
+    """
     try:
         body = response.json()
     except ValueError:
         return ""
     error = body.get("error") if isinstance(body, dict) else None
-    return error[:64] if isinstance(error, str) else ""
+    return error if isinstance(error, str) and _ERROR_CODE_RE.fullmatch(error) else ""
 
 
 def _compute_expiry(expires_in: int | None) -> str:

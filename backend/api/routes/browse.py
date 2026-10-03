@@ -32,6 +32,12 @@ def set_rclone_service(service: RcloneService) -> None:
     _rclone_service = service
 
 
+def _dir_prefix(root: Path) -> str:
+    """``root`` as a prefix that only paths inside it start with ("/" stays "/")."""
+    text = str(root)
+    return text if text.endswith(os.sep) else text + os.sep
+
+
 @router.get("/local", response_model=BrowseResponse)
 async def browse_local(
     path: str = Query("~", description="Directory path to list (within the allowed roots)"),
@@ -41,15 +47,27 @@ async def browse_local(
     Only returns directories (not files) since we're picking a sync folder.
     Resolves ~ to the user's home directory.
     """
-    # Resolve ~ and normalize (symlinks too, so a link cannot escape a root)
-    resolved = Path(os.path.expanduser(path)).resolve()
+    # Resolve ~ and normalize (symlinks too, so a link cannot escape a root),
+    # then confine to the roots with a plain realpath + prefix check in this
+    # function: the shape CodeQL's py/path-injection query recognises as a
+    # sanitizer. Only a value from inside a passed check is used below.
+    real = os.path.realpath(os.path.expanduser(path))
     roots = browse_roots()
-    if not any(resolved == root or root in resolved.parents for root in roots):
+    allowed: str | None = None
+    for root in roots:
+        if real == str(root):
+            allowed = str(root)
+        elif real.startswith(_dir_prefix(root)):
+            allowed = real
+        if allowed is not None:
+            break
+    if allowed is None:
         raise api_error(
             403, "path_not_allowed",
             "Browsing is limited to: " + ", ".join(str(r) for r in roots)
             + ". Set OMNISYNC_BROWSE_ROOTS to allow other folders.",
         )
+    resolved = Path(allowed)
 
     if not resolved.is_dir():
         raise api_error(404, "directory_not_found", "Directory not found")
