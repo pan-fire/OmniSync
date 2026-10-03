@@ -1,0 +1,7 @@
+{
+  "session_id": "sess-123",
+  "status": "failed",
+  "auth_url": "https://accounts.example.com/o/oauth2/auth?state=sess-123",
+  "error": "Failed to exchange authorization code for token",
+  "error_code": null
+}

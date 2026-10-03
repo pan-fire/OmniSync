@@ -1,0 +1,64 @@
+# Weekly dependency updates. Minor and patch updates of an ecosystem come
+# as one grouped pull request; a major update gets its own, since it may
+# need code changes. Security updates are not grouped and come as soon as an
+# advisory appears.
+#
+# backend/requirements.lock holds the exact pins the image ships; when a
+# backend update changes requirements.txt, regenerate the lock as its header
+# says, so a transitive pin cannot drift from what was tested.
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /tui
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      tui-minor-patch:
+        update-types: [minor, patch]
+
+  # The Dockerfiles pin base images by tag and digest; Dependabot moves the
+  # digest when the tag is rebuilt (security fixes in the base) and the tag
+  # on a new release.
+  - package-ecosystem: docker
+    directories: [/, /frontend, /tui]
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      images-minor-patch:
+        update-types: [minor, patch]
+
+  # The workflows pin every action to a commit SHA with the release in a
+  # comment; Dependabot updates both. Before merging an action update, check
+  # it still runs on Node 24 (see ci.yml).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

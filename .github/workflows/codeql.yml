@@ -1,0 +1,84 @@
+name: CodeQL
+
+# CodeQL for Python, JavaScript/TypeScript and Go: on every push to main, on
+# a pull request that changes code, weekly (new queries find old code), and
+# on demand.
+#
+# Results go to the repository's code scanning alerts (free for a public
+# repository). Where code scanning is not available the upload fails: set
+# the repository variable CODEQL_UPLOAD to "false" to analyse without
+# uploading; the SARIF results are then kept as a workflow artifact for a
+# week.
+#
+# Runners and Node 24 pins: as in ci.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "tui/**"
+      - "scripts/**"
+      - "!**/*.md"
+      - .github/workflows/codeql.yml
+  schedule:
+    - cron: "41 4 * * 1"  # Mondays 04:41 UTC, after security.yml
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      actions: read  # the analyze step reads the workflow run (private repos)
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2  # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config: |
+            paths-ignore:
+              - "**/node_modules"
+              - "**/tests"
+              - "**/test"
+              - "**/*.test.ts"
+              - "**/*.test.tsx"
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2  # v4.38.2
+        with:
+          category: /language:${{ matrix.language }}
+          upload: ${{ vars.CODEQL_UPLOAD == 'false' && 'never' || 'always' }}
+          output: ${{ runner.temp }}/codeql-sarif
+      - if: vars.CODEQL_UPLOAD == 'false'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: codeql-${{ matrix.language }}
+          path: ${{ runner.temp }}/codeql-sarif
+          retention-days: 7
+

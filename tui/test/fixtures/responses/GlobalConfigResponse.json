@@ -1,0 +1,4 @@
+{
+  "log_level": "DEBUG",
+  "history_days": 30
+}

@@ -1,0 +1,39 @@
+# Lint gate for the backend (CI: `ruff check backend`). Deliberately small
+# and high-signal: every rule here passes today and catches real bugs, not
+# style. Formatting and import order are not checked (no `ruff format`, no I).
+target-version = "py312"
+
+[lint]
+select = [
+    "F",      # pyflakes: undefined names, unused imports/variables, ...
+    "E9",     # syntax and io errors
+    "B",      # bugbear: likely bugs (mutable defaults, loop-variable capture, ...)
+    "ASYNC",  # blocking calls inside async functions (stall the event loop)
+]
+ignore = [
+    # `raise ... from` inside except: worth having, but 57 call sites to
+    # review one by one; a follow-up, not part of the first gate.
+    "B904",
+    # A `timeout` parameter on an async function: our rclone/sync APIs pass
+    # timeouts down to subprocess waits on purpose, not asyncio.timeout().
+    "ASYNC109",
+    # os.path/pathlib stat calls in async code: cheap metadata lookups on
+    # local disk; real file I/O (open, ASYNC230) is still checked.
+    "ASYNC240",
+]
+
+[lint.flake8-bugbear]
+# FastAPI's dependency and parameter markers are meant to be called in
+# argument defaults.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Security",
+]
+
+[lint.per-file-ignores]
+# Tests may do blocking setup I/O and poll in async test functions.
+"tests/**" = ["ASYNC"]

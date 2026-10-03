@@ -1,0 +1,20 @@
+# Keep the build context to what the backend image needs.
+.git
+.github
+.claude
+.vscode
+.hypothesis
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/node_modules
+frontend
+tui
+docs
+backend/tests
+backend/requirements-dev.txt
+sync
+*.log
+*.db
+.env
+.env.*

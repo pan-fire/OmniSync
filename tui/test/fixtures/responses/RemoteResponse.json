@@ -1,0 +1,9 @@
+{
+  "name": "gdrive",
+  "type": "drive",
+  "last_verified": "2026-09-27T08:30:00Z",
+  "provider_id": "drive",
+  "editable": false,
+  "reconnectable": true,
+  "auth_error": true
+}

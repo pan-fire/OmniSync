@@ -1,0 +1,20 @@
+# Opt-in: native desktop notifications on a Linux host through the host
+# user's D-Bus session bus.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dbus.yml up -d
+#
+# Trade-off: the container gets a socket to your desktop session and runs
+# without AppArmor confinement. Docker's default AppArmor profile has no D-Bus
+# rules, so the host's dbus-daemon refuses the connection ("An AppArmor policy
+# prevents this sender from sending this message"); apparmor:unconfined is the
+# only way through. Web Push notifications need neither and work on every OS.
+#
+# The bus path assumes PUID is the desktop user's uid (default 1000).
+services:
+  backend:
+    environment:
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${PUID:-1000}/bus
+    volumes:
+      - /run/user/${PUID:-1000}/bus:/run/user/${PUID:-1000}/bus
+    security_opt:
+      - apparmor:unconfined

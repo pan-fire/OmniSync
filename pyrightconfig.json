@@ -1,0 +1,19 @@
+{
+  "include": [
+    "backend",
+    "scripts",
+    "tui/test/fixtures"
+  ],
+  "exclude": [
+    "**/.*",
+    "**/__pycache__",
+    "**/node_modules",
+    "backend/tests",
+    "backend/migrations"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "standard",
+  "reportMissingTypeStubs": "none",
+  "reportUnusedImport": "warning"
+}

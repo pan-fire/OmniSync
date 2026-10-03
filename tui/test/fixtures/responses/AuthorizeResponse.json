@@ -1,0 +1,5 @@
+{
+  "session_id": "sess-123",
+  "auth_url": "https://accounts.example.com/o/oauth2/auth?state=sess-123",
+  "redirect_uri": "http://127.0.0.1:8000/wizard/oauth/callback"
+}

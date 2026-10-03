@@ -1,0 +1,12 @@
+{
+  "done": [
+    "2026-09-27T08-30-00Z/a.txt"
+  ],
+  "failed": [
+    {
+      "id": "2026-09-27T08-30-00Z/b.txt",
+      "code": "target_newer",
+      "message": "newer"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "channels": {
+    "desktop": {
+      "available": true,
+      "detection_method": "notify-send",
+      "host_os": "linux",
+      "missing_dependencies": [
+        "libnotify"
+      ],
+      "permission_status": "granted",
+      "subscriptions": null
+    }
+  },
+  "config_error": false,
+  "unknown_channels": []
+}

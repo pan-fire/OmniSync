@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "error": "bad credentials",
+  "auth_error": true
+}

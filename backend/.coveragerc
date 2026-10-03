@@ -1,0 +1,8 @@
+# Coverage of the backend code (CI: pytest --cov=backend, run from backend/).
+[run]
+omit =
+    */backend/tests/*
+
+[report]
+# The measured total minus a margin; raise it as coverage grows.
+fail_under = 87

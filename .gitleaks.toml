@@ -1,0 +1,62 @@
+# gitleaks configuration: the default rules plus OmniSync's own, and the
+# reviewed exceptions. Used by CI (.github/workflows/secrets.yml), the
+# pre-commit hook (.pre-commit-config.yaml) and, for the [[rules]] below,
+# backend/tests/test_repo_secrets.py, which scans the tracked files with the
+# same patterns. Keep the regexes in the subset Go (RE2) and Python share:
+# no lookarounds, no backreferences.
+#
+# Every allow-list entry says why it is not a secret. Add one only for a
+# value that is public or fake, never to silence a real secret: rotate the
+# secret, then remove it from the history if it was ever pushed.
+
+title = "OmniSync"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "omnisync-private-key"
+description = "A PEM private key header (SSH, TLS, Web Push VAPID keys)"
+regex = '''-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY( BLOCK)?-----'''
+keywords = ["private key"]
+
+[[rules]]
+id = "omnisync-rclone-oauth-token"
+description = "An rclone.conf OAuth token line with a real-looking access token"
+regex = '''token\s*=\s*\{\s*\\?"access_token\\?"\s*:\s*\\?"[^"\\]{8,}'''
+keywords = ["access_token"]
+
+[[rules]]
+id = "omnisync-client-secret"
+description = "A client secret assigned a literal value (rclone.conf, .env, code)"
+# A quoted literal (code, JSON), or an unquoted value ending the line
+# (rclone.conf, .env); not a variable passed on (`client_secret=x.y,`).
+regex = '''(?im)^[ \t]*["']?[a-z0-9_]*client_secret["']?[ \t]*[=:][ \t]*(?:"[^"\s]{8,}"[ \t]*,?|'[^'\s]{8,}'[ \t]*,?|[A-Za-z0-9_~+/-]{8,})[ \t]*$'''
+keywords = ["client_secret"]
+
+[[rules]]
+id = "omnisync-aws-access-key-id"
+description = "An AWS access key id"
+regex = '''\b(?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}\b'''
+keywords = ["a3t", "akia", "asia", "abia", "acca"]
+
+[[allowlists]]
+description = "AWS's documented example key id, used as a fake S3 access key in tests"
+regexes = ['''AKIAIOSFODNN7EXAMPLE''']
+
+[[allowlists]]
+description = """Fake credentials of test fixtures: the access token of the \
+rclone.conf import fixture (backend/tests/test_remote_management.py) and \
+an own-OAuth-app client secret (backend/tests/test_wizard.py, in the \
+history)."""
+regexTarget = "line"
+regexes = [
+  '''"access_token\\?"\s*:\s*\\?"ya29\.imported''',
+  '''"client_secret"\s*:\s*"custom-secret"''',
+]
+
+[[allowlists]]
+description = """A test assertion that compared the start of a generated VAPID \
+key file with the PEM header literal (backend/tests/test_webpush_channel.py, \
+commit fac391e). No key material; the test now loads the key instead."""
+commits = ["fac391e8585f89d553d81a323a02b67fd2675f60"]

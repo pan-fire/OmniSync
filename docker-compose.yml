@@ -1,0 +1,141 @@
+# OmniSync: the backend API (127.0.0.1:8000) and the web UI (127.0.0.1:3000).
+#
+#   docker compose up -d --build
+#
+# Opt-in extras, added with -f (see the comments in each file):
+#   docker-compose.dev.yml   live reload with the backend source bind-mounted
+#   docker-compose.dbus.yml  native desktop notifications through the host's D-Bus
+#
+# Settings go in .env next to this file: OMNISYNC_API_TOKEN, OMNISYNC_SYNC_DIR,
+# PUID/PGID, TZ and, only to expose the API beyond this machine,
+# OMNISYNC_BIND_ADDRESS and OMNISYNC_ALLOWED_HOSTS (the web UI behind a
+# reverse proxy: OMNISYNC_UI_ALLOWED_HOSTS; its optional login:
+# OMNISYNC_UI_PASSWORD_HASH).
+services:
+  backend:
+    build: .
+    # Published on the host's loopback only. Inside the container uvicorn
+    # listens on 0.0.0.0 (the image default), which is reachable solely
+    # through this mapping. The OAuth redirect comes back through the web UI
+    # (<ui>/api/wizard/oauth/callback), so no other port is needed. To reach
+    # the API from other machines, set OMNISYNC_BIND_ADDRESS (e.g. 0.0.0.0)
+    # and add the name clients use to OMNISYNC_ALLOWED_HOSTS.
+    ports:
+      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+    environment:
+      # The user and group files are written as. Never 0 (root): the
+      # entrypoint warns loudly if it is.
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      # Time zone of log timestamps and schedules (e.g. Europe/Berlin).
+      - TZ=${TZ:-UTC}
+      # Override host OS detection for notifications.
+      # Values: linux, macos, windows, android
+      - OMNISYNC_HOST_OS=linux
+      # API token clients must send as "Authorization: Bearer <token>". Set it
+      # in .env and give the same value to the web UI's server and the TUI
+      # (OMNISYNC_API_KEY). Unset, the backend generates one into
+      # /data/omnisync/api-token inside the omnisync-data volume, and the web
+      # UI (which needs the same value) gets 401s until it is set in .env.
+      - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
+      # Host names accepted in the Host header besides localhost, 127.0.0.1
+      # and ::1 (comma-separated). `backend` is the name the web UI's server
+      # uses on the compose network; add the names other clients use.
+      - OMNISYNC_ALLOWED_HOSTS=backend,${OMNISYNC_ALLOWED_HOSTS:-}
+      # The folder picker lists only the mounted sync folder.
+      - OMNISYNC_BROWSE_ROOTS=${OMNISYNC_SYNC_DIR:-/sync}
+    volumes:
+      - omnisync-data:/data/omnisync
+      # The only host folder the container sees. Set OMNISYNC_SYNC_DIR to an
+      # absolute path (e.g. /home/you/Sync) and it is mounted at the same
+      # path inside, so profile folders are typed as on the host and must lie
+      # inside it. Unset, ./sync is mounted at /sync. More folders: add
+      # mounts in a docker-compose.override.yml.
+      - ${OMNISYNC_SYNC_DIR:-./sync}:${OMNISYNC_SYNC_DIR:-/sync}
+    security_opt:
+      - no-new-privileges:true
+    # The entrypoint needs root only to chown the data volume and drop to
+    # PUID:PGID with gosu; the app itself runs unprivileged. The same check is
+    # built into the image (HEALTHCHECK), so plain `docker run` gets it too.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+    # /health answers 503 when the database or rclone is unavailable, which
+    # makes urlopen raise and the check fail.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # On `docker compose stop/down` the backend stops its engines: a running
+    # two-way sync gets up to 45 s (BISYNC_STOP_GRACE) to shut down cleanly
+    # and keep its state. Docker's default of 10 s would SIGKILL it first,
+    # and the next sync would then need a resync.
+    stop_grace_period: 90s
+    # Optional limits. rclone's memory grows with the number of files it
+    # lists (two-way syncs keep both listings), so leave room for the
+    # largest profile; a check of a big folder can use a few hundred MB.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "2"
+    #       memory: 1G
+
+  # The web UI. Its server forwards /api requests to the backend over the
+  # compose network and adds OMNISYNC_API_TOKEN itself, so the browser never
+  # sees the token. Published on the host's loopback only.
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      # Read per request (src/proxy.ts), so the image is not tied to it.
+      - BACKEND_URL=http://backend:8000
+      - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
+      # Host names the UI answers /api requests for besides localhost,
+      # 127.0.0.1 and [::1] (comma-separated, optionally with :port), e.g.
+      # the public name of a reverse proxy in front of it. Read "Exposing
+      # the web UI / HTTPS" in the README before adding one.
+      - OMNISYNC_UI_ALLOWED_HOSTS=${OMNISYNC_UI_ALLOWED_HOSTS:-}
+      # Optional login (off while both are empty). Make the hash with
+      #   docker compose exec frontend node scripts/hash-password.mjs
+      # and put it in .env. A plain OMNISYNC_UI_PASSWORD works too, but the
+      # hash is better. Sessions last OMNISYNC_UI_SESSION_DAYS (default 7,
+      # extended by use); OMNISYNC_UI_SESSION_SECRET (32+ characters) signs
+      # them instead of the hash.
+      - OMNISYNC_UI_PASSWORD_HASH=${OMNISYNC_UI_PASSWORD_HASH:-}
+      - OMNISYNC_UI_PASSWORD=${OMNISYNC_UI_PASSWORD:-}
+      - OMNISYNC_UI_SESSION_SECRET=${OMNISYNC_UI_SESSION_SECRET:-}
+      - OMNISYNC_UI_SESSION_DAYS=${OMNISYNC_UI_SESSION_DAYS:-}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # /healthz answers without a login (every page redirects with one).
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "1"
+    #       memory: 512M
+
+volumes:
+  omnisync-data:

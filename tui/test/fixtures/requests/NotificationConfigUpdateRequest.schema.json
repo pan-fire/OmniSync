@@ -1,0 +1,370 @@
+{
+  "$defs": {
+    "ChannelConfigUpdate": {
+      "description": "A partial channel update: only the fields given are changed.",
+      "properties": {
+        "email": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmailSettingsUpdate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enabled"
+        },
+        "min_severity": {
+          "anyOf": [
+            {
+              "pattern": "^(debug|info|warning|error)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Severity"
+        },
+        "ntfy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NtfySettingsUpdate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "webhook": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WebhookSettingsUpdate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ChannelConfigUpdate",
+      "type": "object"
+    },
+    "EmailSettingsUpdate": {
+      "properties": {
+        "clear": {
+          "default": [],
+          "items": {
+            "const": "password",
+            "type": "string"
+          },
+          "title": "Clear",
+          "type": "array"
+        },
+        "from_addr": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Addr"
+        },
+        "host": {
+          "anyOf": [
+            {
+              "maxLength": 253,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Host"
+        },
+        "password": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Password"
+        },
+        "port": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Port"
+        },
+        "security": {
+          "anyOf": [
+            {
+              "enum": [
+                "starttls",
+                "tls",
+                "none"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Security"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 320,
+                "type": "string"
+              },
+              "maxItems": 20,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Username"
+        }
+      },
+      "title": "EmailSettingsUpdate",
+      "type": "object"
+    },
+    "NtfySettingsUpdate": {
+      "properties": {
+        "allow_http": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allow Http"
+        },
+        "clear": {
+          "default": [],
+          "items": {
+            "enum": [
+              "token",
+              "password"
+            ],
+            "type": "string"
+          },
+          "title": "Clear",
+          "type": "array"
+        },
+        "password": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Password"
+        },
+        "server": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Server"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "topic": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Topic"
+        },
+        "username": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Username"
+        }
+      },
+      "title": "NtfySettingsUpdate",
+      "type": "object"
+    },
+    "WebhookHeaderUpdate": {
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "WebhookHeaderUpdate",
+      "type": "object"
+    },
+    "WebhookSettingsUpdate": {
+      "properties": {
+        "allow_http": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allow Http"
+        },
+        "headers": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/WebhookHeaderUpdate"
+              },
+              "maxItems": 10,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Headers"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "title": "WebhookSettingsUpdate",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "channels": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/ChannelConfigUpdate"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 64
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Channels"
+    }
+  },
+  "title": "NotificationConfigUpdateRequest",
+  "type": "object"
+}

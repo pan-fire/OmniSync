@@ -1,0 +1,347 @@
+name: Release
+
+# Publishes a release when a version tag is pushed (scripts/release/prepare.sh
+# prints the commands):
+#   1. verify   the tag is v<VERSION>, on main, with CHANGELOG.md notes
+#   2. ci       the whole CI suite (ci.yml, via workflow_call)
+#   3. images   backend and web UI images to GHCR, one native build per
+#               platform, merged into one tagged and signed image each
+#   4. binaries osync for linux/darwin/windows x amd64/arm64, with SHA256SUMS
+#   5. release  the GitHub release: CHANGELOG.md notes plus the binaries
+# Nothing is published unless verify and ci pass, and the GitHub release is
+# created only after the images are pushed.
+#
+# A pre-release tag (v1.0.0-rc.1) publishes its images without `latest` and
+# `<major>.<minor>`, and a GitHub pre-release.
+#
+# Runners: GitHub-hosted, as in ci.yml. Every `uses:` must run on Node 24
+# (see ci.yml for how to check a pin).
+#
+# Images are built for linux/amd64 and linux/arm64, each natively on its
+# own runner (ubuntu-24.04 and ubuntu-24.04-arm, no QEMU), pushed by digest
+# and merged into one multi-platform image index per image, which gets the
+# tags. vars.RELEASE_IMAGE_PLATFORMS overrides the list (e.g. "linux/amd64").
+# linux/arm/v7 is not offered: the backend's Python dependencies have no
+# armv7 wheels for all packages (see the Dockerfile).
+#
+# Integrity: each platform image is pushed with an SBOM and max-mode SLSA
+# provenance (BuildKit attestations, carried into the merged index), and
+# each index is signed with cosign keyless (Sigstore, the workflow's GitHub
+# OIDC identity); SHA256SUMS of the osync binaries is signed the same way
+# (SHA256SUMS.sigstore.json). The README's "Verify a release" shows the
+# commands. Every `uses:` is pinned to a commit with its version in a
+# comment, which Dependabot keeps current.
+on:
+  push:
+    tags: ["v*"]
+
+# One release per tag at a time; never cancel one that is publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BACKEND_IMAGE: ghcr.io/pan-fire/omnisync-backend
+  WEB_IMAGE: ghcr.io/pan-fire/omnisync-web
+
+jobs:
+  verify:
+    name: Tag matches VERSION
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+      platforms: ${{ steps.platforms.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < VERSION)
+          fail () { echo "::error title=Release refused::$1"; exit 1; }
+
+          [ "$TAG" = "v$version" ] || fail "tag $TAG does not match VERSION ($version); run scripts/release/prepare.sh and tag v$version"
+          [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]] \
+            || fail "VERSION ($version) is not a semantic version"
+
+          web=$(python3 -c 'import json; print(json.load(open("frontend/package.json"))["version"])')
+          [ "$web" = "$version" ] || fail "frontend/package.json has version $web, VERSION has $version"
+
+          scripts/release/changelog-notes.sh "$version" > /dev/null \
+            || fail "CHANGELOG.md has no notes for $version"
+
+          # Releases come from main: the tagged commit must be on it.
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || fail "the tagged commit is not on main"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ $version == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice title=Release::OmniSync $version"
+
+      # The image platforms and the native runner for each, as JSON for the
+      # images job's matrix.
+      - id: platforms
+        env:
+          PLATFORMS: ${{ vars.RELEASE_IMAGE_PLATFORMS || 'linux/amd64,linux/arm64' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os
+          runners = {"linux/amd64": "ubuntu-24.04", "linux/arm64": "ubuntu-24.04-arm"}
+          wanted = [p.strip() for p in os.environ["PLATFORMS"].split(",") if p.strip()]
+          unknown = [p for p in wanted if p not in runners]
+          if not wanted or unknown:
+              raise SystemExit(f"::error title=Release refused::unsupported image platforms: {unknown or 'none'}")
+          targets = [{"platform": p, "runner": runners[p], "arch": p.split("/")[1]} for p in wanted]
+          print("platforms=" + json.dumps(targets))
+          EOF
+
+  ci:
+    name: CI
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  # One job per image and platform, each on a runner of that architecture.
+  # The image is pushed by digest only (no tag yet); the merge job below
+  # tags the multi-platform index once every platform is built.
+  images:
+    name: Image ${{ matrix.image.name }} (${{ matrix.target.platform }})
+    needs: [verify, ci]
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - name: backend
+            ref: ghcr.io/pan-fire/omnisync-backend
+            context: .
+            title: OmniSync backend
+          - name: web
+            ref: ghcr.io/pan-fire/omnisync-web
+            context: frontend
+            title: OmniSync web UI
+        target: ${{ fromJSON(needs.verify.outputs.platforms) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        with:
+          images: ${{ matrix.image.ref }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image.title }}
+            org.opencontainers.image.licenses=GPL-3.0-only
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.image.context }}
+          platforms: ${{ matrix.target.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ matrix.image.ref }},push-by-digest=true,name-canonical=true,push=true
+          sbom: true
+          provenance: mode=max
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: digests-${{ matrix.image.name }}-${{ matrix.target.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Merges each image's platform digests into one index, tags it and signs it.
+  manifests:
+    name: Image ${{ matrix.name }} (tag and sign)
+    needs: [verify, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # cosign keyless signing
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            ref: ghcr.io/pan-fire/omnisync-backend
+          - name: web
+            ref: ghcr.io/pan-fire/omnisync-web
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: digests-${{ matrix.name }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # <version>, <major>.<minor> and `latest`; the last two only for a
+      # release, not a pre-release. <major> alone once past 0.x, where a
+      # minor version may break compatibility.
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        with:
+          images: ${{ matrix.ref }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
+
+      # The platform images keep their SBOM and provenance attestations in
+      # the merged index.
+      - name: Create the multi-platform image
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE: ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(jq -r '.tags[] | "--tag=" + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          sources=()
+          for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+
+      # Signs the image index by digest (every tag points at it), so one
+      # signature covers all tags and platforms. Keyless: the certificate
+      # names this workflow and tag, and the signature is logged in Rekor.
+      - name: Sign the image
+        env:
+          IMAGE: ${{ matrix.ref }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          cosign sign --yes "$IMAGE@$digest"
+
+  binaries:
+    name: osync binaries
+    needs: [verify, ci]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write  # cosign keyless signing of SHA256SUMS
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      # Static binaries (no cgo), so one file runs on any machine of its
+      # OS and architecture. Named without the version, so
+      # releases/latest/download/osync-<os>-<arch> always gets the newest.
+      - name: Build
+        working-directory: tui
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse --short=7 HEAD)
+          out="$GITHUB_WORKSPACE/dist"
+          rm -rf "$out" && mkdir -p "$out"
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os=${target%/*} arch=${target#*/}
+            name="osync-$os-$arch"
+            [ "$os" = windows ] && name="$name.exe"
+            echo "building $name"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=$VERSION -X main.commit=$commit" \
+              -o "$out/$name" ./cmd/osync-tui
+          done
+          # The runner's own build proves the flags took.
+          "$out/osync-linux-$(go env GOARCH)" --version | tee /dev/stderr | grep -qF "version $VERSION (commit $commit)"
+          cd "$out" && sha256sum osync-* > SHA256SUMS && cat SHA256SUMS
+      # One signature over the checksums vouches for every binary they list.
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+      - name: Sign SHA256SUMS
+        working-directory: dist
+        run: cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: osync-binaries
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: GitHub release
+    needs: [verify, manifests, binaries]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: osync-binaries
+          path: dist
+      - name: Release notes
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            scripts/release/changelog-notes.sh "$VERSION"
+            echo
+            echo "### Install"
+            echo
+            echo '```bash'
+            echo "docker pull $BACKEND_IMAGE:$VERSION"
+            echo "docker pull $WEB_IMAGE:$VERSION"
+            echo '```'
+            echo
+            echo "The images are signed with cosign (keyless) and carry an SBOM and"
+            echo "provenance attestation."
+            echo
+            echo "The \`osync\` terminal client for your platform is attached below;"
+            echo "verify it with \`sha256sum -c SHA256SUMS --ignore-missing\` and the"
+            echo "checksums' signature (\`SHA256SUMS.sigstore.json\`) with cosign."
+            echo "See the README's Install section for a compose file and"
+            echo "\"Verify a release\" for the commands."
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          flags=()
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          python3 scripts/release/publish_github_release.py \
+            --tag "$TAG" --notes "$RUNNER_TEMP/notes.md" "${flags[@]}" dist/*

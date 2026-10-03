@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an idea or an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: What you are trying to do and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: How it could work, in the web UI, the TUI or the API.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: Anything you tried, or other tools that do it well.
+
+  - type: textarea
+    id: data-safety
+    attributes:
+      label: Could it delete or overwrite files?
+      description: |
+        OmniSync's first rule is not to lose data. If the feature changes
+        what a sync deletes or overwrites, say how it should stay safe.

@@ -1,0 +1,27 @@
+{
+  "snapshot_id": "2026-09-27T08-30-00",
+  "path": "Berichte",
+  "search": "ü",
+  "entries": [
+    {
+      "path": "Berichte/Übersicht",
+      "name": "Übersicht",
+      "is_dir": true,
+      "size": 2048,
+      "mod_time": null,
+      "file_count": 3
+    },
+    {
+      "path": "Berichte/a.txt",
+      "name": "a.txt",
+      "is_dir": false,
+      "size": 12,
+      "mod_time": "2026-09-27T08:30:00Z",
+      "file_count": null
+    }
+  ],
+  "total": 42,
+  "offset": 10,
+  "limit": 2,
+  "snapshot_files": 99
+}

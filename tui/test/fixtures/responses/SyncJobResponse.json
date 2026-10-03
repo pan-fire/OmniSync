@@ -1,0 +1,12 @@
+{
+  "id": 42,
+  "direction": "two_way",
+  "started_at": "2026-09-27T08:30:00Z",
+  "finished_at": "2026-09-27T09:45:30Z",
+  "status": "completed",
+  "files_changed": 17,
+  "conflicts": 1,
+  "errors": 2,
+  "profile_slug": "docs",
+  "profile_name": "Dokumente"
+}

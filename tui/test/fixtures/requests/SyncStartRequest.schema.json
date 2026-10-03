@@ -1,0 +1,29 @@
+{
+  "$defs": {
+    "SyncDirection": {
+      "description": "What POST /profiles/{slug}/sync/start runs.\n\npush / pull are one-way mirrors (rclone sync) and exist in both modes;\ntwo_way is a two-way sync (rclone bisync) and only for two_way profiles.",
+      "enum": [
+        "push",
+        "pull",
+        "two_way"
+      ],
+      "title": "SyncDirection",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "direction": {
+      "$ref": "#/$defs/SyncDirection"
+    },
+    "force": {
+      "default": false,
+      "title": "Force",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "direction"
+  ],
+  "title": "SyncStartRequest",
+  "type": "object"
+}

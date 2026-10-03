@@ -1,0 +1,10 @@
+{
+  "current": "gdrive:Backup",
+  "parent": "gdrive:",
+  "entries": [
+    {
+      "name": "Dokumente Übersicht",
+      "path": "gdrive:Backup/Dokumente Übersicht"
+    }
+  ]
+}

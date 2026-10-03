@@ -1,0 +1,39 @@
+{
+  "description": "Restore chosen files and folders of a snapshot.",
+  "properties": {
+    "paths": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Paths",
+      "type": "array"
+    },
+    "snapshot_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "target_dir": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Dir"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "paths"
+  ],
+  "title": "RestoreFilesRequest",
+  "type": "object"
+}

@@ -1,0 +1,12 @@
+{
+  "remotes": [
+    {
+      "remote": "gdrive",
+      "accessible": false,
+      "profiles": [
+        "docs"
+      ],
+      "auth_error": true
+    }
+  ]
+}

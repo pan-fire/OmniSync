@@ -1,0 +1,44 @@
+{
+  "overall_state": "pushing",
+  "total_pending_changes": 8,
+  "paused_profiles": [
+    {
+      "slug": "docs",
+      "name": "Dokumente",
+      "pending_changes": 8,
+      "paused_at": "2026-09-27T09:45:30Z",
+      "user_paused": true
+    }
+  ],
+  "profiles_summary": [
+    {
+      "slug": "docs",
+      "name": "Dokumente",
+      "state": "pushing",
+      "last_sync": "2026-09-27T08:30:00Z",
+      "pending_changes": 8,
+      "intervals_paused": true,
+      "last_error": "Local folder '/home/user/Dokumente' is missing or not mounted.",
+      "resync_required": true,
+      "user_paused": true,
+      "progress": {
+        "bytes": 21188608,
+        "total_bytes": 90000000,
+        "speed": 1048576.5,
+        "eta_seconds": 65,
+        "files_done": 1,
+        "files_total": 3,
+        "checks": 4,
+        "total_checks": 9,
+        "current_files": [
+          {
+            "name": "Fotos/Urlaub ä.jpg",
+            "size": 30000000,
+            "bytes": 6942720,
+            "percentage": 23
+          }
+        ]
+      }
+    }
+  ]
+}

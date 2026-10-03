@@ -1,0 +1,8 @@
+{
+  "id": 9,
+  "job_id": 42,
+  "file_path": "docs/report.pdf",
+  "action": "modified",
+  "size_bytes": 4096,
+  "side": "remote"
+}

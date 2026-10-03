@@ -1,0 +1,14 @@
+{
+  "id": 77,
+  "target_id": 3,
+  "started_at": "2026-09-27T08:30:00Z",
+  "finished_at": "2026-09-27T09:45:30Z",
+  "status": "completed",
+  "direction": "backup",
+  "size_bytes": 123456,
+  "snapshot_id": "2026-09-27T08-30-00",
+  "error_code": null,
+  "error_message": "partial",
+  "verify_status": "verified",
+  "verify_message": "12 file(s) match the folder"
+}

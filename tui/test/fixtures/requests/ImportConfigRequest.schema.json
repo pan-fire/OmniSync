@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "description": "POST /remotes/import/preview: an rclone.conf to look at.",
+  "properties": {
+    "content": {
+      "maxLength": 524288,
+      "title": "Content",
+      "type": "string"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "title": "ImportConfigRequest",
+  "type": "object"
+}

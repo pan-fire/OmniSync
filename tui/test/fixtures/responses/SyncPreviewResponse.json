@@ -1,0 +1,36 @@
+{
+  "push": {
+    "deletes": 120,
+    "replaces": 3,
+    "creates": 4,
+    "exceeds_max_delete": true
+  },
+  "pull": {
+    "deletes": 2,
+    "replaces": 3,
+    "creates": 120,
+    "exceeds_max_delete": false
+  },
+  "excluded": 5,
+  "max_delete": 25,
+  "error": "partial listing",
+  "sync_mode": "two_way",
+  "two_way": {
+    "local": {
+      "deletes": 1,
+      "replaces": 2,
+      "creates": 3,
+      "exceeds_max_delete": false
+    },
+    "remote": {
+      "deletes": 60,
+      "replaces": 4,
+      "creates": 5,
+      "exceeds_max_delete": true
+    },
+    "conflicts": 2,
+    "resync": true,
+    "resync_required": true,
+    "error": "bisync dry run failed"
+  }
+}

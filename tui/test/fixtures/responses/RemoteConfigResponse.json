@@ -1,0 +1,22 @@
+{
+  "name": "box",
+  "type": "sftp",
+  "provider_id": "sftp",
+  "fields": [
+    {
+      "name": "host",
+      "value": "files.example.com",
+      "is_set": true,
+      "secret": false
+    },
+    {
+      "name": "pass",
+      "value": "",
+      "is_set": true,
+      "secret": true
+    }
+  ],
+  "other_keys": [
+    "md5sum_command"
+  ]
+}

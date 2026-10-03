@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "description": "PUT /remotes/{name}: change a remote's settings in place.\n\n``params`` holds the provider fields to change. A non-secret field set to\n\"\" is removed (rclone then uses its default); a secret field left out or\nset to \"\" keeps the stored secret, any other value replaces it. Secrets\nnamed in ``clear`` are removed (e.g. an SFTP password, to use a key).",
+  "properties": {
+    "clear": {
+      "default": [],
+      "items": {
+        "maxLength": 128,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Clear",
+      "type": "array"
+    },
+    "params": {
+      "additionalProperties": {
+        "maxLength": 65536,
+        "type": "string"
+      },
+      "default": {},
+      "maxProperties": 64,
+      "propertyNames": {
+        "maxLength": 128
+      },
+      "title": "Params",
+      "type": "object"
+    }
+  },
+  "title": "UpdateRemoteRequest",
+  "type": "object"
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/pan-fire/OmniSync/security/advisories/new
+    about: Please report security problems privately, not as an issue (see SECURITY.md).
+  - name: User guide and FAQ
+    url: https://github.com/pan-fire/OmniSync/blob/main/docs/gem/faq.md
+    about: Common questions and troubleshooting ("Host not allowed", 401s, paused profiles, resyncs).

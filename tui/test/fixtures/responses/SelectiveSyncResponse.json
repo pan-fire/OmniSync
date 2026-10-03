@@ -1,0 +1,13 @@
+{
+  "job_id": 43,
+  "status": "completed",
+  "total": 3,
+  "succeeded": 2,
+  "failed": 1,
+  "errors": [
+    {
+      "path": "x.txt",
+      "error": "permission denied"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "s3",
+  "display_name": "Amazon S3",
+  "icon": "s3",
+  "auth_type": "key",
+  "fields": [
+    {
+      "name": "secret_access_key",
+      "label": "Secret access key",
+      "field_type": "password",
+      "required": true,
+      "help_text": "From the IAM console",
+      "options": [
+        "standard",
+        "off"
+      ],
+      "default": "standard"
+    }
+  ],
+  "default_name": "s3",
+  "setup_guide": "Create an access key first."
+}

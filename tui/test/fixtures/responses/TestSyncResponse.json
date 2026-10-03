@@ -1,0 +1,10 @@
+{
+  "success": false,
+  "steps": [
+    {
+      "step": "upload",
+      "ok": true
+    }
+  ],
+  "error": "download failed"
+}

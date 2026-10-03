@@ -1,0 +1,12 @@
+{
+  "description": "POST /profiles/{slug}/sync/resync. confirm must be true.",
+  "properties": {
+    "confirm": {
+      "default": false,
+      "title": "Confirm",
+      "type": "boolean"
+    }
+  },
+  "title": "ResyncRequest",
+  "type": "object"
+}

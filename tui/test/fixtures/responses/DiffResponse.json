@@ -1,0 +1,30 @@
+{
+  "files": [
+    {
+      "path": "docs/ä.txt",
+      "category": "modified_both",
+      "local_size": 1024,
+      "remote_size": 2048,
+      "local_mod_time": "2026-09-27T08:30:00Z",
+      "remote_mod_time": "2026-09-27T09:45:30Z",
+      "is_conflict": true,
+      "manual_flag": true
+    }
+  ],
+  "summary": {
+    "local_only": 1,
+    "remote_only": 2,
+    "modified_local": 3,
+    "modified_remote": 4,
+    "modified_both": 5,
+    "manual": 6,
+    "total": 21
+  },
+  "pagination": {
+    "offset": 10,
+    "limit": 5,
+    "total": 21,
+    "has_more": true
+  },
+  "error": "rclone warning"
+}

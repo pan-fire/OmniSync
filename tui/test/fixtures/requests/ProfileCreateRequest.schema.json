@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "SyncMode": {
+      "description": "How a profile syncs automatically.\n\ntwo_way: the watcher, the interval and \"Sync now\" run rclone bisync,\nwhich carries changes both ways and keeps both versions of a file\nchanged on both sides. mirror: local changes are pushed (rclone sync\nlocal -> remote) and the remote is pulled on the interval (remote ->\nlocal); the side that syncs last wins.",
+      "enum": [
+        "two_way",
+        "mirror"
+      ],
+      "title": "SyncMode",
+      "type": "string"
+    },
+    "SyncWindow": {
+      "description": "When automatic syncs (file watcher, interval) may run, in the server's local time.\n\n``days``: 0 = Monday ... 6 = Sunday, the days a window starts on.\n``end`` before ``start`` spans midnight (22:00-06:00 runs into the\nnext morning). Syncs the user starts run at any time.",
+      "properties": {
+        "days": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 1,
+          "title": "Days",
+          "type": "array"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SyncWindow",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "backup_dir": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Backup Dir"
+    },
+    "bwlimit": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bwlimit"
+    },
+    "debounce_seconds": {
+      "default": 5,
+      "maximum": 3600,
+      "minimum": 1,
+      "title": "Debounce Seconds",
+      "type": "integer"
+    },
+    "local_dir": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Local Dir",
+      "type": "string"
+    },
+    "max_retries": {
+      "default": 3,
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Max Retries",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "pull_interval_minutes": {
+      "default": 5,
+      "maximum": 10080,
+      "minimum": 1,
+      "title": "Pull Interval Minutes",
+      "type": "integer"
+    },
+    "rclone_args": {
+      "default": [],
+      "items": {
+        "maxLength": 1024,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Rclone Args",
+      "type": "array"
+    },
+    "rclone_filter": {
+      "default": [],
+      "items": {
+        "maxLength": 1024,
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Rclone Filter",
+      "type": "array"
+    },
+    "remote_dir": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Remote Dir",
+      "type": "string"
+    },
+    "sync_mode": {
+      "$ref": "#/$defs/SyncMode",
+      "default": "two_way"
+    },
+    "sync_window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SyncWindow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "name",
+    "local_dir",
+    "remote_dir"
+  ],
+  "title": "ProfileCreateRequest",
+  "type": "object"
+}

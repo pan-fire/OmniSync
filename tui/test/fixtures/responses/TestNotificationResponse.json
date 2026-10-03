@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "channels_delivered": [
+    "desktop"
+  ],
+  "errors": {
+    "webpush": "no subscribers"
+  }
+}

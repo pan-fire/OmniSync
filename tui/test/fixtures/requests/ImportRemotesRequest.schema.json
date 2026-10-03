@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "ImportRemoteSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "source": {
+          "maxLength": 255,
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "ImportRemoteSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "POST /remotes/import: add the selected sections of an rclone.conf.",
+  "properties": {
+    "content": {
+      "maxLength": 524288,
+      "title": "Content",
+      "type": "string"
+    },
+    "remotes": {
+      "items": {
+        "$ref": "#/$defs/ImportRemoteSelection"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Remotes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "content",
+    "remotes"
+  ],
+  "title": "ImportRemotesRequest",
+  "type": "object"
+}

@@ -1,0 +1,34 @@
+# Keep the build context to what the web UI image needs; dependencies and
+# build output are produced inside the image.
+node_modules
+.next
+out
+build
+coverage
+.pnp
+.pnp.*
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.DS_Store
+*.pem
+# Secrets never go into an image layer.
+.env
+.env.*
+# Tests and editor state are not needed at runtime.
+**/*.test.ts
+**/*.test.tsx
+**/__tests__
+e2e
+playwright.config.ts
+playwright-report
+test-results
+.vscode
+.idea
+.git
+Dockerfile
+.dockerignore

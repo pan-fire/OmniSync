@@ -1,0 +1,59 @@
+{
+  "channels": {
+    "desktop": {
+      "enabled": false,
+      "min_severity": "error",
+      "webhook": null,
+      "ntfy": null,
+      "email": null
+    },
+    "webhook": {
+      "enabled": true,
+      "min_severity": "warning",
+      "webhook": {
+        "url": "http://192.168.1.5:8123/api/webhook/omni",
+        "allow_http": true,
+        "headers": [
+          {
+            "name": "Authorization",
+            "value_set": true
+          }
+        ]
+      },
+      "ntfy": null,
+      "email": null
+    },
+    "ntfy": {
+      "enabled": true,
+      "min_severity": "info",
+      "webhook": null,
+      "ntfy": {
+        "server": "https://ntfy.sh",
+        "topic": "omnisync-nas",
+        "allow_http": false,
+        "username": "nas",
+        "token_set": false,
+        "password_set": true
+      },
+      "email": null
+    },
+    "email": {
+      "enabled": false,
+      "min_severity": "error",
+      "webhook": null,
+      "ntfy": null,
+      "email": {
+        "host": "smtp.example.com",
+        "port": 465,
+        "security": "tls",
+        "username": "nas",
+        "password_set": true,
+        "from_addr": "nas@example.com",
+        "to": [
+          "a@example.com",
+          "b@example.com"
+        ]
+      }
+    }
+  }
+}

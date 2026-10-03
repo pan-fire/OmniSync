@@ -1,0 +1,34 @@
+{
+  "state": "error",
+  "last_sync": "2026-09-27T08:30:00Z",
+  "current_job_id": 42,
+  "files_processed": 12,
+  "errors": 3,
+  "pending_changes": 5,
+  "intervals_paused": true,
+  "paused_at": "2026-09-27T09:45:30Z",
+  "last_error": "Sync stopped: it would delete 120 files (limit 50)",
+  "resync_required": true,
+  "user_paused": true,
+  "progress": {
+    "bytes": 21188608,
+    "total_bytes": 90000000,
+    "speed": 1048576.5,
+    "eta_seconds": 65,
+    "files_done": 1,
+    "files_total": 3,
+    "checks": 4,
+    "total_checks": 9,
+    "current_files": [
+      {
+        "name": "Fotos/Urlaub ä.jpg",
+        "size": 30000000,
+        "bytes": 6942720,
+        "percentage": 23
+      }
+    ]
+  },
+  "outside_sync_window": true,
+  "next_window_start": "2026-09-27T09:45:30Z",
+  "waiting_for_window": true
+}

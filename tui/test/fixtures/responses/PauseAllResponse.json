@@ -1,0 +1,11 @@
+{
+  "changed": [
+    "docs"
+  ],
+  "unchanged": [
+    "photos"
+  ],
+  "still_paused": {
+    "docs": "Restored the local side."
+  }
+}

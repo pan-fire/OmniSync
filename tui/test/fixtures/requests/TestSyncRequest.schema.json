@@ -1,0 +1,23 @@
+{
+  "description": "POST /config/test-sync: the same checks as a new profile's folders.",
+  "properties": {
+    "local_dir": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Local Dir",
+      "type": "string"
+    },
+    "remote_dir": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Remote Dir",
+      "type": "string"
+    }
+  },
+  "required": [
+    "local_dir",
+    "remote_dir"
+  ],
+  "title": "TestSyncRequest",
+  "type": "object"
+}

@@ -1,0 +1,244 @@
+name: CI
+
+# The gate every change must pass: backend lint/types/tests, frontend
+# lint/types/tests/build, TUI checks, workflow lint, and the backend and web
+# UI image builds. Vulnerability scans are in security.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # The release workflow (release.yml) runs this whole suite before it
+  # publishes anything.
+  workflow_call:
+
+# A new push to the same branch cancels the previous run; only the tip matters.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Every `uses:` must resolve to an action whose `runs.using` is `node24`:
+# GitHub removed Node 20 from the runners on 23 September 2026, after which
+# a Node 20 action fails to start. Check a pin with:
+#   gh api repos/<owner>/<action>/contents/action.yml?ref=<sha> -q .content \
+#     | base64 -d | grep 'using:'
+#
+# Every `uses:` is pinned to a full commit SHA with its release in a comment
+# (`@<sha>  # v7.0.1`): a tag can be moved to other code, a commit cannot.
+# Dependabot (.github/dependabot.yml) updates the SHA and the comment together.
+#
+# Every job runs on a GitHub-hosted runner: a fresh VM per job. A pull
+# request from a fork runs there too, with a read-only GITHUB_TOKEN and no
+# secrets, so it cannot reach anything a contributor could not reach
+# anyway. Never add `pull_request_target` (secrets and a write token);
+# backend/tests/test_workflow_guards.py checks every workflow.
+jobs:
+  backend:
+    name: Backend (ruff, pyright, pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: python -m pip install -r backend/requirements-dev.txt
+      # Rules and their reasons: backend/ruff.toml (ruff.toml applies them
+      # to the scripts and the TUI fixture generator too).
+      - name: ruff
+        run: ruff check backend scripts tui/test/fixtures
+      # Scope and mode: pyrightconfig.json.
+      - name: pyright
+        run: pyright
+      # The data-safety tests run the real rclone binary (same pinned,
+      # checksum-verified release as the Dockerfile).
+      - name: Install rclone
+        env:
+          RCLONE_VERSION: "1.75.1"
+          RCLONE_SHA256: 982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab
+        run: |
+          set -eu
+          zip="rclone-v${RCLONE_VERSION}-linux-amd64.zip"
+          curl -fsSLo "$RUNNER_TEMP/$zip" "https://downloads.rclone.org/v${RCLONE_VERSION}/$zip"
+          echo "${RCLONE_SHA256}  $RUNNER_TEMP/$zip" | sha256sum -c -
+          python -m zipfile -e "$RUNNER_TEMP/$zip" "$RUNNER_TEMP/rclone-unpacked"
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 0755 "$RUNNER_TEMP/rclone-unpacked/rclone-v${RCLONE_VERSION}-linux-amd64/rclone" "$RUNNER_TEMP/bin/rclone"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/rclone" version | head -1
+      - name: Run tests
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          # OmniSync's data files in a folder of their own: TMPDIR (pytest's
+          # tmp_path) must not lie inside the data directory, which profile
+          # folders may never point into.
+          OMNISYNC_DB_PATH: ${{ runner.temp }}/omnisync-data/omnisync.db
+          OMNISYNC_LOG_PATH: ${{ runner.temp }}/omnisync-data/omnisync.log
+          OMNISYNC_RCLONE_CONFIG: ${{ runner.temp }}/omnisync-data/rclone.conf
+          OMNISYNC_CONFIG_PATH: ${{ runner.temp }}/omnisync-data/config.toml
+          HYPOTHESIS_STORAGE_DIRECTORY: ${{ runner.temp }}/hypothesis
+          OMNISYNC_REQUIRE_RCLONE: "1"  # the real-rclone tests must run, not skip
+        # Fails below backend/.coveragerc's fail_under (the whole backend).
+        # One process per CPU (pytest-xdist): every test uses its own
+        # tmp_path and in-memory database, so none share files.
+        run: |
+          mkdir -p "$RUNNER_TEMP/omnisync-data"
+          python -m pytest -q -p no:cacheprovider -n auto --cov=backend --cov-report=term
+      # The modules that can lose data keep at least 70% each, whatever the
+      # total does. A package (quoted, so the shell does not expand it)
+      # counts as one module.
+      - name: Coverage of the data-touching modules
+        working-directory: backend
+        run: |
+          for module in 'services/rclone/*' 'services/sync_engine/*' services/sync_engine_manager.py \
+                        services/profile_service.py api/routes/profiles.py; do
+            python -m coverage report --include="*/backend/$module" --fail-under=70
+          done
+      # The TUI's contract fixtures are generated from these backend models;
+      # a model change must come with regenerated fixtures (tui/test/contract).
+      - name: TUI contract fixtures match the backend models
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          OMNISYNC_LOG_PATH: ${{ runner.temp }}/fixtures.log
+        run: |
+          python tui/test/fixtures/gen_fixtures.py
+          git diff --exit-code -- tui/test/fixtures
+      # The web UI's API types are generated from this schema (the frontend
+      # job checks src/types/api.gen.ts against it); a route or model change
+      # must come with a regenerated frontend/openapi.json.
+      - name: OpenAPI schema matches the backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          OMNISYNC_LOG_PATH: ${{ runner.temp }}/openapi.log
+        run: |
+          python scripts/gen-openapi.py
+          git diff --exit-code -- frontend/openapi.json
+
+  frontend:
+    name: Frontend (lint, types, tests, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320  # v5.0.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # openapi.json is checked against the backend in the backend job;
+      # pnpm typecheck then checks the hand-written types against these
+      # (src/__tests__/api-types.contract.test.ts).
+      - name: Generated API types match openapi.json
+        run: |
+          pnpm gen:types
+          git diff --exit-code -- src/types/api.gen.ts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # The unit tests, with the coverage thresholds in vitest.config.ts.
+      - run: pnpm test:coverage
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      # Browser smoke tests (e2e/, Playwright + axe-core) against the build
+      # above, the backend mocked in the browser. Only Chromium's headless
+      # shell, with the system libraries it needs.
+      - name: Install the Playwright browser
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+      - name: Browser smoke tests
+        run: pnpm test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
+  tui:
+    name: TUI (fmt, vet, lint, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: go.mod is tidy
+        run: go mod tidy && git diff --exit-code -- go.mod go.sum
+      - run: go vet ./...
+      - run: go test -race ./...
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
+        with:
+          version: v2.5.0
+          working-directory: tui
+
+  # Syntax, expressions, runner labels and action inputs of every workflow.
+  actionlint:
+    name: Workflows (actionlint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache: false
+      - name: actionlint
+        run: GOTOOLCHAIN=auto go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
+  # Each image is built and scanned in its own job, in parallel.
+  docker:
+    name: Image build (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            context: .
+          - image: frontend
+            context: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - name: Build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: omnisync-${{ matrix.image }}:ci
+      # Fails on HIGH or CRITICAL findings that have a fix available
+      # (.trivyignore lists the accepted ones, each with a reason and expiry).
+      - name: Scan the image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: omnisync-${{ matrix.image }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"

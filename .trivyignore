@@ -1,0 +1,8 @@
+# Image scan findings OmniSync accepts for now, each with a reason and an
+# expiry date (exp:); an expired entry fails the scan again.
+
+# google.golang.org/grpc compiled into rclone 1.75.1 (usr/local/bin/rclone),
+# the latest rclone release (2026-09-04). OmniSync cannot rebuild rclone with
+# a fixed grpc: bump RCLONE_VERSION in the Dockerfile as soon as a release
+# includes grpc 1.82.2 / 1.83.2 or newer.
+CVE-2026-84445 exp:2026-11-15

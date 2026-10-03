@@ -1,0 +1,13 @@
+{
+  "id": 5,
+  "job_id": 42,
+  "file_path": "docs/plan.odt",
+  "local_modified": "2026-09-27T08:30:00Z",
+  "remote_modified": "2026-09-27T09:45:30Z",
+  "resolved": true,
+  "resolution": "keep_both",
+  "profile_slug": "docs",
+  "profile_name": "Dokumente",
+  "local_kept_as": "docs/plan.local-conflict1.odt",
+  "remote_kept_as": "docs/plan.odt"
+}

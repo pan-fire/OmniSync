@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "POST /wizard/reconnect: store the token of a completed reconnect\nauthorization in the remote it was started for.",
+  "properties": {
+    "name": {
+      "maxLength": 255,
+      "title": "Name",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "session_id"
+  ],
+  "title": "ReconnectRemoteRequest",
+  "type": "object"
+}

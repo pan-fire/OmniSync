@@ -1,0 +1,27 @@
+# Development override: live reload with the backend source bind-mounted.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Not for everyday use: the container then runs whatever is in ./backend and
+# restarts on every change. Add OMNISYNC_API_DOCS=1 to the environment for
+# /docs and /openapi.json (they bypass the token check).
+#
+# It also defines `test-sandbox`, a throwaway Ubuntu shell with the backend
+# source and the data volume mounted, started only on request:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm test-sandbox
+services:
+  backend:
+    volumes:
+      - ./backend:/app/backend
+    command: ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers", "--reload", "--reload-dir", "/app/backend"]
+
+  test-sandbox:
+    image: ubuntu:24.04
+    volumes:
+      - ./backend:/app/backend
+      - omnisync-data:/data/omnisync
+    working_dir: /app
+    command: ["bash"]
+    restart: "no"
+    profiles:
+      - testing

@@ -1,0 +1,25 @@
+{
+  "$defs": {
+    "ConflictResolution": {
+      "description": "How a conflict is resolved.\n\nkeep_local copies the local file over the remote one, keep_remote the\nother way round (the replaced file goes to .omnisync-trash), keep_both\nkeeps the remote version next to the local one as\n<name>.conflict-<timestamp> on both sides. dismiss only closes the\nrecord and changes no file.",
+      "enum": [
+        "keep_local",
+        "keep_remote",
+        "keep_both",
+        "dismiss"
+      ],
+      "title": "ConflictResolution",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "resolution": {
+      "$ref": "#/$defs/ConflictResolution"
+    }
+  },
+  "required": [
+    "resolution"
+  ],
+  "title": "ConflictResolveRequest",
+  "type": "object"
+}

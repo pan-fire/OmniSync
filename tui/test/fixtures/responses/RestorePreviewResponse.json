@@ -1,0 +1,24 @@
+{
+  "snapshot_id": "2026-09-27T08-30-00",
+  "restore_scope": "both",
+  "exact": true,
+  "sides": [
+    {
+      "side": "local",
+      "path": "/home/user/Dokumente",
+      "added": 1,
+      "replaced": 2,
+      "removed": 3,
+      "unchanged": 4,
+      "added_examples": [
+        "a.txt"
+      ],
+      "replaced_examples": [
+        "b.txt"
+      ],
+      "removed_examples": [
+        "c.txt"
+      ]
+    }
+  ]
+}

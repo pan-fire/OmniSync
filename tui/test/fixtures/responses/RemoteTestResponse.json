@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "latency_ms": 87,
+  "error": "timeout",
+  "auth_error": true
+}

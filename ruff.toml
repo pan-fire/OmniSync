@@ -1,0 +1,4 @@
+# Python outside backend/ (scripts/, tui/test/fixtures/) is linted with the
+# backend's rules (CI: `ruff check backend scripts tui/test/fixtures`).
+# Files under backend/ use backend/ruff.toml directly, the closest config.
+extend = "backend/ruff.toml"

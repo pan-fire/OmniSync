@@ -1,0 +1,15 @@
+{
+  "profiles": [
+    {
+      "slug": "docs",
+      "name": "Dokumente"
+    }
+  ],
+  "backup_targets": [
+    {
+      "profile_slug": "docs",
+      "target_name": "Nightly",
+      "target_id": 3
+    }
+  ]
+}

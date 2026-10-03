@@ -1,0 +1,27 @@
+{
+  "remotes": [
+    {
+      "name": "gdrive",
+      "type": "drive",
+      "exists": true,
+      "problems": [],
+      "keys": [
+        "token"
+      ]
+    },
+    {
+      "name": "evil",
+      "type": "sftp",
+      "exists": false,
+      "problems": [
+        "'ssh' runs a program on this machine and is not imported"
+      ],
+      "keys": [
+        "ssh"
+      ]
+    }
+  ],
+  "errors": [
+    "This rclone.conf is encrypted."
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "SyncMode": {
+      "description": "How a profile syncs automatically.\n\ntwo_way: the watcher, the interval and \"Sync now\" run rclone bisync,\nwhich carries changes both ways and keeps both versions of a file\nchanged on both sides. mirror: local changes are pushed (rclone sync\nlocal -> remote) and the remote is pulled on the interval (remote ->\nlocal); the side that syncs last wins.",
+      "enum": [
+        "two_way",
+        "mirror"
+      ],
+      "title": "SyncMode",
+      "type": "string"
+    },
+    "SyncWindow": {
+      "description": "When automatic syncs (file watcher, interval) may run, in the server's local time.\n\n``days``: 0 = Monday ... 6 = Sunday, the days a window starts on.\n``end`` before ``start`` spans midnight (22:00-06:00 runs into the\nnext morning). Syncs the user starts run at any time.",
+      "properties": {
+        "days": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 1,
+          "title": "Days",
+          "type": "array"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SyncWindow",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "backup_dir": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Backup Dir"
+    },
+    "bwlimit": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bwlimit"
+    },
+    "debounce_seconds": {
+      "anyOf": [
+        {
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Debounce Seconds"
+    },
+    "local_dir": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Local Dir"
+    },
+    "max_retries": {
+      "anyOf": [
+        {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Retries"
+    },
+    "mirror_notice_dismissed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mirror Notice Dismissed"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "pull_interval_minutes": {
+      "anyOf": [
+        {
+          "maximum": 10080,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pull Interval Minutes"
+    },
+    "rclone_args": {
+      "anyOf": [
+        {
+          "items": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rclone Args"
+    },
+    "rclone_filter": {
+      "anyOf": [
+        {
+          "items": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "maxItems": 500,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rclone Filter"
+    },
+    "remote_dir": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remote Dir"
+    },
+    "sync_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SyncMode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sync_window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SyncWindow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "ProfileUpdateRequest",
+  "type": "object"
+}

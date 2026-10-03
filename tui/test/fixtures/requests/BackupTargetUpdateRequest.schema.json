@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "BackupMode": {
+      "enum": [
+        "archive",
+        "mirror"
+      ],
+      "title": "BackupMode",
+      "type": "string"
+    },
+    "BackupTargetType": {
+      "enum": [
+        "local",
+        "remote",
+        "custom_remote"
+      ],
+      "title": "BackupTargetType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "backup_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BackupMode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "enabled": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Enabled"
+    },
+    "encryption_passphrase": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encryption Passphrase"
+    },
+    "frequency_hours": {
+      "anyOf": [
+        {
+          "maximum": 8760,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Frequency Hours"
+    },
+    "keep_last": {
+      "anyOf": [
+        {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Keep Last"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "remote_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remote Name"
+    },
+    "retention_days": {
+      "anyOf": [
+        {
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retention Days"
+    },
+    "target_path": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Path"
+    },
+    "target_type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BackupTargetType"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verify_after_backup": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verify After Backup"
+    }
+  },
+  "title": "BackupTargetUpdateRequest",
+  "type": "object"
+}

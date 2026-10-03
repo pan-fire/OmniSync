@@ -1,0 +1,39 @@
+{
+  "$defs": {
+    "TrashSide": {
+      "enum": [
+        "local",
+        "remote"
+      ],
+      "title": "TrashSide",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "ids": {
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Ids",
+      "type": "array"
+    },
+    "overwrite": {
+      "default": false,
+      "title": "Overwrite",
+      "type": "boolean"
+    },
+    "side": {
+      "$ref": "#/$defs/TrashSide"
+    }
+  },
+  "required": [
+    "side",
+    "ids"
+  ],
+  "title": "TrashActionRequest",
+  "type": "object"
+}

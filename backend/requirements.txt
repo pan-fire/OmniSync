@@ -1,0 +1,17 @@
+# Runtime dependencies (ranges). The Docker image installs the exact pins in
+# requirements.lock; regenerate it after changing this file.
+fastapi>=0.115
+uvicorn[standard]>=0.34
+pydantic>=2.10
+# The [asyncio] extra pulls in greenlet, which SQLAlchemy 2.1+ no longer
+# installs by default; without it backend.db cannot import.
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.20
+# Versioned schema migrations (backend/migrations), applied at startup.
+alembic>=1.13
+apscheduler>=3.10,<4
+watchdog>=4.0
+toml>=0.10
+httpx>=0.27
+pywebpush>=2.0.0
+py-vapid>=1.9.0

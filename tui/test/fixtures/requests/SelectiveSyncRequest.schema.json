@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "FileAction": {
+      "enum": [
+        "push",
+        "pull",
+        "skip",
+        "manual",
+        "keep_both"
+      ],
+      "title": "FileAction",
+      "type": "string"
+    },
+    "SelectiveSyncItem": {
+      "description": "A single file action in a selective sync request.",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/FileAction"
+        },
+        "path": {
+          "maxLength": 4096,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "action"
+      ],
+      "title": "SelectiveSyncItem",
+      "type": "object"
+    }
+  },
+  "description": "Request body for POST /sync/selective.",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SelectiveSyncItem"
+      },
+      "maxItems": 10000,
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "SelectiveSyncRequest",
+  "type": "object"
+}

@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "BackupMode": {
+      "enum": [
+        "archive",
+        "mirror"
+      ],
+      "title": "BackupMode",
+      "type": "string"
+    },
+    "BackupTargetType": {
+      "enum": [
+        "local",
+        "remote",
+        "custom_remote"
+      ],
+      "title": "BackupTargetType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "backup_mode": {
+      "$ref": "#/$defs/BackupMode",
+      "default": "mirror"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "encryption_passphrase": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encryption Passphrase"
+    },
+    "frequency_hours": {
+      "default": 24,
+      "maximum": 8760,
+      "minimum": 1,
+      "title": "Frequency Hours",
+      "type": "integer"
+    },
+    "keep_last": {
+      "default": 3,
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Keep Last",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "remote_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remote Name"
+    },
+    "retention_days": {
+      "default": 7,
+      "maximum": 365,
+      "minimum": 1,
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "target_path": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Target Path",
+      "type": "string"
+    },
+    "target_type": {
+      "$ref": "#/$defs/BackupTargetType"
+    },
+    "verify_after_backup": {
+      "default": true,
+      "title": "Verify After Backup",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "target_path",
+    "target_type"
+  ],
+  "title": "BackupTargetCreateRequest",
+  "type": "object"
+}

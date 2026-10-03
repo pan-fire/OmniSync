@@ -1,0 +1,110 @@
+name: Security
+
+# Known-vulnerability scans, apart from the CI gate:
+#   deps        pip-audit (backend pins), pnpm audit (web UI), govulncheck (TUI)
+#   images      Trivy scan of the backend and web UI images, built here
+# CodeQL is in codeql.yml, gitleaks in secrets.yml.
+# Weekly, because advisories appear without any change here; on a pull
+# request that changes dependencies or images; and on demand.
+#
+# Runners and Node 24 pins: as in ci.yml. Every action is pinned to a commit, since
+# a tag can be moved to other code (as happened to trivy-action's tags in
+# 2026); Dependabot keeps the pins current.
+on:
+  schedule:
+    - cron: "17 4 * * 1"  # Mondays 04:17 UTC
+  pull_request:
+    paths:
+      - backend/requirements*.txt
+      - backend/requirements.lock
+      - frontend/package.json
+      - frontend/pnpm-lock.yaml
+      - tui/go.mod
+      - tui/go.sum
+      - Dockerfile
+      - frontend/Dockerfile
+      - .github/workflows/security.yml
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deps:
+    name: Dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The exact pins the image ships (requirements.lock), not a fresh
+      # resolution of the ranges in requirements.txt.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: pip-audit (backend)
+        run: |
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit --disable-pip --no-deps -r backend/requirements.lock
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320  # v5.0.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+      - name: pnpm audit (web UI, runtime dependencies)
+        working-directory: frontend
+        run: pnpm audit --prod --audit-level high
+
+      # The toolchain go.mod names, so the standard library is checked at
+      # the version the release binaries are built with. govulncheck itself
+      # may need a newer Go to build (GOTOOLCHAIN=auto fetches it).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - name: govulncheck (TUI)
+        working-directory: tui
+        run: |
+          GOTOOLCHAIN=auto GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          "$RUNNER_TEMP/bin/govulncheck" ./...
+
+  # Pull requests get the same scan in ci.yml's docker job; this one runs
+  # weekly (new advisories for unchanged images) and on demand.
+  images:
+    name: Image scan (Trivy)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            context: .
+          - image: frontend
+            context: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: omnisync-${{ matrix.image }}:scan
+      # Fails on HIGH or CRITICAL findings that have a fix available; the
+      # image is rebuilt from current bases each run, so a fixed base image
+      # clears a finding without a change here.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: omnisync-${{ matrix.image }}:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "1"

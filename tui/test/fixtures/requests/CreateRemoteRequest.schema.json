@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "description": "POST /wizard/create. OAuth providers pass the session_id of a completed\nauthorization instead of a token; unknown fields (such as a token) are rejected.",
+  "properties": {
+    "name": {
+      "maxLength": 255,
+      "title": "Name",
+      "type": "string"
+    },
+    "params": {
+      "additionalProperties": {
+        "maxLength": 65536,
+        "type": "string"
+      },
+      "default": {},
+      "maxProperties": 64,
+      "propertyNames": {
+        "maxLength": 128
+      },
+      "title": "Params",
+      "type": "object"
+    },
+    "provider_id": {
+      "maxLength": 64,
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    }
+  },
+  "required": [
+    "name",
+    "provider_id"
+  ],
+  "title": "CreateRemoteRequest",
+  "type": "object"
+}

@@ -1,0 +1,9 @@
+{
+  "detail": "Remotes with these names exist already: gdrive",
+  "code": "name_clash",
+  "details": {
+    "names": [
+      "gdrive"
+    ]
+  }
+}

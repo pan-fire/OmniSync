@@ -1,0 +1,93 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security problems do not belong here**: report
+        them privately (see SECURITY.md).
+
+        **Redact before posting.** Logs, `rclone.conf`, `config.toml` and
+        `.env` can contain API tokens, OAuth tokens, passwords and private
+        paths or file names. Replace them with `<redacted>`.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a two-way profile for ...
+        2. Delete ... on the remote
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OmniSync version
+      description: The web UI's sidebar, `GET /health` ("version") or `osync --version`.
+      placeholder: "0.10.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - docker compose, built from source
+        - docker compose, released images (ghcr.io)
+        - other container runtime (Podman, Kubernetes, NAS app)
+        - without Docker
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - backend / syncing
+        - web UI
+        - terminal UI (osync)
+        - backups / restore
+        - notifications
+        - remote setup wizard
+        - installation / images
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Host OS and architecture
+      placeholder: "Debian 13 on amd64, Synology DSM 7.2 on arm64, macOS 15 (osync) ..."
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Cloud provider and sync mode
+      placeholder: "Google Drive, two-way"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The relevant part of the Logs page or `docker compose logs backend`
+        (set the log level to DEBUG under Config to see more). Redact tokens,
+        passwords and private paths.
+      render: text

@@ -1,0 +1,39 @@
+{
+  "properties": {
+    "history_days": {
+      "anyOf": [
+        {
+          "maximum": 3650,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "History Days"
+    },
+    "log_level": {
+      "anyOf": [
+        {
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Log Level"
+    }
+  },
+  "title": "GlobalConfigUpdateRequest",
+  "type": "object"
+}

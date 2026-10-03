@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "name": {
+      "maxLength": 255,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "TestRemoteRequest",
+  "type": "object"
+}

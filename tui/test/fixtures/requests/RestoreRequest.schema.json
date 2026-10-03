@@ -1,0 +1,30 @@
+{
+  "$defs": {
+    "RestoreScope": {
+      "enum": [
+        "local_only",
+        "remote_only",
+        "both"
+      ],
+      "title": "RestoreScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "restore_scope": {
+      "$ref": "#/$defs/RestoreScope"
+    },
+    "snapshot_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "restore_scope"
+  ],
+  "title": "RestoreRequest",
+  "type": "object"
+}

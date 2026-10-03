@@ -1,0 +1,16 @@
+{
+  "side": "remote",
+  "entries": [
+    {
+      "id": "2026-09-27T08-30-00Z/Berichte/ä.txt",
+      "folder": "2026-09-27T08-30-00Z",
+      "path": "Berichte/ä.txt",
+      "size": 1024,
+      "modified": "2026-09-27T08:30:00Z",
+      "trashed_at": "2026-09-27T09:45:30Z"
+    }
+  ],
+  "total_files": 7,
+  "total_bytes": 123456,
+  "truncated": true
+}

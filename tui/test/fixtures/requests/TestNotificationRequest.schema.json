@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "channel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Channel"
+    }
+  },
+  "title": "TestNotificationRequest",
+  "type": "object"
+}
