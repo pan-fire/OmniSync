@@ -245,16 +245,17 @@ pushed, rotate it first: it is leaked even if the history is rewritten.
 The version lives in [`VERSION`](VERSION); the backend reports it, the web
 UI's `frontend/package.json` repeats it, and the TUI gets it through
 `-ldflags`. Between releases it may hold the next release's development
-version (`0.10.0-dev`), which is never tagged; builds from `main` report it.
+version (e.g. `0.11.0-dev`), which is never tagged; builds from `main` report it.
 To release:
 
-1. `scripts/release/prepare.sh 0.10.0` bumps `VERSION` and
-   `frontend/package.json`, moves the Unreleased entries into a `0.10.0`
+1. `scripts/release/prepare.sh 0.11.0` bumps `VERSION` and
+   `frontend/package.json`, moves the Unreleased entries into a `0.11.0`
    section, and prints the git commands to commit and tag; it runs none of
-   them. `scripts/release/changelog-notes.sh 0.10.0` shows the notes. The
+   them. `scripts/release/changelog-notes.sh 0.11.0` shows the notes. The
    changelog links the new version to a comparison with the previous
-   release, or, for the first release (no earlier tag), to its tag page.
-2. Get that commit onto `main`, then tag it there (`git tag -a v0.10.0`) and
+   tagged release, or, for the first release tagged here, to its tag page
+   (0.10.0 was released before the repository was public and has no tag).
+2. Get that commit onto `main`, then tag it there (`git tag -a v0.11.0`) and
    push the tag.
 3. The tag starts [`.github/workflows/release.yml`](.github/workflows/release.yml):
    it refuses a tag that does not match `VERSION`, `frontend/package.json`

@@ -9,10 +9,8 @@ how syncs behave is in [How Syncing Works](how-syncing-works.md).
 
 The release images are multi-platform: `linux/amd64` (x86-64 PCs and
 servers) and `linux/arm64` (a Raspberry Pi 4/5 with a 64-bit OS, most
-current NAS models); Docker pulls the right one by itself. The arm64 images
-start with the release after 0.10.0, which published `linux/amd64` only: on
-ARM with 0.10.0, build from the source with `docker compose up -d --build`.
-32-bit ARM (`armv7`) is not supported.
+current NAS models) under the same tag; Docker pulls the right one by
+itself. 32-bit ARM (`armv7`) is not supported.
 
 **User.** The backend's entrypoint starts as root only to give the data
 volume to `PUID`/`PGID` and then runs OmniSync as that user (with `gosu`);
@@ -34,8 +32,8 @@ backend's log timestamps and schedules follow it.
 `docker-compose.yml` sets, so `docker ps` shows `healthy` also without
 compose. The backend's checks `GET /health` (no token needed), which answers
 503 when the database or the rclone binary is missing; it never calls a
-cloud provider. The web UI's fetches `/`, which checks the Next.js server
-only. `docker inspect --format '{{json .State.Health}}' <container>` shows
+cloud provider. The web UI's fetches `/healthz`, which checks the Next.js server
+only (it answers without a login and without asking the backend). `docker inspect --format '{{json .State.Health}}' <container>` shows
 the last results.
 
 **Resource limits.** None are set by default. `docker-compose.yml` has

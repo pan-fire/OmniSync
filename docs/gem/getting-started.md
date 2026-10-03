@@ -39,8 +39,8 @@ The web UI is now at <http://127.0.0.1:3000> and the API at
 
 The commands above build the images from the source. Each release also
 publishes ready-built images, `ghcr.io/pan-fire/omnisync-backend` and
-`ghcr.io/pan-fire/omnisync-web` (for `linux/amd64` and `linux/arm64`; 0.10.0
-has `linux/amd64` only, so on 64-bit ARM build that one from the source), tagged with the version (e.g. `1.2.3`), the minor line (`1.2`) and `latest`.
+`ghcr.io/pan-fire/omnisync-web`, tagged with the version (e.g. `1.2.3`),
+the minor line (`1.2`) and `latest`.
 To use them, create the same `.env` with one more line,
 `OMNISYNC_VERSION=<version>` (the latest release, from the
 [releases page](https://github.com/pan-fire/OmniSync/releases)), save the
@@ -100,7 +100,7 @@ reaches the callback at, and register that. A sign-in is valid for about
 ten minutes; if it fails, click **Retry** and sign in again.
 
 **Remotes from rclone's built-in apps.** A remote created with rclone's
-built-in app (by an earlier OmniSync, or imported from an rclone.conf) has
+built-in app (made with `rclone config` and imported from an rclone.conf) has
 no client ID of its own. It keeps working: rclone refreshes its token with
 its own app. **Reconnect** on such a remote needs your own app, which it
 then stores in the remote. rclone is retiring its shared Google Drive app
@@ -242,7 +242,7 @@ profiles, `osync sync <profile>` runs a two-way sync and
 `osync resync <profile> --yes` a resync. On a profile's Overview, `n` runs
 **Sync now** and `R` a **Resync** (two-way profiles), `w` switches a mirror
 profile to two-way and `h` hides its mirror-mode note; `p` and `l` push and
-pull as before. On the Dashboard, `w` switches all mirror profiles. See [tui/README.md](../../tui/README.md)
+pull. On the Dashboard, `w` switches all mirror profiles. See [tui/README.md](../../tui/README.md)
 and the [TUI manual](../../tui/USER-MANUAL.md).
 
 ---

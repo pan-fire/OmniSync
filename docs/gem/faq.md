@@ -36,9 +36,8 @@ publish the app to avoid that (see [Cloud Remotes](remotes.md#google-drive)).
 OmniSync ships no OAuth client IDs or secrets of its own, rclone's
 included: Google Drive, Dropbox and OneDrive sign in with an app you
 register once with the provider. [Cloud Remotes](remotes.md) has the steps
-for each. A remote created with rclone's built-in app (by an earlier
-OmniSync or an imported rclone.conf) keeps working, because rclone
-refreshes its token; to **Reconnect** it, enter your own app's client ID.
+for each. A remote that uses rclone's built-in app (for example one from
+an imported rclone.conf) keeps working, because rclone refreshes its token; to **Reconnect** it, enter your own app's client ID.
 
 ### How do I change a password or key of a remote?
 **Edit** on the remote's card (TUI: `e`). Stored passwords and keys are not
@@ -135,6 +134,12 @@ Edit the `ports:` mappings in `docker-compose.yml` (or an override file),
 e.g. `"127.0.0.1:8080:3000"` for the web UI. The redirect URI of your
 OAuth apps (Google Drive, Dropbox, OneDrive) is the web UI's address plus
 `/api/wizard/oauth/callback`, so update it at the provider as well.
+
+### Does it run on a Raspberry Pi or an ARM NAS?
+Yes, on a 64-bit OS: the release images are built for `linux/amd64` and
+`linux/arm64` under the same tag, and Docker pulls the right one. 32-bit
+ARM (`armv7`) is not supported. The `osync` terminal client is published
+for Linux, macOS and Windows on amd64 and arm64.
 
 ### Which version am I running, and how do I upgrade?
 The web UI shows its version at the foot of the sidebar, and the server's
