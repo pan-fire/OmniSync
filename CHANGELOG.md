@@ -67,6 +67,34 @@ release notes.
 - A token refresh no longer sends an empty `client_secret` for apps
   without one (Dropbox PKCE apps, Azure public clients).
 
+### Security
+
+- A failed token exchange logs the provider's `error` value only when it
+  looks like an error code (e.g. `invalid_grant`); anything else a
+  provider puts there is dropped. Microsoft Graph error codes longer than
+  64 characters are dropped instead of cut.
+- A failed sign-in shows (in the callback page and `GET
+  /wizard/sessions/{id}`) a fixed message looked up by its error code,
+  never the exception's text.
+- `GET /browse/local` and the log line of a remote update are written so
+  CodeQL can see their existing guards: the folder is confined to the
+  browse roots with a realpath and prefix check, and only option names
+  (never values) are logged. Behaviour is unchanged.
+- The web UI's client-address filter for log lines uses a plain character
+  class (CodeQL `js/overly-large-range`); it accepts the same addresses.
+- Web UI development dependencies: vitest and @vitest/coverage-v8
+  4.0.18 → 4.1.11 (critical GHSA-5xrq-8626-4rwp and GHSA-82fw-gwwq-j7x9),
+  vite 7.3.1 → 7.3.6 (now a direct dev dependency, so the peer resolves to
+  the fixed release), esbuild 0.28.2, and the lockfile refreshed for
+  hono, @hono/node-server, undici, fast-uri, ip-address (via
+  express-rate-limit 8.7.0), js-yaml, minimatch, brace-expansion, picomatch,
+  postcss, rollup, nanoid, flatted, qs, path-to-regexp, body-parser, ajv
+  and @humanfs/node. `pnpm audit` (all dependencies) reports only braces
+  3.0.3 (GHSA-vfj7-8cjw-p6xm), which has no fixed release; it is reached
+  only through ESLint's file globbing with patterns from this repository.
+  All of these are development dependencies (tests, linting, the shadcn
+  CLI); the image ships only the Next.js standalone server.
+
 ## [0.10.0] - 2026-10-02
 
 Released before this repository was public; there is no public tag for it.

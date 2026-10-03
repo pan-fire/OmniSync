@@ -195,6 +195,8 @@ class ConfigMixin(RcloneBase):
         if "type" in set_values or "type" in remove:
             raise ValueError("A remote's type cannot be changed")
 
+        changed: list[str] = []
+
         def change(config: configparser.RawConfigParser) -> None:
             if not config.has_section(name):
                 raise ValueError(f"Remote '{name}' not found")
@@ -204,10 +206,13 @@ class ConfigMixin(RcloneBase):
                 config.remove_option(name, key)
             for key, value in set_values.items():
                 config.set(name, key, value)
+            # For the log: the names of the changed options as the file now
+            # has them, never a value (set_values holds secrets and tokens).
+            changed.extend(sorted(opt for opt in config.options(name) if opt in set_values))
 
         await self._update_config(change)
         logger.info("Updated remote '%s' (changed: %s; removed: %s)", name,
-                    ", ".join(sorted(set_values)) or "-", ", ".join(sorted(remove)) or "-")
+                    ", ".join(changed) or "-", ", ".join(sorted(remove)) or "-")
 
     async def add_remotes(self, sections: dict[str, dict[str, str]]) -> None:
         """Add several remotes in one locked update: all of them or none.

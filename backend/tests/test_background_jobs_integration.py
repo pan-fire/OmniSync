@@ -476,6 +476,8 @@ async def test_job_errors_never_carry_rclone_output(env, monkeypatch):
     assert (job.status, job.error_code) == ("failed", "backup_failed")
     assert "hunter2" not in (job.error_message or "") and "pass=***" in (job.error_message or "")  # redacted
     public = _job_response(job).model_dump_json()
+    # The text fields only: a timestamp elsewhere in the JSON may contain "403".
+    shown = " ".join(str(v) for v in _job_response(job).model_dump().values() if isinstance(v, str))
     for fragment in ("googleapi", "403", "ya29", "Failed to copy", "a.txt", "sftp", "pass="):
-        assert fragment not in public
+        assert fragment not in shown
     assert "The OmniSync log has the details." in public

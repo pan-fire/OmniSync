@@ -35,6 +35,7 @@ from backend.services.oauth import (
     fetch_onedrive_drive,
     get_oauth_config,
     new_pkce_pair,
+    oauth_flow_message,
 )
 from backend.services.provider_registry import (
     ProviderInfo,
@@ -294,8 +295,10 @@ async def _complete_with_code(session: WizardSession, code: str) -> bool:
     except OAuthFlowError as e:
         session.code_verifier = None
         session.status = "failed"
-        session.error = str(e)
+        # A constant looked up by code: no exception text reaches the session,
+        # which the status endpoint and the callback page show.
         session.error_code = e.code
+        session.error = oauth_flow_message(e.code)
         return False
     session.code_verifier = None
     if token:
