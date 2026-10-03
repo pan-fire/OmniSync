@@ -135,21 +135,22 @@ func renderJobSummary(job *api.SyncJobResponse, profile string) string {
 	labelStyle := lipgloss.NewStyle().Foreground(theme.Current.Muted)
 	valueStyle := lipgloss.NewStyle().Foreground(theme.Current.Foreground)
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("  ID: %s  Status: %s  Direction: %s\n",
+	fmt.Fprintf(&b, "  ID: %s  Status: %s  Direction: %s\n",
 		valueStyle.Render(strconv.Itoa(job.ID)),
 		components.RenderBadge(string(job.Status)),
-		valueStyle.Render(jobDirectionLabel(job.Direction)),
-	))
+		valueStyle.Render(jobDirectionLabel(job.Direction)))
+
 	b.WriteString("  ")
 	if profile != "" {
-		b.WriteString(fmt.Sprintf("Profile: %s  ", valueStyle.Render(profile)))
+		fmt.Fprintf(&b, "Profile: %s  ", valueStyle.Render(profile))
 	}
-	b.WriteString(fmt.Sprintf("Started: %s  Finished: %s\n",
+	fmt.Fprintf(&b, "Started: %s  Finished: %s\n",
 		labelStyle.Render(formatTime(job.StartedAt)),
-		labelStyle.Render(formatTimePtr(job.FinishedAt, "-")),
-	))
-	b.WriteString(fmt.Sprintf("  Files: %d  Conflicts: %d  Errors: %d\n\n",
-		job.FilesChanged, job.Conflicts, job.Errors))
+		labelStyle.Render(formatTimePtr(job.FinishedAt, "-")))
+
+	fmt.Fprintf(&b, "  Files: %d  Conflicts: %d  Errors: %d\n\n",
+		job.FilesChanged, job.Conflicts, job.Errors)
+
 	return b.String()
 }
 
