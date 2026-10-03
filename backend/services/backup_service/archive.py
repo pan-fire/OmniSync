@@ -18,7 +18,7 @@ from backend.api.schemas import RestoreScope
 from backend.db.models import BackupTarget, SyncProfile
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR, TRASH_FILTER, classify_failure, process_env
 from backend.services.sync_engine import remote_join
-from backend.services.backup_service.common import RestoreRefused, SnapshotFile, _BackupOutcome, logger
+from backend.services.backup_service.common import RestoreRefused, SnapshotFile, _BackupOutcome, logger, scratch_dir
 from backend.services.backup_service.base import BackupBase
 
 # A local archive is written under this prefix and renamed when complete, so a
@@ -166,10 +166,9 @@ class ArchiveMixin(BackupBase):
     ) -> _BackupOutcome:
         """Create tar.gz archive and upload via rclone (through crypt for an encrypted target)."""
         filename = f"backup-{timestamp}.tar.gz"
-        temp_dir = tempfile.mkdtemp(prefix="omnisync-backup-")
-        temp_path = os.path.join(temp_dir, filename)
+        async with scratch_dir("omnisync-backup-") as temp_dir:
+            temp_path = os.path.join(temp_dir, filename)
 
-        try:
             # tar/gzip of a whole folder takes minutes: never on the event loop
             size = await asyncio.to_thread(_create_archive, profile.local_dir, temp_path)
 
@@ -185,8 +184,6 @@ class ArchiveMixin(BackupBase):
                     target, temp_path, filename, size,
                 )
             return outcome
-        finally:
-            await asyncio.to_thread(shutil.rmtree, temp_dir, True)
 
     def _archive_source(self, target: BackupTarget, snapshot_id: str) -> str | list[str]:
         """What _read_archive_stream reads an archive from: its local path, or an rclone cat command."""
@@ -211,8 +208,7 @@ class ArchiveMixin(BackupBase):
         self._check_archive_id(snapshot_id)
         dests = self._restore_destinations(profile, scope)
         args = self.transfer_args(profile)
-        temp_dir = await asyncio.to_thread(tempfile.mkdtemp, prefix="omnisync-restore-")
-        try:
+        async with scratch_dir("omnisync-restore-") as temp_dir:
             # Download archive (decrypted on the way for an encrypted target)
             if self._plain_local(target):
                 archive_path = os.path.join(target.target_path, snapshot_id)
@@ -231,16 +227,13 @@ class ArchiveMixin(BackupBase):
                     extract_dir, dest, self.pre_restore_dir(dest),
                     rclone_filter=[TRASH_FILTER, f"- /{SENTINEL_FILE}"], rclone_args=args,
                 )
-        finally:
-            await asyncio.to_thread(shutil.rmtree, temp_dir, True)
 
     async def _restore_archive_files(
         self, target: BackupTarget, snapshot_id: str, select_path: Callable[[str], bool], dest: str,
         rclone_args: list[str] | None = None,
     ) -> None:
         """Extract only the selected files of an archive (streamed) and copy them into dest (with ``rclone_args``)."""
-        temp_dir = await asyncio.to_thread(tempfile.mkdtemp, prefix="omnisync-restore-")
-        try:
+        async with scratch_dir("omnisync-restore-") as temp_dir:
             extract_dir = os.path.join(temp_dir, "extracted")
             source = self._archive_source(target, snapshot_id)
             extracted = await asyncio.to_thread(
@@ -252,5 +245,3 @@ class ArchiveMixin(BackupBase):
             await self._rclone.copy_files(extract_dir, dest, extracted, backup_dir=safety, rclone_args=rclone_args)
             logger.info("Restored %d file(s) of %s to %s (replaced files kept in %s)",
                         len(extracted), snapshot_id, dest, safety)
-        finally:
-            await asyncio.to_thread(shutil.rmtree, temp_dir, True)
