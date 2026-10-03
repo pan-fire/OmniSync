@@ -380,13 +380,14 @@ func (m LogsModel) View() tea.View {
 	}
 
 	for _, e := range m.visibleLines() {
-		b.WriteString(fmt.Sprintf("  %s %s %s\n",
-			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), e.Message))
+		fmt.Fprintf(&b, "  %s %s %s\n",
+			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), e.Message)
+
 	}
 
 	if len(m.filtered) == 0 {
 		if m.search != "" {
-			b.WriteString(fmt.Sprintf("  No log entries on this page match %q", m.search))
+			fmt.Fprintf(&b, "  No log entries on this page match %q", m.search)
 		} else {
 			b.WriteString("  No log entries")
 		}

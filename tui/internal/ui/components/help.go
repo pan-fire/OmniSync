@@ -31,10 +31,10 @@ func RenderHelp(title string, bindings []KeyBinding, width, height int) string {
 	b.WriteString("\n\n")
 
 	for _, kb := range bindings {
-		b.WriteString(fmt.Sprintf("  %s %s\n",
+		fmt.Fprintf(&b, "  %s %s\n",
 			keyStyle.Render(kb.Key),
 			descStyle.Render(kb.Desc),
-		))
+		)
 	}
 
 	b.WriteString("\nPress any key to close")

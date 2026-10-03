@@ -244,12 +244,12 @@ func (m ConfigModel) View() tea.View {
 
 	if m.config != nil {
 		valueStyle := lipgloss.NewStyle().Foreground(theme.Current.Foreground)
-		b.WriteString(fmt.Sprintf("  %s  %s\n", mutedText("Log Level:"), valueStyle.Render(m.config.LogLevel)))
+		fmt.Fprintf(&b, "  %s  %s\n", mutedText("Log Level:"), valueStyle.Render(m.config.LogLevel))
 		history := fmt.Sprintf("%d days", m.config.HistoryDays)
 		if m.config.HistoryDays == 0 {
 			history = "forever"
 		}
-		b.WriteString(fmt.Sprintf("  %s  %s\n", mutedText("Keep History:"), valueStyle.Render(history)))
+		fmt.Fprintf(&b, "  %s  %s\n", mutedText("Keep History:"), valueStyle.Render(history))
 	}
 	if m.testing {
 		b.WriteString("\n  Running sync test...\n")
