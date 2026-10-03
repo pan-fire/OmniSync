@@ -33,12 +33,10 @@ const fileDiffArb: fc.Arbitrary<FileDiff> = fc.record({
 
 const fileDiffListArb = fc.array(fileDiffArb, { minLength: 0, maxLength: 50 });
 
-// Feature: granular-sync-control, Property 12: File browser sorting correctness
-describe('Property 12: File browser sorting correctness', () => {
+describe('File browser sorting correctness', () => {
   /**
    * For any list of FileDiff objects and any valid sort key,
    * sorting produces a list ordered correctly with null values sorted last.
-   * Validates: Requirements 6.2
    */
   const sortKeyArb: fc.Arbitrary<SortKey> = fc.constantFrom('path', 'category', 'local_size', 'local_mod_time');
   const sortDirArb: fc.Arbitrary<SortDir> = fc.constantFrom('asc', 'desc');
@@ -70,12 +68,10 @@ describe('Property 12: File browser sorting correctness', () => {
   });
 });
 
-// Feature: granular-sync-control, Property 13: File browser filtering correctness
-describe('Property 13: File browser filtering correctness', () => {
+describe('File browser filtering correctness', () => {
   /**
    * For any list of FileDiff objects and any category filter,
    * filtering returns exactly the files matching that category.
-   * Validates: Requirements 6.3
    */
   it('filtering returns exactly matching files', () => {
     fc.assert(
@@ -104,13 +100,11 @@ describe('Property 13: File browser filtering correctness', () => {
   });
 });
 
-// Feature: granular-sync-control, Property 14: FileDiff row contains all required fields
-describe('Property 14: FileDiff row contains all required fields', () => {
+describe('FileDiff row contains all required fields', () => {
   /**
    * For any FileDiff object, all required fields are present and have correct types.
    * path is a string, category is a valid ChangeCategory, sizes are number|null,
    * mod times are string|null, is_conflict and manual_flag are booleans.
-   * Validates: Requirements 6.1
    */
   it('every FileDiff has all required fields with correct types', () => {
     const validCategories = new Set<string>([
@@ -134,12 +128,10 @@ describe('Property 14: FileDiff row contains all required fields', () => {
   });
 });
 
-// Feature: granular-sync-control, Property 3: Diff response summary consistency (frontend)
-describe('Property 3: Diff response summary consistency (frontend)', () => {
+describe('Diff response summary consistency (frontend)', () => {
   /**
    * For any list of FileDiff objects, the computed summary counts must match
    * the actual count of files in each category, and total must equal files.length.
-   * Validates: Requirements 1.5, 6.6
    */
   it('computed summary counts match actual file category counts', () => {
     fc.assert(
@@ -164,7 +156,6 @@ describe('Property 3: Diff response summary consistency (frontend)', () => {
   });
 });
 
-// Feature: granular-sync-control, i18n key completeness
 describe('Granular sync i18n key completeness', () => {
   function extractKeys (obj: Record<string, unknown>, prefix: string): string[] {
     const keys: string[] = [];

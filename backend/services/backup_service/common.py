@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import shutil
+import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -45,3 +50,23 @@ class _BackupOutcome:
     snapshot_id: str
     verify_status: str | None = None
     verify_message: str | None = None
+
+
+@asynccontextmanager
+async def scratch_dir(prefix: str) -> AsyncIterator[str]:
+    """A private temporary folder, removed when the block ends: normally, on an error or on cancellation.
+
+    The folder is created synchronously (mkdtemp is quick), so no
+    cancellation can land between creating it and owning it. The removal
+    runs in a thread; if the task is cancelled again while it waits, the
+    removal finishes on the event loop instead of leaving the folder behind.
+    """
+    path = tempfile.mkdtemp(prefix=prefix)
+    try:
+        yield path
+    finally:
+        try:
+            await asyncio.to_thread(shutil.rmtree, path, True)
+        except asyncio.CancelledError:
+            shutil.rmtree(path, ignore_errors=True)
+            raise

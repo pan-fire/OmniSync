@@ -14,7 +14,7 @@ func quickAddBackend(t *testing.T) *backend {
 	return b
 }
 
-// R10.5: c asks name and type (key-based providers only), then the
+// c asks name and type (key-based providers only), then the
 // provider's fields, and creates the remote with POST /wizard/create.
 func TestRemotes_QuickAddCreatesKeyRemote(t *testing.T) {
 	b := quickAddBackend(t)

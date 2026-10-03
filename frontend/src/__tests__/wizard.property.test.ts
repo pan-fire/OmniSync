@@ -37,11 +37,8 @@ const invalidNameArb = fc
   .string({ minLength: 1, maxLength: 30 })
   .filter((s) => !/^[a-zA-Z0-9_-]+$/.test(s));
 
-// Feature: remote-setup-wizard, Property 2: Wizard step transition order
-describe('Property 2: Wizard step transition order', () => {
+describe('Wizard step transition order', () => {
   /**
-   * **Validates: Requirements 2.1**
-   *
    * For any sequence of forward transitions from the initial wizard state,
    * the steps must follow the order: provider → config → test → complete.
    * No step may be skipped, and complete has no forward transition.
@@ -96,11 +93,8 @@ describe('Property 2: Wizard step transition order', () => {
   });
 });
 
-// Feature: remote-setup-wizard, Property 3: Incomplete step blocks advancement
-describe('Property 3: Incomplete step blocks advancement', () => {
+describe('Incomplete step blocks advancement', () => {
   /**
-   * **Validates: Requirements 2.2, 3.2**
-   *
    * For any wizard state on the provider step where the remote name is empty
    * or invalid or no provider is selected, OR on the config step where any
    * required field for the selected key-based provider is empty, the canAdvance
@@ -175,11 +169,8 @@ describe('Property 3: Incomplete step blocks advancement', () => {
   });
 });
 
-// Feature: remote-setup-wizard, Property 4: Back navigation preserves entered data
-describe('Property 4: Back navigation preserves entered data', () => {
+describe('Back navigation preserves entered data', () => {
   /**
-   * **Validates: Requirements 2.3**
-   *
    * For any wizard state that has advanced past the provider step, applying
    * a PREV_STEP action followed by a NEXT_STEP action must produce a state
    * where all previously entered field values, the selected provider, and
@@ -218,11 +209,8 @@ describe('Property 4: Back navigation preserves entered data', () => {
   });
 });
 
-// Feature: remote-setup-wizard, Property 5: Cancel resets wizard to initial state
-describe('Property 5: Cancel resets wizard to initial state', () => {
+describe('Cancel resets wizard to initial state', () => {
   /**
-   * **Validates: Requirements 2.4**
-   *
    * For any wizard state (regardless of current step, entered fields, or
    * selected provider), applying a RESET action must produce a state identical
    * to the initial wizard state.
@@ -258,11 +246,8 @@ describe('Property 5: Cancel resets wizard to initial state', () => {
   });
 });
 
-// Feature: remote-setup-wizard, Property 13: Remote name validation (frontend)
-describe('Property 13: Remote name validation (frontend)', () => {
+describe('Remote name validation (frontend)', () => {
   /**
-   * **Validates: Requirements 8.2**
-   *
    * For any string, the remote name validator must return true if and only if
    * the string is non-empty and matches the pattern ^[a-zA-Z0-9_-]+$.
    * Strings containing spaces, dots, colons, slashes, or other special
@@ -309,11 +294,8 @@ describe('Property 13: Remote name validation (frontend)', () => {
   });
 });
 
-// Feature: remote-setup-wizard, Property 14: Translation key completeness
-describe('Property 14: Translation key completeness', () => {
+describe('Translation key completeness', () => {
   /**
-   * **Validates: Requirements 9.3**
-   *
    * For any translation key under the wizard.* namespace that exists in the
    * English locale file, that same key must also exist and have a non-empty
    * string value in both the Farsi and German locale files.

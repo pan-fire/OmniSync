@@ -152,6 +152,8 @@ jobs:
           images: ${{ matrix.image.ref }}
           labels: |
             org.opencontainers.image.title=${{ matrix.image.title }}
+            org.opencontainers.image.source=https://github.com/pan-fire/OmniSync
+            org.opencontainers.image.url=https://github.com/pan-fire/OmniSync
             org.opencontainers.image.licenses=GPL-3.0-only
       - name: Build and push by digest
         id: build
@@ -231,7 +233,11 @@ jobs:
           mapfile -t tags < <(jq -r '.tags[] | "--tag=" + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
           sources=()
           for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
-          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          # The index carries the repository too, so GHCR links the package to it.
+          docker buildx imagetools create "${tags[@]}" \
+            --annotation "index:org.opencontainers.image.source=https://github.com/pan-fire/OmniSync" \
+            --annotation "index:org.opencontainers.image.licenses=GPL-3.0-only" \
+            "${sources[@]}"
 
       # Signs the image index by digest (every tag points at it), so one
       # signature covers all tags and platforms. Keyless: the certificate

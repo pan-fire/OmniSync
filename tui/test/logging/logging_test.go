@@ -44,7 +44,7 @@ func captureLog(t *testing.T) *syncBuffer {
 	return buf
 }
 
-// R17.4: with OMNISYNC_LOG_FILE set, API calls are logged at debug level to
+// With OMNISYNC_LOG_FILE set, API calls are logged at debug level to
 // that file.
 func TestOpen_WritesDebugRecordsToFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "osync.log")
@@ -90,7 +90,7 @@ func TestOpen_EmptyPathDiscards(t *testing.T) {
 	}
 }
 
-// R17.2: the raw body of a malformed response is logged (truncated); the
+// The raw body of a malformed response is logged (truncated); the
 // error says "unexpected response".
 func TestMalformedResponseBodyIsLogged(t *testing.T) {
 	buf := captureLog(t)
@@ -155,7 +155,7 @@ func mustPanic(t *testing.T, f func()) {
 	f()
 }
 
-// R17.3: a panic in Update is logged with its stack and re-raised.
+// A panic in Update is logged with its stack and re-raised.
 func TestPanicGuard_UpdatePanicLoggedAndReraised(t *testing.T) {
 	buf := captureLog(t)
 	g := logging.NewPanicGuard(panicModel{inUpdate: true})
@@ -169,7 +169,7 @@ func TestPanicGuard_UpdatePanicLoggedAndReraised(t *testing.T) {
 	}
 }
 
-// R17.3: a panic in a command of a batch is caught too.
+// A panic in a command of a batch is caught too.
 func TestPanicGuard_CommandPanicInBatch(t *testing.T) {
 	_ = captureLog(t)
 	g := logging.NewPanicGuard(panicModel{inCmd: true})
@@ -185,7 +185,7 @@ func TestPanicGuard_CommandPanicInBatch(t *testing.T) {
 	}
 }
 
-// R17.3: after a crash the fatal message points at the bug tracker and the
+// After a crash the fatal message points at the bug tracker and the
 // log file.
 func TestPanicGuard_ReportPrintsFatalMessage(t *testing.T) {
 	_ = captureLog(t)

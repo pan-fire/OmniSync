@@ -132,6 +132,25 @@ def test_prepare_makes_the_first_release_without_a_previous_tag(repo):
     assert "[0.10.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.10.0\n" in changelog
 
 
+def test_prepare_links_the_tag_page_after_a_release_never_tagged_here(repo):
+    # A version released before the repository was public has a section but
+    # no tag (and no link reference): there is nothing to compare with.
+    (repo / "VERSION").write_text("0.11.0-dev\n")
+    (repo / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- New.\n\n"
+        "## [0.10.0] - 2026-10-02\n\nReleased before this repository was public.\n\n- Old.\n\n"
+        "[Unreleased]: https://github.com/pan-fire/OmniSync/commits/main\n"
+    )
+    result = prepare(repo, "0.11.0", "--date", "2026-10-05")
+    assert result.returncode == 0, result.stderr
+    changelog = (repo / "CHANGELOG.md").read_text()
+    assert changelog.endswith(
+        "[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...HEAD\n"
+        "[0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0\n"
+    )
+    assert "compare/v0.10.0" not in changelog
+
+
 def test_prepare_only_prints_the_git_commands(repo):
     result = prepare(repo, "v0.10.0", "--date", "2026-10-01")  # a leading v is accepted
     assert result.returncode == 0, result.stderr

@@ -70,7 +70,7 @@ class TestLinuxNotifier:
                 assert notifier.missing_dependencies() == ["dbus_session_bus"]
 
     async def test_missing_socket_is_unavailable(self, tmp_path) -> None:
-        """R4: the variable alone (set by the compose file) is not enough; the socket must exist."""
+        """The variable alone (set by the compose file) is not enough; the socket must exist."""
         from backend.services.notification_channels.platforms.linux import LinuxNotifier
 
         notifier = LinuxNotifier()
@@ -191,7 +191,7 @@ class TestWindowsNotifier:
         (NotificationSeverity.ERROR, "-Sound 'Alarm'"),
     ])
     async def test_severity_picks_the_sound(self, severity, flag) -> None:
-        """R4: Windows maps severity too (BurntToast has no urgency: the sound)."""
+        """Windows maps severity too (BurntToast has no urgency: the sound)."""
         from backend.services.notification_channels.platforms.windows import WindowsNotifier
 
         mock_proc = AsyncMock()

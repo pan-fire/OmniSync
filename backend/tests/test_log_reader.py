@@ -1,4 +1,4 @@
-"""LogReader reads only the tail of the log (audit finding ARC-2)."""
+"""LogReader reads only the tail of the log."""
 
 from __future__ import annotations
 

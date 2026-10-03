@@ -19,6 +19,10 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.lock
 # ---- Runtime stage ----
 FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016
 
+LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.title="OmniSync backend"
+
 # Pinned rclone release, verified against the published SHA256SUMS.
 ARG RCLONE_VERSION=1.75.1
 ARG RCLONE_SHA256_AMD64=982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab

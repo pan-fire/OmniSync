@@ -3159,7 +3159,7 @@
           "wizard"
         ],
         "summary": "Create Remote",
-        "description": "Create an rclone remote.\n\nKey-based providers pass their settings in ``params``. OAuth providers\npass the ``session_id`` of a completed authorization; the token is taken\nfrom that session on the server and the session ends once the remote\nexists. Clients never see or send the token.",
+        "description": "Create an rclone remote.\n\nKey-based providers pass their settings in ``params``. OAuth providers\npass the ``session_id`` of a completed authorization; the token is taken\nfrom that session on the server and the session ends once the remote\nexists. Clients never see or send the token. The remote stores the OAuth\napp (client_id, client_secret) the authorization was started with; a\ndifferent one in ``params`` is refused (``oauth_client_mismatch``).",
         "operationId": "create_remote_wizard_create_post",
         "requestBody": {
           "content": {

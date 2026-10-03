@@ -2,9 +2,6 @@
 
 Resolutions that change files run through the profile's engine; see
 test_conflict_resolution_integration.py (real rclone) for those.
-
-Feature: project-foundation, Property 13: Conflicts endpoint returns only unresolved conflicts
-Feature: project-foundation, Property 14: Conflict resolution updates record
 """
 
 from __future__ import annotations
@@ -45,7 +42,7 @@ async def _clear(factory) -> None:
         await session.commit()
 
 
-# --- Property 13: Conflicts endpoint returns only unresolved conflicts ---
+# --- Conflicts endpoint returns only unresolved conflicts ---
 
 
 @fixture_settings
@@ -56,12 +53,10 @@ async def _clear(factory) -> None:
 async def test_conflicts_returns_only_unresolved(
     test_client, test_db_factory, resolved: list[tuple[str, str]], unresolved: list[str],
 ) -> None:
-    """Feature: project-foundation, Property 13: Conflicts endpoint returns only unresolved conflicts
+    """Conflicts endpoint returns only unresolved conflicts.
 
     GET /conflicts lists exactly the unresolved conflicts, oldest first,
     with their paths unchanged.
-
-    **Validates: Requirements 7.7**
     """
     await _clear(test_db_factory)
     await _seed(test_db_factory, *[Conflict(file_path=p, resolved=True, resolution=r) for p, r in resolved])
@@ -75,18 +70,16 @@ async def test_conflicts_returns_only_unresolved(
     assert all(c["resolved"] is False and c["resolution"] is None for c in body)
 
 
-# --- Property 14: Conflict resolution updates record ---
+# --- Conflict resolution updates record ---
 
 
 @fixture_settings
 @given(file_path=file_paths)
 async def test_dismiss_resolves_the_record(test_client, test_db_factory, file_path: str) -> None:
-    """Feature: project-foundation, Property 14: Conflict resolution updates record
+    """Conflict resolution updates record.
 
     Dismissing an unresolved conflict marks it resolved with that
     resolution, and it leaves the unresolved list.
-
-    **Validates: Requirements 7.8**
     """
     await _clear(test_db_factory)
     (conflict_id,) = await _seed(test_db_factory, Conflict(file_path=file_path, resolved=False))

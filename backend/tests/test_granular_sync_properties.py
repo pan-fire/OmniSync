@@ -78,8 +78,7 @@ correctly_built_file_diff = st.builds(
 )
 
 
-# Feature: granular-sync-control, Property 1: Diff classification is exhaustive and exclusive
-# **Validates: Requirements 1.2, 4.1**
+# Diff classification is exhaustive and exclusive
 class TestDiffClassificationExhaustiveAndExclusive:
     """For any file in the diff result, it must be assigned exactly one
     ChangeCategory and is_conflict must be True iff category is modified_both."""
@@ -158,7 +157,7 @@ class TestDiffClassificationExhaustiveAndExclusive:
         assert diff.is_conflict == (category == ChangeCategory.MODIFIED_BOTH)
 
 
-# --- Helpers for Property 3 ---
+# --- Diff response summary consistency: helpers ---
 
 
 def build_correct_diff_response(files: list[FileDiff]) -> DiffResponse:
@@ -176,8 +175,7 @@ def build_correct_diff_response(files: list[FileDiff]) -> DiffResponse:
     return DiffResponse(files=files, summary=summary)
 
 
-# Feature: granular-sync-control, Property 3: Diff response summary consistency
-# **Validates: Requirements 1.5, 6.6**
+# Diff response summary consistency
 class TestDiffResponseSummaryConsistency:
     """For any DiffResponse, the summary field counts must equal the actual
     count of files in each category within the files list, and summary.total
@@ -238,7 +236,7 @@ class TestDiffResponseSummaryConsistency:
         )
 
 
-# --- Helpers for Property 8 ---
+# --- Selective sync response invariant: helpers ---
 
 
 def build_correct_selective_sync_response(
@@ -262,8 +260,7 @@ def build_correct_selective_sync_response(
     )
 
 
-# Feature: granular-sync-control, Property 8: Selective sync response invariant
-# **Validates: Requirements 3.3, 3.4**
+# Selective sync response invariant
 class TestSelectiveSyncResponseInvariant:
     """For any selective sync response, total must equal succeeded + failed,
     and the length of the errors list must equal failed."""
@@ -331,13 +328,12 @@ class TestSelectiveSyncResponseInvariant:
         )
 
 
-# --- Property 11 imports ---
+# --- Bulk sync clears diff cache: imports ---
 
 from backend.models.sync_state import SyncStateManager
 
 
-# Feature: granular-sync-control, Property 11: Bulk sync clears diff cache
-# **Validates: Requirements 5.3**
+# Bulk sync clears diff cache
 class TestBulkSyncClearsDiffCache:
     """For any successful bulk sync completion, the SyncStateManager.cached_diff
     must be None and pending_changes must be 0 afterward."""
@@ -420,7 +416,7 @@ class TestBulkSyncClearsDiffCache:
         )
 
 
-# --- Property 4 imports ---
+# --- Filter file generation correctness: imports ---
 
 from unittest.mock import AsyncMock
 
@@ -429,7 +425,7 @@ import pytest
 from backend.services.rclone import RcloneResult, RcloneService
 
 
-# --- Helpers for Property 4 ---
+# --- Filter file generation correctness: helpers ---
 
 def _make_rclone_service() -> RcloneService:
     """Build a minimal RcloneService for testing."""
@@ -443,14 +439,13 @@ sync_file_path = st.from_regex(
 )
 
 
-# Feature: granular-sync-control, Property 4: Filter file generation correctness
-# **Validates: Requirements 2.1, 2.2, 3.2**
+# Filter file generation correctness
 class TestExactFileListCorrectness:
     """For any non-empty list of file paths, a per-file copy passes exactly
     those paths, one literal path per line, via --files-from-raw in a single
     rclone invocation, with source and dest after '--'. (A '+ <path>' filter
     rule would also match same-named files in other folders and treat
-    [ * ? as wildcards; see audit finding DS-4.)"""
+    [ * ? as wildcards.)"""
 
     @staticmethod
     async def _capture(file_paths: list[str]) -> list[tuple[list[str], list[str], list[str]]]:
@@ -490,14 +485,14 @@ class TestExactFileListCorrectness:
         assert positional == ["source:", "dest:"]
 
 
-# --- Property 9 imports ---
+# --- Keep-both conflict rename format: imports ---
 
 from pathlib import PurePosixPath
 
 from backend.services.rclone import generate_conflict_rename
 
 
-# --- Strategies for Property 9 ---
+# --- Keep-both conflict rename format: strategies ---
 
 # File paths with extensions (contain at least one dot with chars after it)
 file_path_with_ext = st.from_regex(
@@ -518,8 +513,7 @@ conflict_timestamp = st.datetimes(
 )
 
 
-# Feature: granular-sync-control, Property 9: Keep-both conflict rename format
-# **Validates: Requirements 4.4**
+# Keep-both conflict rename format
 class TestKeepBothConflictRenameFormat:
     """For any file path used in a 'keep both' conflict resolution, the renamed
     remote file must have the format <stem>.conflict-<YYYYMMDDTHHMMSS><ext>
@@ -630,14 +624,14 @@ class TestKeepBothConflictRenameFormat:
         )
 
 
-# --- Property 2 imports ---
+# --- Timestamp-based classification correctness: imports ---
 
 from datetime import timedelta
 
 from backend.services.sync_engine import SyncEngine
 
 
-# --- Strategies for Property 2 ---
+# --- Timestamp-based classification correctness: strategies ---
 
 # Timezone-aware UTC datetimes for timestamp comparison
 utc_datetime = st.datetimes(
@@ -653,8 +647,7 @@ positive_timedelta = st.timedeltas(
 )
 
 
-# Feature: granular-sync-control, Property 2: Timestamp-based classification correctness
-# **Validates: Requirements 1.4**
+# Timestamp-based classification correctness
 class TestTimestampBasedClassificationCorrectness:
     """For any file that exists on both local and remote with differing content,
     given local_mod_time, remote_mod_time, and last_sync time:
@@ -809,7 +802,7 @@ class TestTimestampBasedClassificationCorrectness:
         )
 
 
-# --- Property 5 imports ---
+# --- Skip removes files from cached diff: imports ---
 
 from contextlib import asynccontextmanager
 
@@ -819,18 +812,23 @@ from backend.api.schemas import FileAction, SelectiveSyncItem
 from backend.db.models import Base
 
 
-# --- Helpers for Property 5 ---
-
-import tempfile as _tempfile
+# --- Skip removes files from cached diff: helpers ---
 
 from backend.services.rclone import SENTINEL_FILE
 
 # A real, non-empty local folder that already carries the sync marker, so the
 # engine's pre-sync safety checks pass and the tests reach the rclone mocks.
-_LOCAL_DIR = _tempfile.mkdtemp(prefix="omnisync-props-")
-for _name in ("existing.txt", SENTINEL_FILE):
-    with open(f"{_LOCAL_DIR}/{_name}", "w") as _fh:
-        _fh.write("x")
+# Set once per module by _local_dir, in pytest's own temp folder.
+_LOCAL_DIR = ""
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _local_dir(tmp_path_factory: pytest.TempPathFactory) -> None:
+    global _LOCAL_DIR
+    path = tmp_path_factory.mktemp("props-local")
+    for name in ("existing.txt", SENTINEL_FILE):
+        (path / name).write_text("x")
+    _LOCAL_DIR = str(path)
 
 
 def _parse_exclude_rule(line: str) -> str:
@@ -920,8 +918,7 @@ unique_path_file_diffs = st.lists(
 )
 
 
-# Feature: granular-sync-control, Property 5: Skip removes files from cached diff
-# **Validates: Requirements 2.3**
+# Skip removes files from cached diff
 class TestSkipRemovesFilesFromCachedDiff:
     """For any cached diff and any subset of file paths marked as skip,
     after the skip operation, the cached diff must no longer contain those
@@ -1054,8 +1051,7 @@ class TestSkipRemovesFilesFromCachedDiff:
         assert engine._state.pending_changes == 0
 
 
-# Feature: granular-sync-control, Property 6: Manual flag round trip
-# **Validates: Requirements 2.4, 7.1, 7.3**
+# Manual flag round trip
 class TestManualFlagRoundTrip:
     """For any file path, marking it with a manual flag and then querying
     manual flags must include that path; subsequently clearing the flag
@@ -1183,13 +1179,12 @@ class TestManualFlagRoundTrip:
             )
 
 
-# --- Property 7 imports ---
+# --- Invalid paths rejected: imports ---
 
 from backend.exceptions import InvalidFilePathsError
 
 
-# Feature: granular-sync-control, Property 7: Invalid paths rejected
-# **Validates: Requirements 2.7**
+# Invalid paths rejected
 class TestInvalidPathsRejected:
     """For any selective sync request containing file paths that do not exist
     in the current cached diff, the API must raise InvalidFilePathsError,
@@ -1327,12 +1322,11 @@ class TestInvalidPathsRejected:
         )
 
 
-# --- Property 10 imports ---
+# --- Bulk sync excludes manual flags and unresolved conflicts: imports ---
 
 
 
-# Feature: granular-sync-control, Property 10: Bulk sync excludes manual flags and unresolved conflicts
-# **Validates: Requirements 4.5, 5.2**
+# Bulk sync excludes manual flags and unresolved conflicts
 class TestBulkSyncExcludesManualFlagsAndConflicts:
     """For any set of manual-flagged file paths and unresolved conflict file paths,
     when a bulk sync is triggered, the rclone exclude filter must contain all of

@@ -12,6 +12,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-03
+
 ### Breaking changes and upgrade notes
 
 - **OAuth providers need your own app; existing remotes keep working.**
@@ -47,7 +49,14 @@ release notes.
   Docker pulls the right one by itself. Each platform is built natively,
   and the signature, SBOM and provenance cover both.
 - CI and releases run on GitHub-hosted runners, so pull requests from
-  forks now get CI results instead of skipped checks.
+  forks get CI results.
+- The images are labelled with the repository
+  (`org.opencontainers.image.source`, also on the multi-platform index),
+  so GHCR links each package to `github.com/pan-fire/OmniSync`.
+- The `osync` TUI and CLI are built with Go 1.27.1 (toolchain), and the
+  web UI's dependencies are updated, among them lucide-react 1.49.
+  Building `osync` from the source still needs Go 1.25 or newer, which
+  fetches the 1.27.1 toolchain by itself.
 
 ### Removed
 
@@ -58,17 +67,24 @@ release notes.
   terminal UI wizards. The error codes `invalid_redirect` and
   `authorization_used` are no longer returned.
 - The OneDrive built-in-app error (`onedrive_builtin_app_unsupported`).
-- The self-hosted runner setup: the runner routing job and scripts, the
-  `RUNNER_PRIMARY_LABEL` and `RUNNER_LABEL` variables and the
-  `RUNNER_STATUS_TOKEN` secret are no longer used.
 
 ### Fixed
 
 - A token refresh no longer sends an empty `client_secret` for apps
   without one (Dropbox PKCE apps, Azure public clients).
+- Archive backups, archive restores and manifest writes remove their
+  temporary folder (`omnisync-backup-*`, `omnisync-restore-*`,
+  `omnisync-manifest-*`) also when the job is cancelled; a cancel at the
+  wrong moment used to leave it in the temp directory.
 
 ### Security
 
+- `POST /wizard/create` stores the OAuth app (client ID and secret) that
+  the sign-in was started with, taken from the wizard session, instead of
+  the values in `params`. A different client ID or secret in `params` is
+  refused with `oauth_client_mismatch` (422): the token was issued to the
+  session's app, and no other app could refresh it. The web UI and `osync`
+  send the same values and are not affected.
 - A failed token exchange logs the provider's `error` value only when it
   looks like an error code (e.g. `invalid_grant`); anything else a
   provider puts there is dropped. Microsoft Graph error codes longer than
@@ -633,69 +649,69 @@ client of your own; each one says what to do.
 ### Earlier development
 
 The work before this release, recorded at the time as a version that was
-never published: the September 2026 audit, pull requests #1 to #13.
+never published.
 
 #### Added
 
 - Two-way sync mode built on `rclone bisync`, now the default for new
   profiles: edits and deletions travel both ways, a file changed on both
   sides keeps both versions, and a resync after a failure always waits for
-  the user's confirmation (#12).
+  the user's confirmation.
 - Real conflict records and resolution (keep local, keep remote, keep both,
   dismiss) in the web UI and the TUI, a side-effect-free sync preview for
-  confirmation dialogs, and OAuth sign-in through the web UI (#11).
+  confirmation dialogs, and OAuth sign-in through the web UI.
 - Sync safety rails: a sync that would wipe the other side is refused
   (missing folder, empty source, `.omnisync-check` marker on one side only),
   replaced files are kept in `.omnisync-trash`, deletions are capped per sync,
-  and only one operation runs per profile at a time (#3).
+  and only one operation runs per profile at a time.
 - Stop really stops a running sync; each job records the files it changed;
-  trash retention (#9).
+  trash retention.
 - Versioned database migrations with Alembic, applied on start, with
-  enforced cascades and per-profile manual flags (#8).
+  enforced cascades and per-profile manual flags.
 - API token on every route except `GET /health` and the OAuth callback,
   Host-header checks, and the web UI's server adding the token so the browser
-  never holds it (#2, #5).
+  never holds it.
 - A production web UI image (Next.js standalone, non-root) started by the
-  shipped `docker-compose.yml` (#10).
-- CI on self-hosted runners: backend tests, frontend lint/types/tests/build,
-  TUI checks and the image builds (#1).
-- GPL-3.0 license (#10).
+  shipped `docker-compose.yml`.
+- CI: backend tests, frontend lint/types/tests/build,
+  TUI checks and the image builds.
+- GPL-3.0 license.
 
 #### Changed
 
 - The backend is published on the host's loopback only; `network_mode: host`,
   the `$HOME` mount and live reload are gone from the default compose file
-  (live reload and D-Bus notifications are opt-in override files) (#2, #5).
+  (live reload and D-Bus notifications are opt-in override files).
 - `GET /health` checks only local state (database, rclone binary); remote
-  reachability moved to `GET /health/remotes` (#5).
+  reachability moved to `GET /health/remotes`.
 - Engines are keyed by the immutable profile id, so renaming or moving a
-  profile restarts the right engine (#8).
+  profile restarts the right engine.
 - The startup check fails closed: an error pauses the profile instead of
-  reporting "in sync" (#9).
+  reporting "in sync".
 - The TUI and the web UI follow the backend's API contract and confirm
-  destructive syncs with a preview of deletes and replacements (#6, #7, #13).
-- The README and user guide are rewritten to match the app (#10, #13).
-- No wall-clock limit on backup transfers (#4).
+  destructive syncs with a preview of deletes and replacements.
+- The README and user guide are rewritten to match the app.
+- No wall-clock limit on backup transfers.
 
 #### Fixed
 
 - A fresh clone builds: `frontend/src/lib/utils.ts` was ignored by
-  `.gitignore`, and a fresh backend install lacked `greenlet` (#1).
-- The web UI's profile page crash (#7), and TUI input and selection bugs (#6).
+  `.gitignore`, and a fresh backend install lacked `greenlet`.
+- The web UI's profile page crash, and TUI input and selection bugs.
 - A confirmed push or pull was refused because the preview had paused the
-  profile (#11).
-- Error responses no longer carry rclone stderr or exception text (#5, #13).
+  profile.
+- Error responses no longer carry rclone stderr or exception text.
 - Backup targets are validated on the server, including overlap checks, and
-  deleting a remote counts backup targets that use it (#13).
-- An invalid legacy configuration no longer crashes startup (#13).
+  deleting a remote counts backup targets that use it.
+- An invalid legacy configuration no longer crashes startup.
 
 #### Security
 
 - rclone inputs are validated (absolute local paths, `<remote>:<path>`
-  remotes, allow-listed flags), and SFTP/FTP passwords are stored obscured
-  (#2).
+  remotes, allow-listed flags), and SFTP/FTP passwords are stored obscured.
 - The rclone binary in the image is a pinned release verified by SHA-256;
-  Python dependencies are installed from an exact lock file (#1).
-- The OAuth token stays on the server and is never returned by the API (#5).
+  Python dependencies are installed from an exact lock file.
+- The OAuth token stays on the server and is never returned by the API.
 
-[Unreleased]: https://github.com/pan-fire/OmniSync/commits/main
+[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0

@@ -9,7 +9,7 @@ import (
 	"github.com/pan-fire/OmniSync/tui/internal/api"
 )
 
-// Deletes of profiles and backup targets need ?confirm=true (TUI-2).
+// Deletes of profiles and backup targets need ?confirm=true.
 func TestDeletes_SendConfirm(t *testing.T) {
 	f := newFakeBackend(t)
 	f.on("DELETE", "/profiles/docs", 204, nil)
@@ -380,7 +380,7 @@ func TestWizardOAuthRedirectURI(t *testing.T) {
 	}
 }
 
-// R5.7 / R5.9: the directory browsers send the path as a query value.
+// The directory browsers send the path as a query value.
 func TestBrowse_Endpoints(t *testing.T) {
 	f := newFakeBackend(t)
 	f.on("GET", "/browse/local", 200, map[string]any{"current": "/home/u", "parent": nil,

@@ -53,9 +53,7 @@ function createWrapper () {
 
 const syncStateArb = fc.constantFrom<SyncState>('idle', 'pushing', 'pulling', 'error');
 
-// Feature: frontend-dashboard, Property 3: Sync control button states reflect sync activity
-describe('Property 3: Sync control button states reflect sync activity', () => {
-  // Validates: Requirements 2.3
+describe('Sync control button states reflect sync activity', () => {
   it('for any active state, Push/Pull should be disabled (isActive=true); for inactive, enabled (isActive=false)', () => {
     fc.assert(
       fc.property(syncStateArb, (state) => {

@@ -26,7 +26,7 @@ func (h hintView) KeyHints() string { return h.hints }
 
 func lines(s string) []string { return strings.Split(stripANSI(s), "\n") }
 
-// R3.1: the top bar shows the app name, backend URL, aggregate sync state
+// The top bar shows the app name, backend URL, aggregate sync state
 // and a clock.
 func TestShell_TopBarURLStateAndClock(t *testing.T) {
 	app, _ := newApp(t, "http://backend.example:8000")
@@ -50,7 +50,7 @@ func TestShell_TopBarURLStateAndClock(t *testing.T) {
 	}
 }
 
-// R3.1: the health check also reads the aggregate state for the badge.
+// The health check also reads the aggregate state for the badge.
 func TestShell_HealthCheckReadsAggregateState(t *testing.T) {
 	b := newBackend(t)
 	b.json("GET", "/health", 200, map[string]any{"status": "ok", "rclone_installed": true, "database_ok": true, "uptime_seconds": 1})
@@ -62,7 +62,7 @@ func TestShell_HealthCheckReadsAggregateState(t *testing.T) {
 	}
 }
 
-// R3.2: the bottom bar shows the latency and the active view's own keys,
+// The bottom bar shows the latency and the active view's own keys,
 // then the global ones; a view that owns the keyboard shows only its keys.
 func TestShell_BottomBarShowsViewKeys(t *testing.T) {
 	app, stubs := newApp(t, "http://127.0.0.1:1")
@@ -104,7 +104,7 @@ func click(x, y int) tea.MouseClickMsg {
 	return tea.MouseClickMsg(tea.Mouse{X: x, Y: y, Button: tea.MouseLeft})
 }
 
-// R3.6: the mouse is on, and clicking a tab switches to its view.
+// The mouse is on, and clicking a tab switches to its view.
 func TestShell_ClickTabSwitchesView(t *testing.T) {
 	app, stubs := newApp(t, "http://127.0.0.1:1")
 	app = connected(t, app)

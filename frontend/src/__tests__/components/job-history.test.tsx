@@ -66,11 +66,7 @@ const nonEmptyFilesArb = fc
   .array(fileChangeArb, { minLength: 1, maxLength: 5 })
   .map((files) => files.map((file, i) => ({ ...file, id: i + 1 })));
 
-// --- Property 4 ---
-
-// Feature: frontend-dashboard, Property 4: Job history table rendering completeness
-describe('Property 4: Job history table rendering completeness', () => {
-  // Validates: Requirements 3.1
+describe('Job history table rendering completeness', () => {
   it('for any non-empty SyncJob array, the rendered table contains all required fields for each job', () => {
     fc.assert(
       fc.property(nonEmptyJobsArb, (jobs: SyncJob[]) => {
@@ -113,11 +109,7 @@ describe('Property 4: Job history table rendering completeness', () => {
   });
 });
 
-// --- Property 5 ---
-
-// Feature: frontend-dashboard, Property 5: Job detail rendering completeness
-describe('Property 5: Job detail rendering completeness', () => {
-  // Validates: Requirements 3.3
+describe('Job detail rendering completeness', () => {
   it('for any SyncJob and FileChange array, the rendered view contains all metadata and file change fields', () => {
     fc.assert(
       fc.property(syncJobArb, nonEmptyFilesArb, (job: SyncJob, files: FileChange[]) => {

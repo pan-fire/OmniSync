@@ -5,13 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
-import tempfile
 
 from backend.db.models import BackupTarget, SyncProfile
 from backend.exceptions import RcloneAuthError, RcloneError
 from backend.services.sync_engine import remote_join
-from backend.services.backup_service.common import BACKUP_FILTER, RestoreRefused, _BackupOutcome, logger
+from backend.services.backup_service.common import (
+    BACKUP_FILTER, RestoreRefused, _BackupOutcome, logger, scratch_dir,
+)
 from backend.services.backup_service.base import BackupBase
 
 # Mirror layout: <target>/current/ (the latest backup), <target>/versions/<T>/
@@ -60,8 +60,7 @@ class MirrorMixin(BackupBase):
     async def _write_manifest(self, root: str, snapshot_id: str, files: list[dict]) -> None:
         """Store <root>/manifests/<snapshot_id>.json: the file list right after that backup."""
         manifest = {"format": MANIFEST_FORMAT, "snapshot_id": snapshot_id, "files": files}
-        temp_dir = await asyncio.to_thread(tempfile.mkdtemp, prefix="omnisync-manifest-")
-        try:
+        async with scratch_dir("omnisync-manifest-") as temp_dir:
             path = os.path.join(temp_dir, f"{snapshot_id}.json")
 
             def dump() -> None:
@@ -70,8 +69,6 @@ class MirrorMixin(BackupBase):
 
             await asyncio.to_thread(dump)
             await self._rclone.copyto(path, remote_join(root, f"{MANIFESTS_DIR}/{snapshot_id}.json"))
-        finally:
-            await asyncio.to_thread(shutil.rmtree, temp_dir, True)
 
     async def _read_manifest(self, root: str, snapshot_id: str) -> dict[str, int | None]:
         """path -> size of every file in snapshot ``snapshot_id``."""

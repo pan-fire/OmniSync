@@ -14,7 +14,8 @@ OmniSync is before 1.0: only the latest release gets security fixes.
 | older releases | no: upgrade (database migrations run on start) |
 | `main` between releases | fixed there first, then released |
 
-The latest release is 0.10.0.
+The latest release is on the
+[releases page](https://github.com/pan-fire/OmniSync/releases).
 
 ## Reporting a vulnerability
 
@@ -25,9 +26,7 @@ Report it privately through GitHub's private vulnerability reporting:
 [**Report a vulnerability**](https://github.com/pan-fire/OmniSync/security/advisories/new)
 (on the repository's **Security** tab, under **Advisories**). Only you and
 the maintainers see the report, and we work on the fix, the advisory and a
-coordinated release with you there. While the repository is private, this
-form is not available; if you have access to it, tell a maintainer
-directly instead, never in an issue or a pull request.
+coordinated release with you there.
 
 Please include:
 

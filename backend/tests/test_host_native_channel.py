@@ -78,7 +78,7 @@ class TestHostNativeChannel:
             await channel.send(make_test_event())
 
     async def test_describe_reports_host_and_what_is_missing(self) -> None:
-        """R4/R6: the status API gets the detected OS, how it was detected, and what is missing."""
+        """The status API gets the detected OS, how it was detected, and what is missing."""
         from unittest.mock import patch
 
         channel = HostNativeChannel(_make_detector(HostOS.MACOS))

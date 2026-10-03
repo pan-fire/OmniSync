@@ -80,7 +80,7 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 }
 
-// R3.6: the mouse can be left to the terminal by env var or flag.
+// The mouse can be left to the terminal by env var or flag.
 func TestLoad_NoMouse(t *testing.T) {
 	isolate(t)
 	t.Setenv("OMNISYNC_NO_MOUSE", "true")

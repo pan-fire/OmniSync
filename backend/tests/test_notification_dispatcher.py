@@ -213,7 +213,7 @@ class TestNotificationDispatcher:
         assert cfg["webpush"]["enabled"] is True
         assert cfg["webpush"]["min_severity"] == "warning"
         assert "host_native" in cfg
-        # Off by default (spec R5 AC5): it needs a desktop session the
+        # Off by default: it needs a desktop session the
         # default Docker deployment does not have.
         assert cfg["host_native"]["enabled"] is False
 
@@ -268,7 +268,7 @@ def _enable(config_path, **channels: bool) -> None:
 
 @pytest.mark.asyncio
 class TestConcurrentDispatch:
-    """R2: channels are sent to concurrently, each with a timeout."""
+    """Channels are sent to concurrently, each with a timeout."""
 
     async def test_channels_are_sent_to_concurrently(self, dispatcher_deps) -> None:
         dispatcher, _, _, config_path = dispatcher_deps
@@ -311,7 +311,7 @@ class TestConcurrentDispatch:
         assert errors == {"webpush": ERROR_FAILED}
 
     async def test_unavailable_channel_is_reported_and_logged_once(self, dispatcher_deps, caplog) -> None:
-        """R4 AC4: an unavailable channel is skipped with a logged warning."""
+        """An unavailable channel is skipped with a logged warning."""
         dispatcher, _, _, config_path = dispatcher_deps
         dispatcher.register_channel(FakeChannel("host_native", available=False))
         _enable(config_path, host_native=True)
@@ -325,7 +325,7 @@ class TestConcurrentDispatch:
         assert len(warnings) == 1
 
     async def test_only_channel_tests_one_channel_even_if_disabled(self, dispatcher_deps) -> None:
-        """R7: a per-channel test goes to that channel only."""
+        """A per-channel test goes to that channel only."""
         dispatcher, _, _, config_path = dispatcher_deps
         webpush, host = FakeChannel("webpush"), FakeChannel("host_native")
         dispatcher.register_channel(webpush)
@@ -356,7 +356,7 @@ class TestConcurrentDispatch:
 
 @pytest.mark.asyncio
 class TestConfigValidation:
-    """R5 defaults and R8 startup validation."""
+    """Default channel settings and validation of the config file at startup."""
 
     async def test_malformed_config_is_logged_and_flagged(self, dispatcher_deps, caplog) -> None:
         dispatcher, _, _, config_path = dispatcher_deps

@@ -143,7 +143,7 @@ class TestStatusIncludesPauseFields:
 
 @pytest.mark.asyncio
 class TestStopRoutes:
-    """DS-13: stop ends the running rclone, not the engine's watcher and scheduler."""
+    """Stop ends the running rclone, not the engine's watcher and scheduler."""
 
     @pytest.mark.parametrize("running", [True, False])
     async def test_stop_route_stops_only_the_running_sync(self, test_client, running: bool) -> None:

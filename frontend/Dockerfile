@@ -34,6 +34,10 @@ RUN pnpm build
 # ---- Runtime ----
 FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
 
+LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.title="OmniSync web UI"
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \

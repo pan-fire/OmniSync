@@ -1,4 +1,4 @@
-"""DS-16: conflicts are recorded by diffs and resolved on the real files.
+"""Conflicts are recorded by diffs and resolved on the real files.
 
 Same pattern as test_sync_safety_integration.py: the "remote" is an rclone
 remote of type `local` in a temp rclone.conf, so every copy and every

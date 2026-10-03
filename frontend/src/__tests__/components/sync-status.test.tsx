@@ -5,9 +5,7 @@ import type { SyncStatus, SyncState } from '@/types';
 
 const syncStateArb = fc.constantFrom<SyncState>('idle', 'pushing', 'pulling', 'syncing', 'error');
 
-// Feature: frontend-dashboard, Property 1: Polling interval matches sync state
-describe('Property 1: Polling interval matches sync state', () => {
-  // Validates: Requirements 1.2, 1.3
+describe('Polling interval matches sync state', () => {
   it('returns 2000ms for active states and 30000ms for inactive states', () => {
     fc.assert(
       fc.property(syncStateArb, (state) => {
@@ -56,9 +54,7 @@ const stateTranslations: Record<SyncState, string> = {
   error:   'Error',
 };
 
-// Feature: frontend-dashboard, Property 2: Sync status rendering completeness
-describe('Property 2: Sync status rendering completeness', () => {
-  // Validates: Requirements 1.1
+describe('Sync status rendering completeness', () => {
   it('for any valid SyncStatus, the rendered component contains state, last_sync (when present), files_processed, and errors', () => {
     fc.assert(
       fc.property(syncStatusArb, (status: SyncStatus) => {

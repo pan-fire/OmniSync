@@ -54,16 +54,13 @@ def non_auth_stderr_strategy():
 
 
 # ---------------------------------------------------------------------------
-# Property 7: RcloneResult round-trip
+# RcloneResult round-trip
 # ---------------------------------------------------------------------------
 
 @given(result=rclone_result_strategy)
 @settings(max_examples=100)
 def test_rclone_result_round_trip(result: RcloneResult) -> None:
-    """Feature: project-foundation, Property 7: RcloneResult round-trip
-
-    **Validates: Requirements 5.6**
-    """
+    """RcloneResult round-trip."""
     serialized = result.to_dict()
     deserialized = RcloneResult.from_dict(serialized)
 
@@ -74,7 +71,7 @@ def test_rclone_result_round_trip(result: RcloneResult) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property 8: Rclone command building includes all filters and args
+# Rclone command building includes all filters and args
 # ---------------------------------------------------------------------------
 
 @given(
@@ -85,10 +82,7 @@ def test_rclone_result_round_trip(result: RcloneResult) -> None:
 def test_rclone_command_building_includes_all_filters_and_args(
     filters: list[str], extra_args: list[str]
 ) -> None:
-    """Feature: project-foundation, Property 8: Rclone command building includes all filters and args
-
-    **Validates: Requirements 5.5**
-    """
+    """Rclone command building includes all filters and args."""
     service = RcloneService()
 
     base_args = ["sync", "/src", "/dst"]
@@ -111,16 +105,13 @@ def test_rclone_command_building_includes_all_filters_and_args(
 
 
 # ---------------------------------------------------------------------------
-# Property 9: Non-auth rclone errors propagate stderr
+# Non-auth rclone errors propagate stderr
 # ---------------------------------------------------------------------------
 
 @given(stderr=non_auth_stderr_strategy())
 @settings(max_examples=100)
 def test_non_auth_rclone_errors_propagate_stderr(stderr: str) -> None:
-    """Feature: project-foundation, Property 9: Non-auth rclone errors propagate stderr
-
-    **Validates: Requirements 5.4**
-    """
+    """Non-auth rclone errors propagate stderr."""
     # Verify the stderr is indeed non-auth
     assert not _is_auth_error(stderr)
 

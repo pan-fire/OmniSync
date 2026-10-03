@@ -1,9 +1,5 @@
-"""Unit and property tests for the sync engine service.
-
-Feature: project-foundation, Property 4: Sync state consistency
-Feature: project-foundation, Property 5: Debounce coalesces rapid events
-Feature: project-foundation, Property 6: Exponential backoff delay calculation
-Feature: diff-ux-feedback, _remove_resolved_from_diff correctness
+"""Unit and property tests for the sync engine service: sync state, debounce,
+exponential backoff and _remove_resolved_from_diff.
 """
 
 from __future__ import annotations
@@ -39,21 +35,19 @@ job_ids = st.integers(min_value=1, max_value=100_000)
 
 
 # ---------------------------------------------------------------------------
-# Property 4: Sync state consistency
+# Sync state consistency
 # ---------------------------------------------------------------------------
 
 
 @settings(max_examples=100)
 @given(direction=directions, job_id=job_ids)
 def test_sync_state_consistency(direction: SyncDirection, job_id: int) -> None:
-    """Feature: project-foundation, Property 4: Sync state consistency
+    """Sync state consistency.
 
     For any sync operation (push or pull), the sync engine state should be
     "pushing" or "pulling" (matching the direction) while the operation is
     in progress, and should return to "idle" after the operation completes
     successfully.
-
-    **Validates: Requirements 4.4, 4.5**
     """
     manager = SyncStateManager()
 
@@ -78,7 +72,7 @@ def test_sync_state_consistency(direction: SyncDirection, job_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property 5: Debounce coalesces rapid events
+# Debounce coalesces rapid events
 # ---------------------------------------------------------------------------
 
 
@@ -163,13 +157,11 @@ async def _settle() -> None:
     debounce_seconds=st.integers(min_value=1, max_value=60),
 )
 def test_debounce_coalesces_rapid_events(gaps_ms: list[int], debounce_seconds: int) -> None:
-    """Feature: project-foundation, Property 5: Debounce coalesces rapid events
+    """Debounce coalesces rapid events.
 
     For any burst of file system events, each arriving within the debounce
     window of the previous one, the engine starts exactly one sync, a full
     debounce window after the last event.
-
-    **Validates: Requirements 4.2**
     """
     async def run() -> None:
         engine, timers, started = _watched_engine(debounce_seconds)
@@ -242,7 +234,7 @@ def test_debounce_fires_without_a_loop_is_skipped() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property 6: Exponential backoff delay calculation
+# Exponential backoff delay calculation
 # ---------------------------------------------------------------------------
 
 
@@ -252,13 +244,11 @@ def test_debounce_fires_without_a_loop_is_skipped() -> None:
     base_delay=st.floats(min_value=0.1, max_value=60.0, allow_nan=False, allow_infinity=False),
 )
 def test_exponential_backoff_delay(attempt: int, base_delay: float) -> None:
-    """Feature: project-foundation, Property 6: Exponential backoff delay calculation
+    """Exponential backoff delay calculation.
 
     For any retry attempt number n (1 through max_retries), the backoff delay
     should equal base_delay * 2^(n-1), producing a strictly increasing sequence
     of delays.
-
-    **Validates: Requirements 4.6**
     """
     delay = calculate_backoff_delay(attempt, base_delay)
     expected = base_delay * (2 ** (attempt - 1))

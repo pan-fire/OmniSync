@@ -12,8 +12,8 @@
 #   CHANGELOG.md           "## [Unreleased]" keeps its heading and becomes
 #                          empty; its entries move under "## [<version>] -
 #                          <date>", and the links at the end follow (a
-#                          compare link from the previous release, or the
-#                          tag page for the first release)
+#                          compare link from the previous tagged release,
+#                          or the tag page for the first release)
 #
 # It refuses a version that is not semver, not newer than VERSION, or already
 # in the changelog, an empty Unreleased section, and (in a git checkout)
@@ -122,13 +122,15 @@ section = f"\n## [{new}] - {date}\n\n{entries}\n\n"
 text = text[:start] + section + (links + "\n" if links else "") + text[end:]
 
 # Links: [Unreleased] now starts at the new tag. The new version spans from
-# the previous release in the changelog; the first release (no earlier
-# version section, so no earlier tag) links to its own tag page instead.
+# the previous release in the changelog when that one was tagged here (it
+# has a link reference); the first release (no earlier version section, or
+# only ones never tagged in this repository) links to its own tag page.
 link = re.search(r"^\[Unreleased\]: (https://github\.com/[^/\s]+/[^/\s]+)(?:/\S*)?$", text, re.M)
 if link:
     base = link.group(1)
     previous = re.search(r"^## \[(?!Unreleased\])(?!" + re.escape(new) + r"\])([^\]]+)\]", text, re.M)
-    version_link = (f"{base}/compare/v{previous.group(1)}...v{new}" if previous
+    tagged = previous and re.search(rf"^\[{re.escape(previous.group(1))}\]: ", text, re.M)
+    version_link = (f"{base}/compare/v{previous.group(1)}...v{new}" if tagged
                     else f"{base}/releases/tag/v{new}")
     text = (text[:link.start()]
             + f"[Unreleased]: {base}/compare/v{new}...HEAD\n"

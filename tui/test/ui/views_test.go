@@ -29,7 +29,7 @@ func remotesBackend(t *testing.T) *backend {
 	return b
 }
 
-// TUI-5 + dependencies: the prompt names what uses the remote, and the
+// The prompt names what uses the remote, and the
 // delete acts on the row captured when it opened.
 func TestRemotes_DeleteShowsDependenciesAndUsesCapturedRow(t *testing.T) {
 	b := remotesBackend(t)
@@ -221,7 +221,7 @@ func jobsJSON(n, start int) []any {
 	return out
 }
 
-// TUI-10: the filter cycles through real slugs and never sends profile=all.
+// The filter cycles through real slugs and never sends profile=all.
 func TestJobs_FilterCyclesSlugs(t *testing.T) {
 	b := newBackend(t)
 	b.json("GET", "/jobs", 200, jobsJSON(3, 100))
@@ -249,7 +249,7 @@ func TestJobs_FilterCyclesSlugs(t *testing.T) {
 	}
 }
 
-// TUI-10: n/N page through the job history on the server.
+// n/N page through the job history on the server.
 func TestJobs_Paging(t *testing.T) {
 	b := newBackend(t)
 	b.json("GET", "/jobs", 200, jobsJSON(20, 100))
@@ -269,7 +269,7 @@ func TestJobs_Paging(t *testing.T) {
 
 // --- Logs ---
 
-// TUI-9: the backend sends newest first; the view shows the newest lines.
+// The backend sends newest first; the view shows the newest lines.
 func TestLogs_ShowsNewestLines(t *testing.T) {
 	b := newBackend(t)
 	entries := []any{}
@@ -312,7 +312,7 @@ func wizardBackend(t *testing.T) *backend {
 	return b
 }
 
-// TUI-8: key-based providers use their fields, not OAuth, and the params
+// Key-based providers use their fields, not OAuth, and the params
 // are sent.
 func TestWizard_KeyProviderCreatesWithParams(t *testing.T) {
 	b := wizardBackend(t)
@@ -346,7 +346,7 @@ func TestWizard_KeyProviderCreatesWithParams(t *testing.T) {
 	}
 }
 
-// TUI-8: OAuth shows the URL and creates from the completed session.
+// OAuth shows the URL and creates from the completed session.
 func TestWizard_OAuthShowsURLAndCreatesFromSession(t *testing.T) {
 	b := wizardBackend(t)
 	opened := ""

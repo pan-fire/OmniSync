@@ -155,8 +155,9 @@ the exact address). After you allow access the provider returns the browser
 to the web UI, whose server tells the backend the browser's address through
 `X-Forwarded-*` headers, and the sign-in finishes by itself. Behind another
 reverse proxy, or to pin the address, set `OMNISYNC_OAUTH_REDIRECT_URI`.
-Remotes created earlier with rclone's built-in apps keep working: rclone
-refreshes their tokens itself. rclone is retiring its shared Google Drive
+Remotes that use rclone's built-in apps (made with `rclone config`, or
+imported from an rclone.conf) keep working: rclone refreshes their tokens
+itself. rclone is retiring its shared Google Drive
 app during 2026, though: move such a Drive remote to your own app with
 **Reconnect**.
 
@@ -284,11 +285,11 @@ docker compose up -d        # pulls the images on first start
 To upgrade, read the [changelog](CHANGELOG.md), set the new
 `OMNISYNC_VERSION` in `.env` and run `docker compose pull && docker compose
 up -d`. Database migrations run on start; all state stays in the
-`omnisync-data` volume. The release images are built for `linux/amd64`
-and `linux/arm64` (64-bit ARM images come with the release after 0.10.0,
-which has `linux/amd64` only; on ARM, build 0.10.0 from the source), and
-carry their own health checks;
-container settings such as `TZ` and resource limits are in
+`omnisync-data` volume. Each image is multi-platform: `linux/amd64` and
+`linux/arm64` (e.g. a Raspberry Pi 4 or 5 with a 64-bit OS, or an ARM NAS)
+under the same tag, and Docker pulls the one for your machine by itself.
+32-bit ARM (`linux/arm/v7`) is not offered. The images carry their own
+health checks; container settings such as `TZ` and resource limits are in
 [Operations](docs/gem/operations.md#the-containers).
 
 ### The `osync` binary
@@ -317,10 +318,11 @@ the binaries' `SHA256SUMS` with [cosign](https://docs.sigstore.dev/)
 keyless signing: there is no key to trust, the signature's certificate
 names the workflow and tag that built it, and it is recorded in Sigstore's
 public transparency log. A signature that verifies proves the file came
-from this repository's release workflow for that tag.
+from this repository's release workflow for that tag. An image's signature
+covers its multi-platform index, so one check covers both platforms.
 
 ```bash
-VERSION=0.10.0   # the release you are installing
+VERSION=0.11.0   # the release you are installing
 ID="https://github.com/pan-fire/OmniSync/.github/workflows/release.yml@refs/tags/v$VERSION"
 ISSUER=https://token.actions.githubusercontent.com
 

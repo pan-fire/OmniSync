@@ -1,4 +1,4 @@
-"""Strict parsing of rclone output (audit finding DS-15) and change recording (DS-11).
+"""Strict parsing of rclone output and change recording.
 
 Unit tests on recorded rclone 1.75 output; test_engine_hardening_integration.py
 runs the same paths against the real binary.

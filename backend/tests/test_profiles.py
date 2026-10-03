@@ -1,11 +1,11 @@
 """Profile lifecycle against a real, migrated database.
 
-DS-9   engines are keyed by profile id: rename, reconfigure, disable, delete
-       and repeated enables act on the right engine.
-DS-14  manual flags are per profile; profile folders and backup targets may
-       not overlap (same folder or nested), compared after normalising.
-DS-17  profile settings, log_level and snapshot ids are validated.
-R5/A1  deleting a profile with history removes the dependent rows.
+- Engines are keyed by profile id: rename, reconfigure, disable, delete
+  and repeated enables act on the right engine.
+- Manual flags are per profile; profile folders and backup targets may
+  not overlap (same folder or nested), compared after normalising.
+- Profile settings, log_level and snapshot ids are validated.
+- Deleting a profile with history removes the dependent rows.
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ async def env(tmp_path, monkeypatch):
     database._engine, database._async_session_factory = saved
 
 
-# --- DS-9: engine identity ---
+# --- engine identity ---
 
 
 async def test_rename_replaces_the_engine(env):
@@ -268,7 +268,7 @@ async def test_engine_hooks_run_for_every_started_engine(env):
     assert seen == [p["id"], p["id"]]
 
 
-# --- R5 / A1: delete with history ---
+# --- delete with history ---
 
 
 async def test_delete_profile_with_jobs_changes_and_errors(env):
@@ -299,7 +299,7 @@ async def test_delete_profile_with_jobs_changes_and_errors(env):
         assert (await session.execute(select(SyncProfile.slug))).scalars().all() == ["other"]
 
 
-# --- DS-14: manual flags per profile ---
+# --- manual flags per profile ---
 
 
 def _engine(env: Env, profile_id: int, slug: str) -> SyncEngine:
@@ -356,7 +356,7 @@ async def test_manual_flag_routes_use_the_profile_engine(env):
     assert (await env.client.delete("/profiles/a/manual-flags/x/y.txt")).status_code == 204
 
 
-# --- DS-14: overlapping folders ---
+# --- overlapping folders ---
 
 
 @pytest.mark.parametrize(("a", "b", "overlap"), [
@@ -489,7 +489,7 @@ async def test_backup_target_update_is_checked_too(env):
     assert resp.status_code == 400
 
 
-# --- DS-17: validation ---
+# --- validation ---
 
 
 @pytest.mark.parametrize("override", [

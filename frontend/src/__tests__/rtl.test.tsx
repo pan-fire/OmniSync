@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import { Direction } from 'radix-ui';
 import { I18nProvider } from '@/i18n';
 
-// frontend-dashboard R12: Persian renders right-to-left. Layout uses
+// Persian renders right-to-left. Layout uses
 // logical properties (ms-/pe-/start-/text-start ...), which flip with
 // dir=rtl, and icons that point along the reading direction are mirrored.
 

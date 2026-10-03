@@ -205,7 +205,7 @@ func (m ProfilesModel) handleActionResult(msg ActionResultMsg) (tea.Model, tea.C
 		}
 		m.saving = false
 		if msg.Err != nil {
-			// R5.11: show the error in the form and keep the input.
+			// Show the error in the form and keep the input.
 			m.form.Reopen(apiDetail(msg.Err))
 			return m, errorFlash(actionLabel(msg.Action)+" failed", msg.Err)
 		}

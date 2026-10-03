@@ -188,7 +188,7 @@ describe('Batch toolbar appears when files selected', () => {
   });
 });
 
-// FE-3: conflicting files are never overwritten by a batch or folder action
+// Conflicting files are never overwritten by a batch or folder action
 describe('Batch and folder actions route conflicts through the dialog', () => {
   it('batch push sends the non-conflicting files and asks about the conflict', async () => {
     const user = userEvent.setup();
@@ -245,7 +245,7 @@ describe('Batch and folder actions route conflicts through the dialog', () => {
   });
 });
 
-// FE-6: "Mark manual" can be undone
+// "Mark manual" can be undone
 describe('Unmark manual', () => {
   it('a manual-flagged row offers Unmark instead of Mark manual', async () => {
     const user = userEvent.setup();
@@ -294,7 +294,7 @@ describe('All required granular i18n keys exist in all locales', () => {
     'granular.pullSelected', 'granular.skipSelected', 'granular.clearSelection',
     'granular.conflictTitle', 'granular.conflictDesc',
     'granular.keepLocal', 'granular.keepRemote', 'granular.keepBoth',
-    // diff-ux-feedback keys
+    // loading, error and toast keys
     'granular.loadingDiff', 'granular.loadingError', 'granular.retry',
     'granular.allResolved', 'granular.toastPushed', 'granular.toastPulled',
     'granular.toastSkipped', 'granular.toastManual', 'granular.toastKeepBoth',
@@ -330,7 +330,7 @@ describe('All required granular i18n keys exist in all locales', () => {
   }
 });
 
-// --- diff-ux-feedback: FileBrowser pending row behavior (Task 4.3) ---
+// --- FileBrowser pending row behavior ---
 
 describe('FileBrowser pending row behavior', () => {
   it('rows in pendingPaths have opacity-50 class', () => {

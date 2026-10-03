@@ -1072,7 +1072,9 @@ export interface paths {
          *     Key-based providers pass their settings in ``params``. OAuth providers
          *     pass the ``session_id`` of a completed authorization; the token is taken
          *     from that session on the server and the session ends once the remote
-         *     exists. Clients never see or send the token.
+         *     exists. Clients never see or send the token. The remote stores the OAuth
+         *     app (client_id, client_secret) the authorization was started with; a
+         *     different one in ``params`` is refused (``oauth_client_mismatch``).
          */
         post: operations["create_remote_wizard_create_post"];
         delete?: never;

@@ -32,11 +32,13 @@ once with the provider:
    provider sends the browser back to OmniSync, which exchanges the code
    for a token on the server, and the wizard creates the remote. The app's
    client ID and secret go into the remote's rclone.conf section with the
-   token, so rclone refreshes the token with the same app.
+   token, so rclone refreshes the token with the same app. A token belongs
+   to the app it was issued to: the remote always gets the app the sign-in
+   was started with. To use another app, start the sign-in again with it.
 
 **Remotes from rclone's built-in apps.** A remote created with rclone's
-built-in app (by an earlier OmniSync, by `rclone config`, or imported from
-an rclone.conf) has no `client_id`. It keeps working: rclone refreshes its
+built-in app (made with `rclone config` and imported from an rclone.conf)
+has no `client_id`. It keeps working: rclone refreshes its
 token with its own app, and OmniSync leaves the refresh to rclone.
 **Reconnect** on such a remote needs your own app: enter its client ID
 (and secret) there, and the remote uses your app from then on. rclone is

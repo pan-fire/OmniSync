@@ -59,7 +59,7 @@ func pickerBackend(t *testing.T) *backend {
 	return b
 }
 
-// R5.7: Ctrl+O on Local Dir browses GET /browse/local and fills the field.
+// Ctrl+O on Local Dir browses GET /browse/local and fills the field.
 func TestProfileForm_LocalDirPicker(t *testing.T) {
 	b := pickerBackend(t)
 	m := open(t, ui.NewProfilesModel(b.client()))
@@ -92,7 +92,7 @@ func TestProfileForm_LocalDirPicker(t *testing.T) {
 	}
 }
 
-// R5.8 / R5.9: Ctrl+O on Remote Dir picks a remote from GET /remotes, then a
+// Ctrl+O on Remote Dir picks a remote from GET /remotes, then a
 // folder on it from GET /browse/remote; paths stay relative to the remote.
 func TestProfileForm_RemotePickerAndRemoteDirs(t *testing.T) {
 	b := pickerBackend(t)
@@ -144,7 +144,7 @@ func TestProfileForm_RemotePickerStartsAtValue(t *testing.T) {
 	}
 }
 
-// R5.11: a refused create shows the backend's message in the form and keeps
+// A refused create shows the backend's message in the form and keeps
 // every value.
 func TestProfileForm_ErrorKeepsInput(t *testing.T) {
 	b := profilesBackend(t)
@@ -186,7 +186,7 @@ func TestProfileForm_ErrorKeepsInput(t *testing.T) {
 	}
 }
 
-// R5.2: the form has the interval, debounce, retry and rclone-args fields;
+// The form has the interval, debounce, retry and rclone-args fields;
 // numbers are checked before anything is sent.
 func TestProfileForm_NumericFields(t *testing.T) {
 	b := profilesBackend(t)

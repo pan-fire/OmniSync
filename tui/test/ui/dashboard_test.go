@@ -173,7 +173,7 @@ func starts(b *backend) []string {
 	return out
 }
 
-// TUI-7: Push all previews every enabled profile, asks once, then syncs
+// Push all previews every enabled profile, asks once, then syncs
 // every enabled profile through the per-profile endpoint with force=true;
 // the legacy /sync/start is never used. The prompt lists each profile's
 // deletes and replaces and its own delete limit.

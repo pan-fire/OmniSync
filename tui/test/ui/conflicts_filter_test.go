@@ -8,7 +8,7 @@ import (
 	"github.com/pan-fire/OmniSync/tui/internal/ui"
 )
 
-// R9.4: f cycles the profile filter through the real slugs and back to all;
+// f cycles the profile filter through the real slugs and back to all;
 // each step asks the backend for that profile's conflicts.
 func TestConflicts_FilterCyclesSlugs(t *testing.T) {
 	b := conflictsBackend(t)

@@ -17,7 +17,7 @@ func logEntries(newest, n int, level string) []any {
 	return out
 }
 
-// R8.1: the arrow keys scroll through the page; scrolling up leaves live
+// The arrow keys scroll through the page; scrolling up leaves live
 // mode so polls do not move the lines under the reader.
 func TestLogs_ScrollsAndLeavesLive(t *testing.T) {
 	b := newBackend(t)
@@ -52,7 +52,7 @@ func TestLogs_ScrollsAndLeavesLive(t *testing.T) {
 	}
 }
 
-// R8.6: / searches messages; the prompt owns the keyboard, Enter keeps the
+// / searches messages; the prompt owns the keyboard, Enter keeps the
 // search, Esc clears it.
 func TestLogs_SearchByMessage(t *testing.T) {
 	b := newBackend(t)
@@ -93,7 +93,7 @@ func TestLogs_SearchByMessage(t *testing.T) {
 	}
 }
 
-// R8.5: n/N page through older entries with skip; live mode pins the view
+// n/N page through older entries with skip; live mode pins the view
 // to the newest page.
 func TestLogs_PaginationUsesSkip(t *testing.T) {
 	b := newBackend(t)

@@ -1,4 +1,4 @@
-"""Every route needs the API token (api-security R1).
+"""Every route needs the API token.
 
 The test enumerates app.routes, so a route added later is covered without
 editing this file. Only the routes in ``security.PUBLIC_ROUTES`` are exempt.

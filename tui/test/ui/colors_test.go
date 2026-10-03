@@ -28,7 +28,7 @@ func rawLine(t *testing.T, raw, s string) string {
 	return ""
 }
 
-// R4.6 / R17.5: dashboard state cells are coloured (idle gray, running
+// Dashboard state cells are coloured (idle gray, running
 // blue, error red) and still say the state in words.
 func TestDashboard_StateBadgesColoured(t *testing.T) {
 	b := dashboardBackend(t)
@@ -59,7 +59,7 @@ func TestDashboard_StateBadgesColoured(t *testing.T) {
 	}
 }
 
-// R7.2: job status cells are coloured and keep the word.
+// Job status cells are coloured and keep the word.
 func TestJobs_StatusColouredAndPageCue(t *testing.T) {
 	b := newBackend(t)
 	jobs := jobsJSON(3, 10)
@@ -80,7 +80,7 @@ func TestJobs_StatusColouredAndPageCue(t *testing.T) {
 	}
 }
 
-// R7.3: GET /jobs has no total, so the header says whether more pages exist.
+// GET /jobs has no total, so the header says whether more pages exist.
 func TestJobs_PageCueMoreAndLast(t *testing.T) {
 	b := newBackend(t)
 	b.json("GET", "/jobs", 200, jobsJSON(20, 100))

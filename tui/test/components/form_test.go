@@ -163,7 +163,7 @@ func TestForm_SetValueAndFocusedField(t *testing.T) {
 	}
 }
 
-// R5.11: Reopen shows an error and keeps what the user typed.
+// Reopen shows an error and keeps what the user typed.
 func TestForm_ReopenKeepsInput(t *testing.T) {
 	f := makeForm()
 	f.Update(tea.KeyPressMsg(tea.Key{Code: 'a', Text: "a"}))

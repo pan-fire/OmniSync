@@ -17,15 +17,13 @@ function TestComponent ({
   return null;
 }
 
-// Feature: frontend-dashboard, Property 15: Locale switching sets correct direction
-describe('Property 15: Locale switching sets correct direction', () => {
+describe('Locale switching sets correct direction', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute('dir');
     document.documentElement.removeAttribute('lang');
   });
 
-  // Validates: Requirements 12.6, 12.7
   it('for any supported locale, "fa" sets direction to "rtl", "en" and "de" set direction to "ltr"', () => {
     fc.assert(
       fc.property(localeArb, (locale) => {
@@ -57,7 +55,7 @@ describe('Property 15: Locale switching sets correct direction', () => {
   });
 });
 
-// FE-7: the locale comes from the server (cookie), not from localStorage
+// The locale comes from the server (cookie), not from localStorage
 // during the first render, so server and client HTML match.
 describe('Locale without hydration mismatch', () => {
   function Title () {
