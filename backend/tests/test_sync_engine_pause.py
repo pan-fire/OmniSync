@@ -15,27 +15,28 @@ from backend.models.sync_state import SyncStateManager
 from backend.services.rclone import SENTINEL_FILE
 from backend.services.sync_engine import SyncEngine
 
-import tempfile
-
 # engine.start() imports the watcher class inside the function, so it is
 # patched where it is defined. Failing it runs the engine without a watcher.
 WATCHER = "watchdog.observers.polling.PollingObserver"
 
-# A real local folder carrying the sync marker, so the engine's pre-sync
-# safety checks pass (module scope: hypothesis tests reuse the fixtures).
-LOCAL_DIR = tempfile.mkdtemp(prefix="omnisync-pause-")
-for _name in ("a.txt", SENTINEL_FILE):
-    with open(f"{LOCAL_DIR}/{_name}", "w") as _fh:
-        _fh.write("x")
+
+@pytest.fixture(scope="module")
+def local_dir(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """A real local folder carrying the sync marker, so the engine's pre-sync
+    safety checks pass (module scope: hypothesis tests reuse the fixtures)."""
+    path = tmp_path_factory.mktemp("pause-local")
+    for name in ("a.txt", SENTINEL_FILE):
+        (path / name).write_text("x")
+    return str(path)
 
 
 @pytest.fixture
-def mock_profile() -> ProfileConfig:
+def mock_profile(local_dir: str) -> ProfileConfig:
     return ProfileConfig(
         profile_id=1,
         slug="test",
         name="Test",
-        local_dir=LOCAL_DIR,
+        local_dir=local_dir,
         remote_dir="remote:backup",
         pull_interval_minutes=5,
         debounce_seconds=3,

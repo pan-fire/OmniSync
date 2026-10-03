@@ -814,16 +814,21 @@ from backend.db.models import Base
 
 # --- Skip removes files from cached diff: helpers ---
 
-import tempfile as _tempfile
-
 from backend.services.rclone import SENTINEL_FILE
 
 # A real, non-empty local folder that already carries the sync marker, so the
 # engine's pre-sync safety checks pass and the tests reach the rclone mocks.
-_LOCAL_DIR = _tempfile.mkdtemp(prefix="omnisync-props-")
-for _name in ("existing.txt", SENTINEL_FILE):
-    with open(f"{_LOCAL_DIR}/{_name}", "w") as _fh:
-        _fh.write("x")
+# Set once per module by _local_dir, in pytest's own temp folder.
+_LOCAL_DIR = ""
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _local_dir(tmp_path_factory: pytest.TempPathFactory) -> None:
+    global _LOCAL_DIR
+    path = tmp_path_factory.mktemp("props-local")
+    for name in ("existing.txt", SENTINEL_FILE):
+        (path / name).write_text("x")
+    _LOCAL_DIR = str(path)
 
 
 def _parse_exclude_rule(line: str) -> str:
