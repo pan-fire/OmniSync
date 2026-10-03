@@ -29,6 +29,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 
 # Runtime stage
 FROM scratch
+LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.title="OmniSync osync"
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /osync-tui /osync-tui
 ENTRYPOINT ["/osync-tui"]
