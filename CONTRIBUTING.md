@@ -13,7 +13,7 @@ anything that could lose data needs a test that proves it does not.
 
 ```text
 backend/     FastAPI app (Python 3.12); tests in backend/tests, migrations in backend/migrations
-frontend/    Next.js web UI (Node 22, pnpm 10)
+frontend/    Next.js web UI (Node 24 LTS, pnpm 10)
 tui/         Go terminal UI and CLI, `osync` (Go 1.25)
 docs/        user guide (docs/gem) and the API error codes (docs/api-errors.md)
 scripts/     container entrypoint, OpenAPI generator, release scripts (scripts/release)

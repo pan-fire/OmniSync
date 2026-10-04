@@ -60,7 +60,7 @@ the background: starting one answers at once, and the UI polls its job.
 
 ## Development
 
-Node 22 and pnpm 10, with a backend running on `127.0.0.1:8000`:
+Node 24 (LTS) and pnpm 10, with a backend running on `127.0.0.1:8000`:
 
 ```bash
 pnpm install

@@ -423,7 +423,7 @@ Docker compose is the supported way to run OmniSync, but the backend and the
 web UI are an ordinary Python app and an ordinary Node.js server. This is a
 sketch for a Linux host with systemd; adapt the paths to taste.
 
-You need Python 3.12, Node.js 22 with pnpm 10 (only to build the web UI),
+You need Python 3.12, Node.js 24 (LTS) with pnpm 10 (only to build the web UI),
 and [rclone](https://rclone.org/install/) on the `PATH` (the images use
 rclone 1.75.1). For native desktop notifications also `notify-send`
 (`libnotify-bin`).

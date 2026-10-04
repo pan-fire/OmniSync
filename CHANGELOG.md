@@ -43,6 +43,9 @@ release notes.
   run's start and outside the trash. Nothing else is touched (a file named
   `notes.partial` stays). The log records how many were removed, with the
   job id.
+- **The web UI image runs on Node.js 24 LTS** (24.21.0), up from Node 22,
+  and takes Debian's security updates at build time like the backend image.
+  CI builds and tests the web UI on Node 24 too.
 
 ## [0.12.0] - 2026-10-04
 
