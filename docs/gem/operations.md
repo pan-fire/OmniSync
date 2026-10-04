@@ -5,6 +5,98 @@ up OmniSync's own data, and running it without Docker. Installing and the
 environment variables are in the [README](../../README.md#install-a-release);
 how syncs behave is in [How Syncing Works](how-syncing-works.md).
 
+## Install, update and uninstall with the installer
+
+[`scripts/install.sh`](../../scripts/install.sh) sets up the released
+images with docker compose, and later updates, checks and removes them.
+Run it piped from GitHub or as a downloaded file:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh | bash -s -- [command] [options]
+bash install.sh [command] [options]
+```
+
+| Command | What it does |
+| --- | --- |
+| *(none)* | Installs; on an existing install, updates it when a newer release exists (after asking), else starts it if it is stopped |
+| `install` | Installs; leaves an existing install alone |
+| `update` | Updates to the latest release, or to `--version X.Y.Z` |
+| `status` | Installed and latest version, both containers' health, URLs, folder, data volume, sync folder |
+| `uninstall` | Stops and removes the containers; keeps the data volume and `.env`. `--purge` also deletes the volume, `compose.yml` and `.env` |
+
+**What it writes.** Everything lives in one folder, `~/omnisync` (as root
+`/opt/omnisync`; `--dir` for another), mode 0700:
+
+- `compose.yml`, the release's [`deploy/compose.yml`](../../deploy/compose.yml);
+- `.env` (mode 0600): `COMPOSE_PROJECT_NAME` (default `omnisync`, so the
+  data volume is `omnisync_omnisync-data`), `OMNISYNC_VERSION`, a generated
+  `OMNISYNC_API_TOKEN` (32 random bytes, hex), `PUID`/`PGID` of the user who
+  ran it (through `sudo` too; never 0), `TZ` from the system,
+  `OMNISYNC_SYNC_DIR`, `OMNISYNC_BIND_ADDRESS` (default `127.0.0.1`) and
+  `OMNISYNC_API_PORT`/`OMNISYNC_WEB_PORT`; with a web UI password also
+  `OMNISYNC_UI_PASSWORD_HASH` (made by the web image's
+  `scripts/hash-password.mjs`; the password itself is stored nowhere) and
+  a generated `OMNISYNC_UI_SESSION_SECRET`;
+- `backups/`: the data volume's backups taken before updates.
+
+The settings flags (`--sync-dir`, `--bind-address`, `--api-port`,
+`--web-port`, `--project-name`, `--ui-password-prompt`) apply to a fresh
+install; afterwards edit `.env` and run `docker compose up -d` in the
+folder. The installer never prints the token or the password.
+
+**What it downloads, and the checks.** Only from GitHub: the API's
+"latest release" answer and the release's assets
+(`github.com/pan-fire/OmniSync/releases/download/v<version>/...`), plus the
+images from GHCR. It checks `compose.yml` against the release's
+`SHA256SUMS` and refuses a mismatch; with [cosign](https://docs.sigstore.dev/)
+installed it first verifies the Sigstore signature of `SHA256SUMS` (the
+same check as the README's "Verify a release"), which is what ties the
+file to the release workflow. Releases before 0.12.0 attach no
+`compose.yml`; for them (0.11.0 is the oldest the installer accepts) it
+uses the copy it carries, which is the same file.
+
+**Updating.** `update` (or running the installer again) shows the installed
+and the latest version and the release notes link, asks, and then:
+
+1. downloads and checks the new `compose.yml` and pulls the new images;
+2. stops the backend and backs up the data volume into
+   `backups/omnisync-data-<old version>-<time>.tar.gz` (mode 0600; it holds
+   your credentials), unless `--no-backup`;
+3. puts the new `compose.yml` in place, changes only the
+   `OMNISYNC_VERSION` line of `.env`, and starts the new version;
+4. waits for both health checks (`--health-timeout`, default 180 s). If
+   they fail, it puts back the previous `compose.yml` and version and starts
+   the old version again. A database the new version already migrated may
+   keep the old one from starting: then restore the backup as in
+   [Restore](#backing-up-omnisyncs-own-data) below.
+
+Downgrades are refused. Read the release's upgrade notes before you
+confirm.
+
+**Without a terminal.** Prompts are read from the terminal even when the
+script is piped into bash. Without one (cron, provisioning), `--yes` takes
+the defaults and confirms updates; `uninstall --purge` then needs
+`--yes` too, and in a terminal it always asks you to type the volume name.
+`--dry-run` prints every step without changing anything.
+
+**Preflight.** It refuses to run, saying what to do, without Linux or
+macOS (WSL counts as Linux), on other architectures than amd64 and arm64,
+without a reachable Docker daemon, the compose v2 plugin, curl or wget, or
+a SHA256 tool, and when the ports are taken. When your user may not use
+Docker, it shows the `usermod -aG docker` fix; it never runs `sudo` itself.
+
+**An install built from the source.** When it finds OmniSync containers
+built from a clone, it explains how to switch without losing data: stop
+them with `docker compose down` (never `-v`), then run the installer with
+`--project-name <their project>` (e.g. `omnisync` for a clone in
+`OmniSync/`), which reuses that project's `omnisync-data` volume, and the
+same `--sync-dir` as before, so the profiles' folders keep their paths.
+The API token is new: give it to `osync`.
+
+**osync.** `--osync` also installs the terminal client for your system to
+`~/.local/bin/osync` (as root `/usr/local/bin`), checked against
+`SHA256SUMS`, and prints how to hand it the token.
+
 ## The containers
 
 The release images are multi-platform: `linux/amd64` (x86-64 PCs and
