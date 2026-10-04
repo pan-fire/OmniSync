@@ -8217,10 +8217,6 @@
           "restore_scope": {
             "$ref": "#/components/schemas/RestoreScope"
           },
-          "exact": {
-            "type": "boolean",
-            "title": "Exact"
-          },
           "sides": {
             "items": {
               "$ref": "#/components/schemas/RestorePreviewSide"
@@ -8233,7 +8229,6 @@
         "required": [
           "snapshot_id",
           "restore_scope",
-          "exact",
           "sides"
         ],
         "title": "RestorePreviewResponse"
@@ -8577,11 +8572,6 @@
           "status": {
             "type": "string",
             "title": "Status"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "default": "full"
           },
           "latest": {
             "type": "boolean",

@@ -569,18 +569,10 @@
     "noHistory": "Noch kein Sicherungsverlauf",
     "overview": "Übersicht",
     "restoreDescription": "Die Dateien genau so wiederherstellen, wie sie direkt nach der Sicherung vom {{date}} waren. Die Synchronisierung pausiert während der Wiederherstellung.",
-    "restoreDescriptionLegacy": "Die Dateien so zurückholen, wie sie vor der Sicherung vom {{date}} waren. Diese Fassung stammt aus einem älteren Sicherungsformat und kann später hinzugekommene Dateien nicht erkennen: Diese bleiben erhalten. Die Synchronisierung pausiert während der Wiederherstellung.",
     "restoreWarning": {
-      "full": {
-        "local_only": "Der lokale Ordner wird dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden entfernt.",
-        "remote_only": "Der Remote-Ordner wird dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden entfernt.",
-        "both": "Der lokale und der Remote-Ordner werden dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden auf beiden Seiten entfernt."
-      },
-      "legacy": {
-        "local_only": "Die Dateien dieser Fassung werden in den lokalen Ordner kopiert und überschreiben die Fassungen dort. Es wird nichts gelöscht: Dateien, die nicht in dieser Fassung sind, bleiben erhalten.",
-        "remote_only": "Die Dateien dieser Fassung werden in den Remote-Ordner kopiert und überschreiben die Fassungen dort. Es wird nichts gelöscht: Dateien, die nicht in dieser Fassung sind, bleiben erhalten.",
-        "both": "Die Dateien dieser Fassung werden in den lokalen und den Remote-Ordner kopiert und überschreiben die Fassungen dort. Es wird nichts gelöscht: Dateien, die nicht in dieser Fassung sind, bleiben auf beiden Seiten erhalten."
-      }
+      "local_only": "Der lokale Ordner wird dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden entfernt.",
+      "remote_only": "Der Remote-Ordner wird dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden entfernt.",
+      "both": "Der lokale und der Remote-Ordner werden dem Snapshot angeglichen: Seitdem geänderte Dateien werden überschrieben und Dateien, die nicht im Snapshot sind, werden auf beiden Seiten entfernt."
     },
     "restoreSafetyCopies": "Jede Datei, die die Wiederherstellung überschreibt oder entfernt, wird vorher in .omnisync-trash/pre-restore/<Zeitpunkt>/ im wiederhergestellten Ordner aufbewahrt. Diese Kopien werden nicht synchronisiert und nicht automatisch aufgeräumt.",
     "restorePausesSync": "Danach pausiert die automatische Synchronisierung dieses Profils, damit die andere Seite die Wiederherstellung nicht rückgängig macht. Prüfe die Änderungen und synchronisiere dann oder setze fort.",
@@ -588,8 +580,6 @@
     "restoring": "Wird wiederhergestellt…",
     "snapshotsFailed": "Die Snapshots konnten nicht geladen werden",
     "snapshotLatest": "Neueste Sicherung",
-    "snapshotLegacy": "Vor dieser Sicherung",
-    "snapshotLegacyHint": "In einem älteren Sicherungsformat gespeichert: stellt die Dateien so wieder her, wie sie vor dieser Sicherung waren, und entfernt nichts.",
     "lastBackup": "Letztes Backup",
     "next": "Nächstes",
     "never": "Nie",

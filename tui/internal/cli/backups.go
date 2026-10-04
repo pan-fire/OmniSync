@@ -205,16 +205,9 @@ func backupSnapshotsCmd() *cobra.Command {
 				resp = []api.SnapshotResponse{}
 			}
 			return emit(cmd, resp, func(w io.Writer) {
-				_, _ = fmt.Fprintf(w, "SNAPSHOT\tCREATED\tSIZE\tSTATUS\tKIND\n")
+				_, _ = fmt.Fprintf(w, "SNAPSHOT\tCREATED\tSIZE\tSTATUS\tLATEST\n")
 				for _, s := range resp {
-					kind := s.Kind
-					if kind == "" {
-						kind = "full"
-					}
-					if s.Latest {
-						kind += " (latest)"
-					}
-					_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.SnapshotID, s.CreatedAt, formatBytes(s.SizeBytes), s.Status, kind)
+					_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.SnapshotID, s.CreatedAt, formatBytes(s.SizeBytes), s.Status, yesOrEmpty(s.Latest))
 				}
 			})
 		},
@@ -275,23 +268,17 @@ func backupRestoreCmd() *cobra.Command {
 	return cmd
 }
 
-// restoreWarning says what a restore of snapshot changes, by the snapshot's
-// kind (like the web UI's restore dialog).
-func restoreWarning(ctx context.Context, client *api.Client, slug string, id int, snapshot string, scope api.RestoreScope) string {
-	kind := ""
-	if snaps, err := client.ListSnapshots(ctx, slug, id); err == nil {
-		for _, s := range snaps {
-			if s.SnapshotID == snapshot {
-				kind = s.Kind
-			}
-		}
+// yesOrEmpty is "yes" for true and "" for false, for a table column.
+func yesOrEmpty(b bool) string {
+	if b {
+		return "yes"
 	}
-	where := restoreScopes[scope]
-	if kind == "legacy" {
-		return "The files of this version are copied into " + where + " and overwrite the versions\n" +
-			"there. Nothing is deleted: files that are not in this version stay."
-	}
-	return "This makes " + where + " identical to the snapshot: files changed since then\n" +
+	return ""
+}
+
+// restoreWarning says what a restore changes (like the web UI's restore dialog).
+func restoreWarning(scope api.RestoreScope) string {
+	return "This makes " + restoreScopes[scope] + " identical to the snapshot: files changed since then\n" +
 		"are overwritten and files that are not in the snapshot are removed."
 }
 
@@ -307,7 +294,7 @@ func confirmRestore(cmd *cobra.Command, client *api.Client, slug string, id int,
 	if p, err := client.GetProfile(cmd.Context(), slug); err == nil {
 		_, _ = fmt.Fprintf(w, "  Local:  %s\n  Remote: %s\n\n", p.LocalDir, p.RemoteDir)
 	}
-	_, _ = fmt.Fprintln(w, restoreWarning(cmd.Context(), client, slug, id, snapshot, scope))
+	_, _ = fmt.Fprintln(w, restoreWarning(scope))
 	_, _ = fmt.Fprintln(w, "Syncing of the profile is paused while the restore runs.")
 	_, _ = fmt.Fprint(w, "\nRestore now? [y/N] ")
 	line, _ := bufio.NewReader(in).ReadString('\n')

@@ -901,19 +901,11 @@ export interface BackupJob {
   verify_message?: string | null;
 }
 
-/**
- * full:   restores the tree exactly as it was right after that backup.
- * legacy: a mirror version from before snapshot manifests; it brings back
- *         files as they were before that backup and removes nothing.
- */
-export type SnapshotKind = 'full' | 'legacy';
-
 export interface Snapshot {
   snapshot_id: string;
   created_at:  string;
   size_bytes:  number | null;
   status:      string;
-  kind:        SnapshotKind;
   /** The most recent backup of the target. */
   latest:      boolean;
 }
@@ -975,8 +967,6 @@ export interface RestorePreviewSide {
 export interface RestorePreview {
   snapshot_id:   string;
   restore_scope: RestoreScope;
-  /** False for a legacy version: it copies files back and removes nothing. */
-  exact:         boolean;
   sides:         RestorePreviewSide[];
 }
 

@@ -423,7 +423,7 @@ func TestBackups_ListAndSnapshots(t *testing.T) {
 	out, _, _ := f.run("backups", "snapshots", "docs", "3", "--json")
 	var list []map[string]any
 	decodeJSON(t, out, &list)
-	if len(list) != 1 || list[0]["kind"] != "full" {
+	if len(list) != 1 || list[0]["latest"] != true {
 		t.Errorf("--json = %v", list)
 	}
 }

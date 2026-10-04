@@ -439,7 +439,6 @@ class TestSnapshots:
                 snapshot_id="2024-12-31T00-00-00",
                 created_at=datetime(2024, 12, 31, tzinfo=timezone.utc),
                 status="available",
-                kind="legacy",
             ),
         ]
 
@@ -448,8 +447,8 @@ class TestSnapshots:
         data = resp.json()
         assert len(data) == 2
         assert data[0]["snapshot_id"] == "2025-01-01T00-00-00"
-        assert (data[0]["kind"], data[0]["latest"]) == ("full", True)
-        assert (data[1]["kind"], data[1]["latest"]) == ("legacy", False)
+        assert (data[0]["latest"], data[1]["latest"]) == (True, False)
+        assert "kind" not in data[0]
 
 
 class TestRestore:
@@ -465,13 +464,7 @@ class TestRestore:
         })
         assert resp.status_code == 202
         assert (resp.json()["direction"], resp.json()["status"]) == ("restore", "running")
-
-        # The latest backup of a target from before snapshot manifests
-        resp = await client.post(f"/profiles/{slug}/backups/{target_id}/restore", json={
-            "snapshot_id": "current", "restore_scope": "local_only",
-        })
-        assert resp.status_code == 202
-        assert svc.start_restore.await_args.args[1] == "current"
+        assert svc.start_restore.await_args.args[1] == "2025-01-01T00-00-00"
 
     @pytest.mark.asyncio
     async def test_restore_while_the_profile_is_busy_is_a_409_not_a_500(self, backup_client):

@@ -512,7 +512,7 @@ func TestContract_Backups(t *testing.T) {
 	}
 	s := decodeFixture[api.SnapshotResponse](t, "SnapshotResponse")
 	if s.SnapshotID == "" || s.CreatedAt == "" || s.SizeBytes == nil || *s.SizeBytes != 123456 || s.Status != "completed" ||
-		s.Kind != "full" {
+		!s.Latest {
 		t.Errorf("unexpected %+v", s)
 	}
 	f := decodeFixture[api.SnapshotFilesResponse](t, "SnapshotFilesResponse")
@@ -526,7 +526,7 @@ func TestContract_Backups(t *testing.T) {
 		t.Errorf("unexpected file entry %+v", e)
 	}
 	p := decodeFixture[api.RestorePreviewResponse](t, "RestorePreviewResponse")
-	if p.RestoreScope != api.RestoreScopeBoth || !p.Exact || len(p.Sides) != 1 {
+	if p.RestoreScope != api.RestoreScopeBoth || len(p.Sides) != 1 {
 		t.Fatalf("unexpected %+v", p)
 	}
 	if side := p.Sides[0]; side.Side != "local" || side.Added != 1 || side.Replaced != 2 || side.Removed != 3 ||

@@ -27,10 +27,6 @@ LOCK_TIMEOUT = 300
 # TRASH_FILTER) and rclone's in-progress files (<name>.<8 hex>.partial).
 BACKUP_FILTER = [TRASH_FILTER, BISYNC_PARTIAL_FILTER]
 
-# Pseudo snapshot for the latest backup of a mirror target that has no
-# manifest yet (backed up before manifests existed): current/ as it is.
-LATEST_SNAPSHOT = "current"
-
 
 class RestoreRefused(RuntimeError):
     """A restore that cannot run as asked; the message is OmniSync's own, for the user."""

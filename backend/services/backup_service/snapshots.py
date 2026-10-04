@@ -1,22 +1,13 @@
-"""The restore points of a target: mirror snapshots (manifests, legacy versions) and archives."""
+"""The restore points of a target: mirror snapshots (one per manifest) and archives."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from sqlalchemy import select
-
 from backend.api.schemas import BackupMode, SnapshotResponse
-from backend.db.models import BackupJob, BackupJobStatus, BackupTarget
+from backend.db.models import BackupTarget
 from backend.exceptions import RcloneError
 from backend.services.sync_engine import remote_join
-from backend.services.backup_service.common import LATEST_SNAPSHOT
 from backend.services.backup_service.base import BackupBase
 from backend.services.backup_service.mirror import MANIFESTS_DIR
-
-# Snapshot kinds (SnapshotResponse.kind)
-KIND_FULL = "full"      # restores the tree exactly as it was right after that backup
-KIND_LEGACY = "legacy"  # pre-manifest mirror version: files as they were before that backup
 
 
 class SnapshotsMixin(BackupBase):
@@ -34,7 +25,7 @@ class SnapshotsMixin(BackupBase):
             snapshots = await self._list_mirror_snapshots(target)
         else:
             snapshots = await self._list_archive_snapshots(target)
-        if snapshots and snapshots[0].kind == KIND_FULL:
+        if snapshots:
             snapshots[0].latest = True
         return snapshots
 
@@ -52,55 +43,21 @@ class SnapshotsMixin(BackupBase):
         return manifests, versions
 
     async def _list_mirror_snapshots(self, target: BackupTarget) -> list[SnapshotResponse]:
-        """One snapshot per backup with a manifest, plus pre-manifest versions.
+        """One snapshot per backup with a manifest.
 
-        A target backed up only before manifests existed also lists its
-        latest backup (current/) as the pseudo snapshot ``current``.
+        A version folder without a manifest (left by a run that failed
+        before writing it) is no restore point, but still a layer that
+        rebuilds the older snapshots.
         """
-        root = self.storage_root(target)
         try:
-            manifests, versions = await self._mirror_index(root)
+            manifests, _ = await self._mirror_index(self.storage_root(target))
         except RcloneError:
             return []
-
         snapshots = [
-            SnapshotResponse(snapshot_id=m, created_at=ts, status="available", kind=KIND_FULL)
+            SnapshotResponse(snapshot_id=m, created_at=ts, status="available")
             for m in manifests if (ts := self._parse_timestamp(m)) is not None
         ]
-        snapshots += [
-            SnapshotResponse(snapshot_id=v, created_at=ts, status="available", kind=KIND_LEGACY)
-            for v in versions if v not in set(manifests) and (ts := self._parse_timestamp(v)) is not None
-        ]
-        if not manifests:
-            latest = await self._latest_backup_time(target)
-            try:
-                has_current = bool(await self._rclone.list_top_level(remote_join(root, "current")))
-            except RcloneError:
-                has_current = False
-            if latest is not None and has_current:
-                snapshots.append(SnapshotResponse(
-                    snapshot_id=LATEST_SNAPSHOT, created_at=latest, status="available", kind=KIND_FULL,
-                ))
-        # A full snapshot sorts before a legacy one of the same second.
-        return sorted(snapshots, key=lambda s: (s.created_at, s.kind == KIND_FULL), reverse=True)
-
-    async def _latest_backup_time(self, target: BackupTarget) -> datetime | None:
-        """When the newest completed backup of this target ran, from the job history."""
-        async with self._db() as session:
-            job = (await session.execute(
-                select(BackupJob).where(
-                    BackupJob.target_id == target.id,
-                    BackupJob.direction == "backup",
-                    BackupJob.status == BackupJobStatus.COMPLETED.value,
-                ).order_by(BackupJob.started_at.desc()).limit(1)
-            )).scalar_one_or_none()
-        if job is None:
-            return None
-        stamp = self._parse_timestamp(job.snapshot_id or "")
-        if stamp is not None:
-            return stamp
-        when = job.finished_at or job.started_at
-        return when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when
+        return sorted(snapshots, key=lambda s: s.created_at, reverse=True)
 
     async def _list_archive_snapshots(self, target: BackupTarget) -> list[SnapshotResponse]:
         """List tar.gz files as snapshots."""

@@ -655,18 +655,10 @@
     "noHistory": "No backup history yet",
     "overview": "Overview",
     "restoreDescription": "Restore the files exactly as they were right after the backup of {{date}}. Syncing is paused while the restore runs.",
-    "restoreDescriptionLegacy": "Bring back the files as they were before the backup of {{date}}. This version was saved in an older backup format, so it cannot tell which files were added later: those stay. Syncing is paused while the restore runs.",
     "restoreWarning": {
-      "full": {
-        "local_only": "The local folder is made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed.",
-        "remote_only": "The remote folder is made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed.",
-        "both": "Both the local and the remote folder are made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed on both sides."
-      },
-      "legacy": {
-        "local_only": "The files of this version are copied into the local folder and overwrite the versions there. Nothing is deleted: files that are not in this version stay.",
-        "remote_only": "The files of this version are copied into the remote folder and overwrite the versions there. Nothing is deleted: files that are not in this version stay.",
-        "both": "The files of this version are copied into the local and the remote folder and overwrite the versions there. Nothing is deleted: files that are not in this version stay on both sides."
-      }
+      "local_only": "The local folder is made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed.",
+      "remote_only": "The remote folder is made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed.",
+      "both": "Both the local and the remote folder are made identical to the snapshot: files changed since then are overwritten and files that are not in the snapshot are removed on both sides."
     },
     "restoreSafetyCopies": "Every file the restore overwrites or removes is first kept in .omnisync-trash/pre-restore/<time>/ inside the restored folder. These copies are not synced and not cleaned up automatically.",
     "restorePausesSync": "Afterwards automatic syncing of this profile is paused, so the other side does not undo the restore. Review the changes, then sync or resume.",
@@ -674,8 +666,6 @@
     "restoring": "Restoring…",
     "snapshotsFailed": "Could not load the snapshots",
     "snapshotLatest": "Latest backup",
-    "snapshotLegacy": "Before this backup",
-    "snapshotLegacyHint": "Saved in an older backup format: restores the files as they were before this backup and removes nothing.",
     "lastBackup": "Last backup",
     "next": "Next",
     "never": "Never",

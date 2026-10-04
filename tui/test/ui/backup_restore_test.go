@@ -26,7 +26,7 @@ func backupsBackend(t *testing.T, target map[string]any) *backend {
 	b.json("GET", "/profiles/docs/backups", 200, []any{base})
 	b.json("GET", "/profiles/docs/backups/3/snapshots", 200, []any{
 		map[string]any{"snapshot_id": snap, "created_at": "2026-09-27T08:30:00Z", "size_bytes": 10, "status": "available",
-			"kind": "full", "latest": true},
+			"latest": true},
 	})
 	return b
 }
@@ -98,7 +98,7 @@ func TestBackups_CreateWithPassphraseAndVerification(t *testing.T) {
 func TestBackups_FullRestoreShowsThePreviewFirst(t *testing.T) {
 	b := backupsBackend(t, nil)
 	b.json("POST", "/profiles/docs/backups/3/restore/preview", 200, map[string]any{
-		"snapshot_id": snap, "restore_scope": "local_only", "exact": true,
+		"snapshot_id": snap, "restore_scope": "local_only",
 		"sides": []any{map[string]any{"side": "local", "path": "/home/u/docs", "added": 2, "replaced": 3, "removed": 4,
 			"unchanged": 5, "added_examples": []string{}, "replaced_examples": []string{}, "removed_examples": []string{}}},
 	})
@@ -192,31 +192,29 @@ func TestBackups_BrowseSelectAndRestoreFiles(t *testing.T) {
 	}
 }
 
-func TestBackups_SnapshotTableShowsKindAndLatest(t *testing.T) {
+func TestBackups_SnapshotTableMarksTheLatest(t *testing.T) {
 	b := detailBackend(t)
 	b.json("GET", "/profiles/docs/backups", 200, []any{map[string]any{"id": 3, "profile_id": 1, "name": "Nightly",
 		"target_path": "/backups", "target_type": "local", "remote_name": nil, "retention_days": 7, "keep_last": 3,
 		"frequency_hours": 24, "backup_mode": "mirror", "enabled": true, "created_at": "x", "updated_at": "x"}})
 	b.json("GET", "/profiles/docs/backups/3/snapshots", 200, []any{
 		map[string]any{"snapshot_id": snap, "created_at": "2026-09-27T08:30:00Z", "size_bytes": 10, "status": "available",
-			"kind": "full", "latest": true},
+			"latest": true},
 		map[string]any{"snapshot_id": "2026-09-26T08-30-00", "created_at": "2026-09-26T08:30:00Z", "size_bytes": 10,
-			"status": "available", "kind": "legacy", "latest": false},
+			"status": "available", "latest": false},
 	})
 	m := openSnapshots(t, b)
 	v := view(m)
-	if !strings.Contains(v, "Kind") || !strings.Contains(v, "full (latest)") || !strings.Contains(v, "legacy") {
-		t.Fatalf("snapshots view lacks the kind and latest labels:\n%s", v)
+	if !strings.Contains(v, "Latest") {
+		t.Fatalf("snapshots view lacks the latest column:\n%s", v)
 	}
-	if strings.Count(v, "(latest)") != 1 {
-		t.Errorf("only the newest snapshot is the latest:\n%s", v)
-	}
-
-	// A legacy snapshot's restore form says what restoring it does.
-	m = detailStep(t, m, press("down"))
-	m = detailStep(t, m, press("r"))
-	if v := view(m); !strings.Contains(v, "older backup format") {
-		t.Errorf("legacy restore form:\n%s", v)
+	for _, line := range strings.Split(v, "\n") {
+		if strings.Contains(line, "2026-09-26T08-30-00") && strings.Contains(line, "yes") {
+			t.Errorf("only the newest snapshot is the latest:\n%s", v)
+		}
+		if strings.Contains(line, snap) && !strings.Contains(line, "yes") {
+			t.Errorf("the newest snapshot is not marked:\n%s", v)
+		}
 	}
 }
 

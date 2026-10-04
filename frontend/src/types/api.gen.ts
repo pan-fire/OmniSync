@@ -2987,8 +2987,6 @@ export interface components {
             /** Snapshot Id */
             snapshot_id: string;
             restore_scope: components["schemas"]["RestoreScope"];
-            /** Exact */
-            exact: boolean;
             /** Sides */
             sides: components["schemas"]["RestorePreviewSide"][];
         };
@@ -3149,11 +3147,6 @@ export interface components {
             size_bytes?: number | null;
             /** Status */
             status: string;
-            /**
-             * Kind
-             * @default full
-             */
-            kind?: string;
             /**
              * Latest
              * @default false

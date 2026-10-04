@@ -178,7 +178,7 @@ async def test_starts_are_refused_while_the_profile_is_busy_or_wanted(env):
     with pytest.raises(SyncBusyError):
         await env.service.start_backup(target_id)
     with pytest.raises(SyncBusyError):
-        await env.service.start_restore(target_id, "current", RestoreScope.LOCAL_ONLY)
+        await env.service.start_restore(target_id, "2026-01-01T00-00-00", RestoreScope.LOCAL_ONLY)
     await waiter
     env.lock.release()
     assert env.lock.waiting == 0 and not is_busy(env.lock)
@@ -237,7 +237,7 @@ async def test_shutdown_cancels_and_records_running_jobs(env):
     backup = await env.service.start_backup(target_id)
     await started.wait()
     with pytest.raises(SyncBusyError):  # a second start of the profile is refused, not queued
-        await env.service.start_restore(target_id, "current", RestoreScope.LOCAL_ONLY)
+        await env.service.start_restore(target_id, "2026-01-01T00-00-00", RestoreScope.LOCAL_ONLY)
 
     await asyncio.wait_for(env.service.stop(timeout=10), timeout=15)
 
@@ -256,7 +256,7 @@ async def test_restore_lock_timeout_fails_the_job_and_notifies(env, monkeypatch)
 
     await env.lock.acquire()
     try:
-        job = await env.service.restore(target_id, "current", RestoreScope.LOCAL_ONLY)
+        job = await env.service.restore(target_id, "2026-01-01T00-00-00", RestoreScope.LOCAL_ONLY)
     finally:
         env.lock.release()
 
@@ -444,7 +444,8 @@ async def test_backups_and_restores_use_the_profile_bandwidth_limit(limited, arg
     write(env.local, "a.txt", "a1")
     write(env.local, "skip.tmp", "a backup ignores the profile's filters")
 
-    assert (await env.service.run_backup(target_id)).status == "completed"
+    backup = await env.service.run_backup(target_id)
+    assert backup.status == "completed"
     syncs = commands(argv, "sync")
     assert len(syncs) == 1
     assert_tuned(syncs[0])
@@ -452,7 +453,7 @@ async def test_backups_and_restores_use_the_profile_bandwidth_limit(limited, arg
 
     write(env.local, "a.txt", "a2")
     argv.clear()
-    job = await env.service.restore(target_id, "current", RestoreScope.LOCAL_ONLY)
+    job = await env.service.restore(target_id, backup.snapshot_id, RestoreScope.LOCAL_ONLY)
     assert job.status == "completed", job.error_message
     copies = commands(argv, "copy")
     assert copies

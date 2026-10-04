@@ -22,10 +22,8 @@ interface RestoreDialogProps {
   profileSlug:  string;
   targetId:     number;
   /**
-   * What a restore does depends on the snapshot kind (backup_service/restore.py): a
-   * full snapshot (archive, or mirror with a manifest) makes the folder
-   * equal to the tree right after that backup; a legacy mirror version
-   * copies files back and deletes nothing. Replaced and removed files go to
+   * A restore makes the folder equal to the tree right after that backup
+   * (backup_service/restore.py). Replaced and removed files go to
    * .omnisync-trash/pre-restore/<time>/ inside the destination.
    */
   snapshot:     Snapshot;
@@ -98,9 +96,7 @@ export function RestoreDialog ({
         <DialogHeader>
           <DialogTitle>{t('backups.restoreTitle')}</DialogTitle>
           <DialogDescription>
-            {t(snapshot.kind === 'legacy' ? 'backups.restoreDescriptionLegacy' : 'backups.restoreDescription', {
-              date: formatDateTime(snapshot.created_at, locale),
-            })}
+            {t('backups.restoreDescription', { date: formatDateTime(snapshot.created_at, locale) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +142,7 @@ export function RestoreDialog ({
         <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm" role="alert">
           <p className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
-            {t(`backups.restoreWarning.${snapshot.kind === 'legacy' ? 'legacy' : 'full'}.${scope}`)}
+            {t(`backups.restoreWarning.${scope}`)}
           </p>
           <p>{t('backups.restoreSafetyCopies')}</p>
           {scope !== 'both' && <p>{t('backups.restorePausesSync')}</p>}

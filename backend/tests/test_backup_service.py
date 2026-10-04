@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import os
 import shutil
@@ -506,39 +507,13 @@ class TestSnapshotListing:
             target = await session.get(BackupTarget, target_id)
             snapshots = await service.list_snapshots(target)
 
-        # Newest first; every manifest is a full snapshot (also one whose
-        # backup changed nothing and so has no versions folder), a version
-        # folder without a manifest is a legacy one.
-        assert [(s.snapshot_id, s.kind, s.latest) for s in snapshots] == [
-            ("2025-06-02T09-00-00", "full", True),
-            ("2025-06-01T12-00-00", "full", False),
-            ("2025-05-30T08-00-00", "legacy", False),
+        # Newest first; every manifest is a snapshot (also one whose backup
+        # changed nothing and so has no versions folder). A version folder
+        # without a manifest (a run that failed before writing it) is none.
+        assert [(s.snapshot_id, s.latest) for s in snapshots] == [
+            ("2025-06-02T09-00-00", True),
+            ("2025-06-01T12-00-00", False),
         ]
-
-    @pytest.mark.asyncio
-    async def test_pre_manifest_target_lists_its_latest_backup(self, db_factory) -> None:
-        rclone = AsyncMock()
-        rclone.list_dirs.return_value = ["2025-05-30T08-00-00"]
-        rclone.list_top_level.side_effect = lambda path: [] if path.endswith("manifests") else ["a.txt"]
-
-        _, target_id, _ = await _make_profile_and_target(db_factory)
-        async with db_factory() as session:
-            session.add(BackupJob(
-                target_id=target_id, started_at=_now(), finished_at=_now(), direction="backup",
-                status=BackupJobStatus.COMPLETED.value, snapshot_id="2025-06-01T12-00-00",
-            ))
-            await session.commit()
-        service = _make_service(db_factory, rclone=rclone)
-
-        async with db_factory() as session:
-            target = await session.get(BackupTarget, target_id)
-            snapshots = await service.list_snapshots(target)
-
-        assert [(s.snapshot_id, s.kind, s.latest) for s in snapshots] == [
-            ("current", "full", True),
-            ("2025-05-30T08-00-00", "legacy", False),
-        ]
-        assert snapshots[0].created_at == datetime(2025, 6, 1, 12, tzinfo=timezone.utc)
 
     @pytest.mark.asyncio
     async def test_list_archive_snapshots(self, db_factory) -> None:
@@ -566,10 +541,14 @@ class TestSnapshotListing:
 
 
 def _mirror_rclone(snapshot: str = "2025-06-01T12-00-00") -> AsyncMock:
-    """An rclone mock holding one mirror snapshot with one file."""
+    """An rclone mock holding one mirror snapshot (its manifest) with one file."""
     rclone = AsyncMock()
-    rclone.list_dirs.return_value = [snapshot]
-    rclone.lsjson.return_value = [{"Path": "a.txt", "IsDir": False}]
+    rclone.list_dirs.return_value = []
+    rclone.list_top_level.return_value = [f"{snapshot}.json"]
+    manifest = {"format": 1, "snapshot_id": snapshot, "files": [{"path": "a.txt", "size": 1}]}
+    rclone._run.return_value = MagicMock(stdout=json.dumps(manifest))
+    rclone.lsjson_paths.return_value = {"a.txt": {"Path": "a.txt", "Size": 1}}
+    rclone.lsjson.return_value = [{"Path": "a.txt", "IsDir": False, "Size": 1}]
     return rclone
 
 
@@ -653,167 +632,6 @@ class TestRestore:
             assert jobs[0].snapshot_id == "2025-06-01T12-00-00"
 
 
-class TestLegacyPurge:
-    """Pre-rename '.gsync-*' cleanup.
-
-    The invariant under test is that the pre-restore safety backups survive:
-    they are rclone --backup-dir destinations holding the only copy of files
-    a restore overwrote, so they must be reported and never deleted.
-    """
-
-    @staticmethod
-    def _seed(root) -> None:
-        """Lay out a target as it looks after a pre-rename restore."""
-        (root / ".gsync-pre-restore" / "Docs").mkdir(parents=True)
-        (root / ".gsync-pre-restore" / "Docs" / "thesis.txt").write_text("only copy")
-        (root / ".gsync-pre-restore-remote").mkdir()
-        (root / ".gsync-liveness-check").write_text("ok")
-        (root / ".omnisync-pre-restore").mkdir()
-        (root / ".omnisync-liveness-check").write_text("ok")
-
-    async def _purge(self, db_factory, target_path, **kw):
-        _, target_id, _ = await _make_profile_and_target(
-            db_factory, target_path=str(target_path), **kw
-        )
-        service = _make_service(db_factory, **{k: v for k, v in kw.items() if k == "rclone"})
-        async with db_factory() as session:
-            target = await session.get(BackupTarget, target_id)
-            return service, await service.purge_legacy_markers(target)
-
-    def test_marker_and_preserved_lists_are_disjoint(self) -> None:
-        from backend.services.backup_service import (
-            LEGACY_MARKER_FILES,
-            LEGACY_PRESERVED_DIRS,
-        )
-
-        assert not set(LEGACY_MARKER_FILES) & set(LEGACY_PRESERVED_DIRS)
-
-    @pytest.mark.asyncio
-    async def test_removes_marker_and_preserves_pre_restore(
-        self, db_factory, tmp_path
-    ) -> None:
-        root = tmp_path / "backups"
-        root.mkdir()
-        self._seed(root)
-
-        _, removed = await self._purge(db_factory, root)
-
-        assert removed == 1
-        assert not (root / ".gsync-liveness-check").exists()
-        # The whole point: the user's overwritten files are still there.
-        assert (root / ".gsync-pre-restore" / "Docs" / "thesis.txt").read_text() == "only copy"
-        assert (root / ".gsync-pre-restore-remote").is_dir()
-
-    @pytest.mark.asyncio
-    async def test_current_markers_untouched(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        root.mkdir()
-        self._seed(root)
-
-        await self._purge(db_factory, root)
-
-        assert (root / ".omnisync-pre-restore").is_dir()
-        assert (root / ".omnisync-liveness-check").exists()
-
-    @pytest.mark.asyncio
-    async def test_marker_as_directory_is_not_removed(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        (root / ".gsync-liveness-check" / "inner").mkdir(parents=True)
-        (root / ".gsync-liveness-check" / "inner" / "f").write_text("x")
-
-        _, removed = await self._purge(db_factory, root)
-
-        assert removed == 0
-        assert (root / ".gsync-liveness-check" / "inner" / "f").exists()
-
-    @pytest.mark.asyncio
-    async def test_marker_as_symlink_is_not_followed(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        (root / "secret").mkdir(parents=True)
-        (root / "secret" / "data").write_text("x")
-        os.symlink(root / "secret", root / ".gsync-liveness-check")
-
-        _, removed = await self._purge(db_factory, root)
-
-        assert removed == 0
-        assert (root / "secret" / "data").exists()
-        assert os.path.lexists(root / ".gsync-liveness-check")
-
-    @pytest.mark.asyncio
-    async def test_runs_once_per_target(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        root.mkdir()
-        self._seed(root)
-
-        _, target_id, _ = await _make_profile_and_target(
-            db_factory, target_path=str(root)
-        )
-        service = _make_service(db_factory)
-        async with db_factory() as session:
-            target = await session.get(BackupTarget, target_id)
-            assert await service.purge_legacy_markers(target) == 1
-            (root / ".gsync-liveness-check").write_text("ok")  # reappears
-            assert await service.purge_legacy_markers(target) == 0
-            assert (root / ".gsync-liveness-check").exists()  # not rescanned
-
-    @pytest.mark.asyncio
-    async def test_degenerate_roots_refused(self, db_factory) -> None:
-        for bad in ("/", "."):
-            _, removed = await self._purge(db_factory, bad)
-            assert removed == 0
-
-    @pytest.mark.asyncio
-    async def test_root_inside_pre_restore_refused(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        inner = root / ".gsync-pre-restore"
-        inner.mkdir(parents=True)
-        (inner / ".gsync-liveness-check").write_text("ok")
-
-        _, removed = await self._purge(db_factory, inner)
-
-        assert removed == 0
-        assert (inner / ".gsync-liveness-check").exists()
-
-    @pytest.mark.asyncio
-    async def test_remote_target_never_deletes(self, db_factory) -> None:
-        rclone = AsyncMock()
-        rclone._run.return_value = MagicMock(
-            stdout='[{"Path": ".gsync-pre-restore", "IsDir": true},'
-                   ' {"Path": ".gsync-liveness-check", "IsDir": false}]'
-        )
-        _, target_id, _ = await _make_profile_and_target(
-            db_factory, target_type=BackupTargetType.REMOTE.value,
-            target_path="gdrive:backups",
-        )
-        service = _make_service(db_factory, rclone=rclone)
-        async with db_factory() as session:
-            target = await session.get(BackupTarget, target_id)
-            removed = await service.purge_legacy_markers(target)
-
-        assert removed == 0
-        rclone.delete_path.assert_not_awaited()
-        subcommands = [c.args[0][0] for c in rclone._run.await_args_list if c.args]
-        assert "deletefile" not in subcommands
-        assert "purge" not in subcommands
-
-    @pytest.mark.asyncio
-    async def test_liveness_survives_a_failing_purge(self, db_factory, tmp_path) -> None:
-        root = tmp_path / "backups"
-        root.mkdir()
-        _, target_id, _ = await _make_profile_and_target(
-            db_factory, target_path=str(root)
-        )
-        service = _make_service(db_factory)
-        service.purge_legacy_markers = AsyncMock(side_effect=RuntimeError("boom"))
-
-        async with db_factory() as session:
-            target = await session.get(BackupTarget, target_id)
-            alive, error = await service.check_liveness(target)
-
-        assert alive is True
-        assert error is None
-
-
 # ── rclone argument safety ───────────────────────────────────────────
 
 
@@ -841,14 +659,14 @@ class TestRclonePositionalPaths:
             target = await session.get(BackupTarget, target_id)
             target.remote_name = "gdrive"
             target.keep_last = 1
-            alive, _ = await service.check_liveness(target)  # lsd + legacy lsjson
+            alive, _ = await service.check_liveness(target)  # lsd
             assert alive is True
             assert await service.cleanup_old_snapshots(target) == 1  # deletefile
 
         calls = rclone._run.await_args_list
-        assert [c.args[0][0] for c in calls] == ["lsd", "lsjson", "deletefile"]
+        assert [c.args[0][0] for c in calls] == ["lsd", "deletefile"]
         assert [c.kwargs["positional"] for c in calls] == [
-            ["gdrive:backups"], ["gdrive:backups"], [f"gdrive:backups/backup-{old_ts}.tar.gz"],
+            ["gdrive:backups"], [f"gdrive:backups/backup-{old_ts}.tar.gz"],
         ]
         for call in calls:
             assert not any("gdrive" in arg for arg in call.args[0]), call

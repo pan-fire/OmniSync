@@ -1002,10 +1002,6 @@ type SnapshotResponse struct {
 	CreatedAt  string `json:"created_at"`
 	SizeBytes  *int64 `json:"size_bytes"`
 	Status     string `json:"status"`
-	// Kind is "full" (restores the tree as it was right after the backup)
-	// or "legacy" (a mirror version from before snapshot manifests: brings
-	// files back as they were before that backup and removes nothing).
-	Kind string `json:"kind"`
 	// Latest marks the most recent backup of the target.
 	Latest bool `json:"latest"`
 }
@@ -1061,7 +1057,6 @@ type RestorePreviewSide struct {
 type RestorePreviewResponse struct {
 	SnapshotID   string               `json:"snapshot_id"`
 	RestoreScope RestoreScope         `json:"restore_scope"`
-	Exact        bool                 `json:"exact"`
 	Sides        []RestorePreviewSide `json:"sides"`
 }
 

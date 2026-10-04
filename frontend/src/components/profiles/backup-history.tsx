@@ -82,11 +82,6 @@ export function BackupHistory ({ profileSlug, targetId, jobs }: BackupHistoryPro
                   <div className="me-auto flex items-center gap-2">
                     <span>{formatDateTime(snap.created_at, locale)}</span>
                     {snap.latest && <Badge variant="outline">{t('backups.snapshotLatest')}</Badge>}
-                    {snap.kind === 'legacy' && (
-                      <Badge variant="outline" title={t('backups.snapshotLegacyHint')}>
-                        {t('backups.snapshotLegacy')}
-                      </Badge>
-                    )}
                   </div>
                   <Button
                     size="sm"

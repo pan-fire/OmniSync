@@ -416,20 +416,6 @@ async def test_archive_lists_are_streamed_once_and_cached(env, monkeypatch):
     assert len(reads) == 1 and reads[0][-3:-1] == ["cat", "--"]  # streamed with rclone cat, not downloaded
 
 
-@needs_rclone
-async def test_legacy_and_current_snapshots_can_be_browsed(env):
-    target_id = await env.add_target(str(env.backups))
-    write(env.local, "a.txt", "a1")
-    await env.backup(target_id)
-    write(env.local, "a.txt", "a2")
-    write(env.local, "b.txt", "b2")
-    t2 = await env.backup(target_id)
-    shutil.rmtree(env.backups / "manifests")
-    target = await load(env, target_id)
-    assert {f.path for f in await env.service.snapshot_files(target, t2)} == {"a.txt", "b.txt"}
-    assert {f.path for f in await env.service.snapshot_files(target, "current")} == {"a.txt", "b.txt"}
-
-
 # ── Single-file restores ─────────────────────────────────────────────
 
 
@@ -523,7 +509,6 @@ async def test_restore_preview_counts_what_the_restore_then_does(env, mode, encr
     preview = await env.service.restore_preview(target_id, t1, RestoreScope.LOCAL_ONLY)
 
     assert files_under(env.local) == before  # a preview changes nothing
-    assert preview.exact
     [local] = preview.sides
     assert (local.side, local.added, local.replaced, local.removed, local.unchanged) == ("local", 1, 1, 2, 1)
     assert (local.added_examples, local.replaced_examples, local.removed_examples) == (
@@ -537,7 +522,7 @@ async def test_restore_preview_counts_what_the_restore_then_does(env, mode, encr
 
 
 @needs_rclone
-async def test_restore_preview_of_both_sides_and_of_a_legacy_version(env):
+async def test_restore_preview_of_both_sides(env):
     target_id = await env.add_target(str(env.backups))
     write(env.local, "a.txt", "a1")
     await env.backup(target_id)
@@ -550,12 +535,6 @@ async def test_restore_preview_of_both_sides_and_of_a_legacy_version(env):
     assert [(s.side, s.added, s.replaced, s.removed, s.unchanged) for s in preview.sides] == [
         ("local", 0, 0, 0, 2), ("remote", 1, 1, 0, 0),
     ]
-
-    shutil.rmtree(env.backups / "manifests")
-    write(env.local, "c.txt", "only local")
-    legacy = await env.service.restore_preview(target_id, t2, RestoreScope.LOCAL_ONLY)
-    assert not legacy.exact and legacy.sides[0].removed == 0
-    assert legacy.sides[0].replaced == 1  # a.txt as it was before t2
 
 
 # ── API ──────────────────────────────────────────────────────────────

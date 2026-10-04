@@ -1597,11 +1597,6 @@ class SnapshotResponse(BaseModel):
     created_at: datetime
     size_bytes: int | None = None
     status: str
-    # "full": restores the tree exactly as it was right after the backup at
-    # created_at. "legacy": a mirror version saved before snapshot manifests
-    # existed; it brings back files as they were before that backup and
-    # removes nothing.
-    kind: str = "full"
     # The most recent backup of the target.
     latest: bool = False
 
@@ -1705,8 +1700,6 @@ class RestorePreviewSide(BaseModel):
 class RestorePreviewResponse(BaseModel):
     snapshot_id: str
     restore_scope: RestoreScope
-    # False for a legacy mirror version: it only copies files back, removes nothing.
-    exact: bool
     sides: list[RestorePreviewSide]
 
 

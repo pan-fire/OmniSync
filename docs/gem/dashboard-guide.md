@@ -140,11 +140,6 @@ frequency.
     not in the snapshot are moved to that safety copy. This holds for
     archive and mirror targets alike. The sync marker and the trash folder
     are left alone, and empty folders are not removed.
-  - A mirror version marked **Before this backup** was saved before
-    OmniSync kept a file list per backup. Restoring it brings files back as
-    they were before that backup, keeps files that are not in it and
-    deletes nothing. A mirror target from that time also lists its current
-    copy as **Latest backup**.
   - If the backup is damaged (a file of the snapshot is missing), the
     restore fails before it changes anything.
   - A missing local folder is not created; the restore fails instead.

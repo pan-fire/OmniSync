@@ -197,9 +197,7 @@ folder**:
     `<target>/manifests/<timestamp>.json` lists every file the run left in
     `current/`. Each run is a snapshot you can restore, the latest one
     included; the restore rebuilds the folder as it was right after that
-    run. Version folders from before manifests existed are listed as
-    *Before this backup* and only bring files back (see the
-    [Dashboard Guide](dashboard-guide.md#backups)).
+    run (see the [Dashboard Guide](dashboard-guide.md#backups)).
   - *Archive* writes a full `backup-<timestamp>.tar.gz` per run. On a local
     target it is written as `.omnisync-partial-backup-<timestamp>.tar.gz`
     and renamed only when complete, so a full disk never leaves a truncated
