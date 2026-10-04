@@ -270,7 +270,7 @@ OMNISYNC_API_KEY=<your token> osync
 Or build it from the source:
 
 ```bash
-make -C tui install                 # needs Go 1.25; installs ~/.local/bin/osync
+make -C tui install                 # needs Go 1.27; installs ~/.local/bin/osync
 ```
 
 ![osync's dashboard: sync status, health and the profiles](../images/tui-dashboard.png)

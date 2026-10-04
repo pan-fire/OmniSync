@@ -18,7 +18,7 @@ backend/    FastAPI app, Python 3.12, async SQLAlchemy + Alembic
 frontend/   Next.js web UI (Node 24 LTS, pnpm 10), Vitest, Playwright smoke tests
   src/i18n/locales/{en,de,fa}.json   every user-visible string
   src/types/api.gen.ts               generated from frontend/openapi.json
-tui/        `osync`, Go 1.25 Bubble Tea TUI and Cobra CLI
+tui/        `osync`, Go 1.27 Bubble Tea TUI and Cobra CLI
   test/fixtures/                     contract fixtures generated from the backend models
 docs/       user guide (docs/gem), API error codes (docs/api-errors.md)
 scripts/    gen-openapi.py, docker-entrypoint.sh, release/
