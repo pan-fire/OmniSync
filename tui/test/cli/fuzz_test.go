@@ -49,7 +49,7 @@ func FuzzTerminalSafeOutput(f *testing.F) {
 		mu.Unlock()
 		// What the backend's text is after JSON: invalid UTF-8 became U+FFFD.
 		var sent []struct{ Message, Exc string }
-		if err := json.Unmarshal(body, &sent); err != nil {
+		if err = json.Unmarshal(body, &sent); err != nil {
 			t.Fatal(err)
 		}
 
