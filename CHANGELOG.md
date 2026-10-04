@@ -35,6 +35,14 @@ release notes.
   `local` remote or wrap a local path, directly or through a chain
   (422 `invalid_params`). The checks are shared with the import
   (`services/rclone_import.py`).
+- **Leftover `.partial` files are cleaned up.** When a push, pull or
+  two-way sync succeeds after a run that failed, was stopped or was
+  killed, rclone's leftover in-progress files of that run
+  (`<name>.<8 hex>.partial`, the pattern every sync already skips) are
+  deleted from both of the profile's folders, if they are older than the
+  run's start and outside the trash. Nothing else is touched (a file named
+  `notes.partial` stays). The log records how many were removed, with the
+  job id.
 
 ## [0.12.0] - 2026-10-04
 

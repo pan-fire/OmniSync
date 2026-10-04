@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import tempfile
 import time
+from datetime import datetime
 
 from backend.api.schemas import SyncDirection
 from backend.services.rclone.bisync_names import rebase, short_bisync_roots
-from backend.services.rclone.common import BISYNC_STOP_GRACE, PARTIAL_FILTER, SENTINEL_FILE, TRASH_FILTER, logger
+from backend.exceptions import RcloneError
+from backend.services.rclone.common import (
+    BISYNC_STOP_GRACE,
+    PARTIAL_FILTER,
+    PARTIAL_NAME,
+    PARTIAL_PATTERN,
+    SENTINEL_FILE,
+    TRASH_DIR,
+    TRASH_FILTER,
+    logger,
+)
 from backend.services.rclone.errors import classify_failure
 from backend.services.rclone.recorder import BisyncRecorder, ChangeRecorder
 from backend.services.rclone.process import RcloneBase, RcloneResult, json_log_args, without_flag
@@ -222,6 +234,59 @@ class SyncMixin(RcloneBase):
             positional=[source, dest],
             no_timeout=True,
         )
+
+    async def remove_partials(self, root: str, older_than: datetime) -> int:
+        """Delete rclone's leftover in-progress files under ``root``; how many went.
+
+        Only files named like rclone's partial files (``<name>.<8 hex>.partial``,
+        PARTIAL_FILTER's pattern) and last modified before ``older_than``
+        (timezone-aware) are deleted; never anything in the trash folder, a
+        directory, or any other file (``notes.partial`` stays). The files are
+        listed first, checked again here, and then deleted by their exact
+        paths (rclone fails the delete if any of them cannot be deleted).
+        A missing ``root`` has none. Raises RcloneError on failure.
+        """
+        name_filters = ["--filter", TRASH_FILTER, "--filter", f"+ {PARTIAL_PATTERN}", "--filter", "- **"]
+        try:
+            result = await self._run(
+                ["lsjson", "-R", "--files-only", "--no-mimetype", *name_filters],
+                use_config_args=False, positional=[root], no_timeout=True,
+            )
+        except RcloneError as exc:
+            if "directory not found" in str(exc).lower():
+                return 0
+            raise
+        try:
+            entries = json.loads(result.stdout)
+        except ValueError as exc:
+            raise RcloneError(f"Failed to parse lsjson output: {exc}")
+        stale: list[str] = []
+        for entry in entries if isinstance(entries, list) else []:
+            path, modified = entry.get("Path"), entry.get("ModTime")
+            if not isinstance(path, str) or not isinstance(modified, str) or entry.get("IsDir"):
+                continue
+            if not PARTIAL_NAME.fullmatch(path.rsplit("/", 1)[-1]) or path.split("/", 1)[0] == TRASH_DIR:
+                continue
+            try:
+                when = datetime.fromisoformat(modified.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if when.tzinfo is not None and when < older_than:
+                stale.append(path)
+        if not stale:
+            return 0
+        list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8")
+        try:
+            list_file.write("".join(f"{path}\n" for path in stale))
+            list_file.close()
+            # Exactly these paths (rclone allows no other filter with --files-from-raw).
+            await self._run(
+                ["delete", "--files-from-raw", list_file.name],
+                use_config_args=False, positional=[root], no_timeout=True,
+            )
+        finally:
+            os.unlink(list_file.name)
+        return len(stale)
 
     async def delete_file(self, path: str) -> RcloneResult:
         """Delete one file (rclone deletefile); a folder is refused by rclone."""
