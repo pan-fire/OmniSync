@@ -5,6 +5,13 @@ import { ScrollArea as ScrollAreaPrimitive } from 'radix-ui';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * A scrolling region with a styled scrollbar. Give it a height (`h-64`) or
+ * a cap (`max-h-40`): the root is a flex column and the viewport shrinks to
+ * fit it, so a cap clips and scrolls the content instead of letting it grow
+ * past the root (a plain `h-full` viewport has nothing to resolve against
+ * under `max-height`).
+ */
 function ScrollArea ({
   className,
   children,
@@ -13,12 +20,12 @@ function ScrollArea ({
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn('relative', className)}
+      className={cn('relative flex flex-col', className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
+        className="focus-visible:ring-ring/50 size-full min-h-0 flex-1 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
