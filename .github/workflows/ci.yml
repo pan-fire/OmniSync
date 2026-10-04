@@ -1,8 +1,8 @@
 name: CI
 
 # The gate every change must pass: backend lint/types/tests, frontend
-# lint/types/tests/build, TUI checks, workflow lint, and the backend and web
-# UI image builds. Vulnerability scans are in security.yml.
+# lint/types/tests/build, TUI checks, workflow and shell script lint, and the
+# backend and web UI image builds. Vulnerability scans are in security.yml.
 on:
   push:
     branches: [main]
@@ -208,6 +208,30 @@ jobs:
           cache: false
       - name: actionlint
         run: GOTOOLCHAIN=auto go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
+  # Every shell script under scripts/ (the installer among them), with a
+  # pinned, checksum-verified ShellCheck. The installer's behaviour is
+  # tested in the backend job (backend/tests/test_install_script.py).
+  shellcheck:
+    name: Shell scripts (shellcheck)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install ShellCheck
+        env:
+          VERSION: v0.11.0
+          SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+        run: |
+          set -euo pipefail
+          file="shellcheck-$VERSION.linux.x86_64.tar.gz"
+          curl -fsSLO "https://github.com/koalaman/shellcheck/releases/download/$VERSION/$file"
+          echo "$SHA256  $file" | sha256sum -c -
+          tar xzf "$file"
+          "./shellcheck-$VERSION/shellcheck" --version
+          echo "$PWD/shellcheck-$VERSION" >> "$GITHUB_PATH"
+      - name: shellcheck
+        run: shellcheck scripts/*.sh scripts/release/*.sh
 
   # Each image is built and scanned in its own job, in parallel.
   docker:

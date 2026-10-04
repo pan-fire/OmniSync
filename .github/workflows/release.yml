@@ -6,8 +6,9 @@ name: Release
 #   2. ci       the whole CI suite (ci.yml, via workflow_call)
 #   3. images   backend and web UI images to GHCR, one native build per
 #               platform, merged into one tagged and signed image each
-#   4. binaries osync for linux/darwin/windows x amd64/arm64, with SHA256SUMS
-#   5. release  the GitHub release: CHANGELOG.md notes plus the binaries
+#   4. binaries osync for linux/darwin/windows x amd64/arm64, plus the
+#               installer's files (compose.yml, install.sh), with SHA256SUMS
+#   5. release  the GitHub release: CHANGELOG.md notes plus those files
 # Nothing is published unless verify and ci pass, and the GitHub release is
 # created only after the images are pushed.
 #
@@ -27,10 +28,11 @@ name: Release
 # Integrity: each platform image is pushed with an SBOM and max-mode SLSA
 # provenance (BuildKit attestations, carried into the merged index), and
 # each index is signed with cosign keyless (Sigstore, the workflow's GitHub
-# OIDC identity); SHA256SUMS of the osync binaries is signed the same way
-# (SHA256SUMS.sigstore.json). The README's "Verify a release" shows the
-# commands. Every `uses:` is pinned to a commit with its version in a
-# comment, which Dependabot keeps current.
+# OIDC identity); SHA256SUMS of the osync binaries, compose.yml and
+# install.sh is signed the same way (SHA256SUMS.sigstore.json), which is
+# what scripts/install.sh checks before it uses compose.yml. The README's
+# "Verify a release" shows the commands. Every `uses:` is pinned to a
+# commit with its version in a comment, which Dependabot keeps current.
 on:
   push:
     tags: ["v*"]
@@ -289,7 +291,11 @@ jobs:
           done
           # The runner's own build proves the flags took.
           "$out/osync-linux-$(go env GOARCH)" --version | tee /dev/stderr | grep -qF "version $VERSION (commit $commit)"
-          cd "$out" && sha256sum osync-* > SHA256SUMS && cat SHA256SUMS
+          # The installer (scripts/install.sh) and the compose file it
+          # downloads, covered by the same checksums and signature.
+          cp "$GITHUB_WORKSPACE/deploy/compose.yml" "$out/compose.yml"
+          cp "$GITHUB_WORKSPACE/scripts/install.sh" "$out/install.sh"
+          cd "$out" && sha256sum osync-* compose.yml install.sh > SHA256SUMS && cat SHA256SUMS
       # One signature over the checksums vouches for every binary they list.
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
       - name: Sign SHA256SUMS
@@ -325,6 +331,17 @@ jobs:
             echo
             echo "### Install"
             echo
+            echo "Install or update with the installer (it shows what it does with"
+            echo "\`--dry-run\`; download \`install.sh\` below to read it first):"
+            echo
+            echo '```bash'
+            echo "curl -fsSL https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh | bash -s -- --version $VERSION"
+            echo '```'
+            echo
+            echo "It downloads this release's \`compose.yml\`, checks it against"
+            echo "\`SHA256SUMS\`, writes the \`.env\` and starts OmniSync; run again,"
+            echo "it updates (after a backup of the data volume). By hand:"
+            echo
             echo '```bash'
             echo "docker pull $BACKEND_IMAGE:$VERSION"
             echo "docker pull $WEB_IMAGE:$VERSION"
@@ -336,8 +353,9 @@ jobs:
             echo "The \`osync\` terminal client for your platform is attached below;"
             echo "verify it with \`sha256sum -c SHA256SUMS --ignore-missing\` and the"
             echo "checksums' signature (\`SHA256SUMS.sigstore.json\`) with cosign."
-            echo "See the README's Install section for a compose file and"
-            echo "\"Verify a release\" for the commands."
+            echo "\`compose.yml\` and \`install.sh\` are listed in the same checksums."
+            echo "See the README's Install section for the installer and a compose"
+            echo "file, and \"Verify a release\" for the commands."
           } > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
       - name: Publish
