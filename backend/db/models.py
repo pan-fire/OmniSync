@@ -59,7 +59,6 @@ class SyncProfile(Base):
     pull_interval_minutes: Mapped[int] = mapped_column(Integer, default=5)
     rclone_filter: Mapped[str] = mapped_column(Text, default="[]")  # JSON array
     rclone_args: Mapped[str] = mapped_column(Text, default="[]")  # JSON array
-    backup_dir: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)

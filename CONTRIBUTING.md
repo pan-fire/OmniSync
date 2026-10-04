@@ -37,9 +37,9 @@ coding agents (and is a handy checklist for people too).
 ```
 
 - `backend/main.py`: app setup. On start it migrates the database, resolves
-  the API token, migrates a legacy single-profile `config.toml`, starts one
-  engine per enabled profile, the backup scheduler and the liveness
-  monitor, and wires the route modules to these services.
+  the API token, starts one engine per enabled profile, the backup
+  scheduler and the liveness monitor, and wires the route modules to these
+  services.
 - `backend/security.py`: the bearer-token dependency on every route (except
   `GET /health` and the OAuth callback) and the Host allow-list middleware.
 - `backend/api/routes/`: one module per area (`profiles`, `backups`,

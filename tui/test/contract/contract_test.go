@@ -417,7 +417,7 @@ func checkProfileBase(t *testing.T, p api.ProfileResponse) {
 	t.Helper()
 	if p.ID != 7 || p.Slug != "docs" || p.Name != "Dokumente Übersicht" || p.LocalDir == "" || p.RemoteDir == "" ||
 		p.DebounceSeconds != 9 || p.PullIntervalMinutes != 15 || len(p.RcloneFilter) != 1 || len(p.RcloneArgs) != 2 ||
-		p.BackupDir == nil || p.MaxRetries != 4 || !p.Enabled || p.CreatedAt == "" || p.UpdatedAt == "" {
+		p.MaxRetries != 4 || !p.Enabled || p.CreatedAt == "" || p.UpdatedAt == "" {
 		t.Errorf("unexpected profile %+v", p)
 	}
 	if p.SyncMode != api.SyncModeTwoWay || !p.TwoWay() {
@@ -684,12 +684,12 @@ func TestContract_Requests(t *testing.T) {
 	cases := map[string]any{
 		"ProfileCreateRequest": api.ProfileCreateRequest{
 			Name: "Docs", LocalDir: "/home/u/Docs", RemoteDir: "gdrive:Docs", DebounceSeconds: 5,
-			PullIntervalMinutes: 5, RcloneFilter: filters, RcloneArgs: args, BackupDir: ptr("/b"), MaxRetries: 3,
+			PullIntervalMinutes: 5, RcloneFilter: filters, RcloneArgs: args, MaxRetries: 3,
 			SyncMode: api.SyncModeTwoWay,
 		},
 		"ProfileUpdateRequest": api.ProfileUpdateRequest{
 			Name: ptr("Docs"), LocalDir: ptr("/home/u/Docs"), RemoteDir: ptr("gdrive:Docs"), DebounceSeconds: ptr(5),
-			PullIntervalMinutes: ptr(5), RcloneFilter: &filters, RcloneArgs: &args, BackupDir: ptr("/b"), MaxRetries: ptr(3),
+			PullIntervalMinutes: ptr(5), RcloneFilter: &filters, RcloneArgs: &args, MaxRetries: ptr(3),
 			SyncMode: ptr(api.SyncModeMirror), MirrorNoticeDismissed: ptr(true),
 		},
 		"SyncStartRequest": api.SyncStartRequest{Direction: api.SyncDirectionPull, Force: true},

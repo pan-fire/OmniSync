@@ -376,7 +376,6 @@ type ProfileResponse struct {
 	PullIntervalMinutes int      `json:"pull_interval_minutes"`
 	RcloneFilter        []string `json:"rclone_filter"`
 	RcloneArgs          []string `json:"rclone_args"`
-	BackupDir           *string  `json:"backup_dir"`
 	MaxRetries          int      `json:"max_retries"`
 	Enabled             bool     `json:"enabled"`
 	CreatedAt           string   `json:"created_at"`
@@ -441,7 +440,6 @@ type ProfileCreateRequest struct {
 	PullIntervalMinutes int      `json:"pull_interval_minutes,omitempty"`
 	RcloneFilter        []string `json:"rclone_filter,omitempty"`
 	RcloneArgs          []string `json:"rclone_args,omitempty"`
-	BackupDir           *string  `json:"backup_dir,omitempty"`
 	MaxRetries          int      `json:"max_retries,omitempty"`
 	// SyncMode defaults to two_way on the backend when omitted.
 	SyncMode SyncMode `json:"sync_mode,omitempty"`
@@ -458,7 +456,6 @@ type ProfileUpdateRequest struct {
 	PullIntervalMinutes *int      `json:"pull_interval_minutes,omitempty"`
 	RcloneFilter        *[]string `json:"rclone_filter,omitempty"`
 	RcloneArgs          *[]string `json:"rclone_args,omitempty"`
-	BackupDir           *string   `json:"backup_dir,omitempty"`
 	MaxRetries          *int      `json:"max_retries,omitempty"`
 	// SyncMode nil leaves the mode unchanged. Switching to two_way makes the
 	// next sync a resync (the union of both sides); switching to mirror

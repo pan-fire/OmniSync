@@ -1181,7 +1181,6 @@ class ProfileCreateRequest(BaseModel):
     sync_mode: SyncMode = SyncMode.TWO_WAY
     rclone_filter: RcloneFilter = []
     rclone_args: RcloneArgs = []
-    backup_dir: str | None = Field(default=None, max_length=MAX_PATH_LENGTH)
     max_retries: int = Field(default=3, ge=MAX_RETRIES_MIN, le=MAX_RETRIES_MAX)
     # rclone --bwlimit for this profile's syncs (see check_bwlimit).
     bwlimit: str | None = Field(default=None, max_length=MAX_BWLIMIT_LENGTH)
@@ -1239,7 +1238,6 @@ class ProfileUpdateRequest(BaseModel):
     )
     rclone_filter: RcloneFilter | None = None
     rclone_args: RcloneArgs | None = None
-    backup_dir: str | None = Field(default=None, max_length=MAX_PATH_LENGTH)
     max_retries: int | None = Field(default=None, ge=MAX_RETRIES_MIN, le=MAX_RETRIES_MAX)
     # Switching to two_way makes the next sync a resync (the union of both sides).
     sync_mode: SyncMode | None = None
@@ -1290,7 +1288,6 @@ class ProfileResponse(BaseModel):
     pull_interval_minutes: int = 5
     rclone_filter: list[str] = []
     rclone_args: list[str] = []
-    backup_dir: str | None = None
     max_retries: int = 3
     enabled: bool = True
     created_at: datetime

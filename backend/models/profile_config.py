@@ -27,7 +27,6 @@ class ProfileConfig:
     pull_interval_minutes: int = 5
     rclone_filter: list[str] = field(default_factory=list)
     rclone_args: list[str] = field(default_factory=list)
-    backup_dir: str | None = None
     max_retries: int = 3
     sync_mode: str = "mirror"  # a SyncMode value
     bwlimit: str | None = None  # rclone --bwlimit (rate or timetable)
@@ -67,7 +66,6 @@ class ProfileConfig:
             pull_interval_minutes=profile.pull_interval_minutes,
             rclone_filter=rclone_filter,
             rclone_args=rclone_args,
-            backup_dir=profile.backup_dir,
             max_retries=profile.max_retries,
             sync_mode=profile.sync_mode or "mirror",
             bwlimit=getattr(profile, "bwlimit", None) or None,

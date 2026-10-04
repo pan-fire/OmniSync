@@ -47,9 +47,8 @@ def _holds_secrets(data: dict) -> bool:
 class ConfigService:
     """Reads and writes OmniSync configuration from a TOML file.
 
-    After multi-sync-profiles migration the only top-level fields are global
-    settings (log_level, history_days) and the [notifications] section. Per-profile settings
-    live in the database.
+    It holds the global settings (log_level, history_days) and the
+    [notifications] section. Profiles live in the database.
     """
 
     def __init__(self, config_path: Path | None = None) -> None:

@@ -17,7 +17,7 @@ func profileJSON(slug, name, state string) map[string]any {
 	return map[string]any{
 		"id": 1, "slug": slug, "name": name, "local_dir": "/home/u/" + slug, "remote_dir": "gdrive:" + slug,
 		"debounce_seconds": 5, "pull_interval_minutes": 5, "rclone_filter": []string{}, "rclone_args": []string{},
-		"backup_dir": nil, "max_retries": 3, "enabled": true, "created_at": "2026-09-27T08:00:00Z",
+		"max_retries": 3, "enabled": true, "created_at": "2026-09-27T08:00:00Z",
 		"updated_at": "2026-09-27T08:00:00Z", "state": state, "last_sync": "2026-09-27T08:30:00Z",
 		"current_job_id": nil, "files_processed": 4, "errors": 0, "pending_changes": 2,
 		"intervals_paused": false, "paused_at": nil, "last_error": nil, "max_delete": 50,

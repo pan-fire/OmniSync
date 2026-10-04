@@ -47,7 +47,6 @@ PROFILE_BASE: dict[str, Any] = dict(
     pull_interval_minutes=15,
     rclone_filter=["- *.tmp"],
     rclone_args=["--transfers", "4"],
-    backup_dir="/home/user/.backup",
     max_retries=4,
     enabled=True,
     created_at=T1,

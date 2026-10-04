@@ -694,7 +694,6 @@ export interface Profile {
   pull_interval_minutes: number;
   rclone_filter:         string[];
   rclone_args:           string[];
-  backup_dir:            string | null;
   max_retries:           number;
   enabled:               boolean;
   created_at:            string;
@@ -738,7 +737,6 @@ export interface ProfileCreateRequest {
   pull_interval_minutes?: number;
   rclone_filter?:         string[];
   rclone_args?:           string[];
-  backup_dir?:            string | null;
   max_retries?:           number;
   /** Defaults to two_way on the server; the first two-way run is a resync. */
   sync_mode?:             SyncMode;
@@ -754,7 +752,6 @@ export interface ProfileUpdateRequest {
   pull_interval_minutes?: number;
   rclone_filter?:         string[];
   rclone_args?:           string[];
-  backup_dir?:            string | null;
   max_retries?:           number;
   /** Switching to two_way makes the next sync a resync; switching to mirror forgets the two-way state. */
   sync_mode?:             SyncMode;

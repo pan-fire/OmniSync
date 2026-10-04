@@ -36,10 +36,10 @@ class TestCreate:
             "My Documents", "/srv/docs", "gd:docs",
             debounce_seconds=9, pull_interval_minutes=15, max_retries=5,
             rclone_filter=["- *.tmp"], rclone_args=["--transfers", "2"],
-            backup_dir="gd:old", sync_mode=SyncMode.MIRROR,
+            sync_mode=SyncMode.MIRROR,
         ))
         assert profile.id is not None and profile.slug == "my-documents"
-        assert (profile.local_dir, profile.remote_dir, profile.backup_dir) == ("/srv/docs", "gd:docs", "gd:old")
+        assert (profile.local_dir, profile.remote_dir) == ("/srv/docs", "gd:docs")
         assert (profile.debounce_seconds, profile.pull_interval_minutes, profile.max_retries) == (9, 15, 5)
         assert json.loads(profile.rclone_filter) == ["- *.tmp"]
         assert json.loads(profile.rclone_args) == ["--transfers", "2"]

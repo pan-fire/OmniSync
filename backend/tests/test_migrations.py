@@ -165,6 +165,41 @@ async def test_baseline_downgrades_and_upgrades(tmp_path):
     assert_current_schema(db)
 
 
+async def test_0_12_0_database_upgrades_without_the_profile_backup_dir(tmp_path):
+    """0011 drops sync_profiles.backup_dir; profiles, their targets and defaults stay."""
+    db = tmp_path / "from-0.12.0.db"
+    url = f"sqlite+aiosqlite:///{db}"
+    await migrate_database(url, runner=_alembic("upgrade", "0010_backups"))
+    conn = sqlite3.connect(db)
+    _insert_profile(conn, 1, "one")
+    conn.execute(
+        "INSERT INTO backup_targets (id, profile_id, name, target_path, target_type, retention_days,"
+        " frequency_hours, backup_mode, enabled, created_at, updated_at)"
+        " VALUES (1, 1, 't', '/backups/one', 'local', 7, 24, 'mirror', 1, ?, ?)",
+        (NOW, NOW),
+    )
+    conn.commit()
+    conn.close()
+
+    await init_database(str(db))
+
+    assert_current_schema(db)
+    assert count(db, "SELECT COUNT(*) FROM backup_targets WHERE profile_id = 1") == 1
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute("SELECT slug, sync_mode, user_paused FROM sync_profiles").fetchall() == [
+            ("one", "mirror", 0),
+        ]
+    finally:
+        conn.close()
+
+    await migrate_database(url, runner=_alembic("downgrade", "0010_backups"))
+    assert version(db) == ["0010_backups"]
+    assert count(db, "SELECT COUNT(*) FROM sync_profiles WHERE backup_dir IS NULL") == 1
+    await migrate_database(url)
+    assert_current_schema(db)
+
+
 async def test_foreign_keys_enforced_on_every_connection(tmp_path):
     await init_database(str(tmp_path / "fk.db"))
     factory = database._async_session_factory

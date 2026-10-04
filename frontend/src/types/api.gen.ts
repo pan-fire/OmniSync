@@ -2473,8 +2473,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2516,8 +2514,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2581,8 +2577,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2721,8 +2715,6 @@ export interface components {
             rclone_filter?: string[] | null;
             /** Rclone Args */
             rclone_args?: string[] | null;
-            /** Backup Dir */
-            backup_dir?: string | null;
             /** Max Retries */
             max_retries?: number | null;
             sync_mode?: components["schemas"]["SyncMode"] | null;

@@ -20,7 +20,6 @@ from backend.services.history import HistoryMaintenance, recover_interrupted_job
 from backend.services.liveness_monitor import LivenessMonitor, start_liveness_monitor
 from backend.services.host_detector import HostOSDetector
 from backend.services.log_reader import LogReader
-from backend.services.migration import migrate_backup_dir_to_targets, migrate_legacy_config
 from backend.services.notification_channels.host_native import HostNativeChannel
 from backend.services.notification_channels.ntfy import NtfyChannel
 from backend.services.notification_channels.settings import EmailSettings, NtfySettings, WebhookSettings
@@ -50,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB, migrate legacy config, start engines. Shutdown: stop engines."""
+    """Startup: init DB, start engines. Shutdown: stop engines."""
     # A background task that crashes is logged with its traceback.
     install_loop_exception_handler()
     await init_database()
@@ -78,10 +77,7 @@ async def lifespan(app: FastAPI):
     # failed, before any engine starts new ones.
     await recover_interrupted_jobs(_async_session_factory)
 
-    # --- Legacy migration ---
     profile_service = ProfileService(_async_session_factory)
-    await migrate_legacy_config(config_service, profile_service, _async_session_factory)
-    await migrate_backup_dir_to_targets(_async_session_factory)
     await warn_about_stored_paths(_async_session_factory)
 
     # --- Notification system setup ---

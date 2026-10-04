@@ -158,7 +158,6 @@ def _profile_to_response(profile) -> ProfileResponse:
         pull_interval_minutes=profile.pull_interval_minutes,
         rclone_filter=json.loads(profile.rclone_filter) if profile.rclone_filter else [],
         rclone_args=json.loads(profile.rclone_args) if profile.rclone_args else [],
-        backup_dir=profile.backup_dir,
         max_retries=profile.max_retries,
         enabled=profile.enabled,
         created_at=profile.created_at,

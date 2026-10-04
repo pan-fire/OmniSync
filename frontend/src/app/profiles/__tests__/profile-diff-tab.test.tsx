@@ -24,7 +24,6 @@ const MOCK_PROFILE = {
   pull_interval_minutes: 5,
   rclone_filter:         [],
   rclone_args:           [],
-  backup_dir:            null,
   max_retries:           3,
   enabled:               true,
   created_at:            new Date().toISOString(),
