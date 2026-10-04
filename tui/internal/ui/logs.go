@@ -27,19 +27,30 @@ const (
 
 var logLevelLabels = []string{"ALL", "DEBUG", "INFO", "WARNING", "ERROR"}
 
+// logCategories are the categories c cycles through: everything, the audit
+// trail of user actions, and errors. GET /logs filters by them, so each page
+// holds entries of that category however far back they are.
+var (
+	logCategoryLabels = []string{"all", "audit", "errors"}
+	logCategoryParams = []string{"", api.LogCategoryAudit, api.LogCategoryErrors}
+)
+
 // logFetchLimit is the most entries GET /logs returns per request; it is
 // also the page size for n/N.
 const logFetchLimit = 200
 
-// logsPage carries one page of GET /logs, tagged with the skip it answers.
+// logsPage carries one page of GET /logs, tagged with the skip and category
+// it answers.
 type logsPage struct {
-	Skip    int
-	Entries []api.LogEntryResponse
+	Skip     int
+	Category int
+	Entries  []api.LogEntryResponse
 }
 
 // LogsModel is the Logs view. It shows one page of GET /logs (skip/limit);
 // n/N move to older/newer pages, the arrow keys scroll inside the page, f
-// filters by level and / by message text. Live mode (F) re-reads the newest
+// filters by level, c by category (all, audit trail, errors) and / by
+// message text. Live mode (F) re-reads the newest
 // page every few seconds and keeps the newest line in view; scrolling up
 // or paging to older entries leaves live mode.
 type LogsModel struct {
@@ -48,6 +59,7 @@ type LogsModel struct {
 	entries  []api.LogEntryResponse
 	filtered []api.LogEntryResponse
 	level    logLevel
+	category int
 	autoTail bool
 	limit    int
 	skip     int
@@ -96,7 +108,7 @@ func (m LogsModel) KeyHints() string {
 	if m.searching {
 		return "type to search  Enter:keep  Esc:cancel"
 	}
-	hints := "Up/Down/PgUp/PgDn:scroll  n/N:older/newer page  /:search  f:level  F:live  r:refresh"
+	hints := "Up/Down/PgUp/PgDn:scroll  n/N:older/newer page  /:search  f:level  c:category  F:live  r:refresh"
 	if m.search != "" {
 		hints += "  Esc:clear search"
 	}
@@ -112,6 +124,7 @@ func (m LogsModel) KeyBindings() []components.KeyBinding {
 		{Key: "/", Desc: "Search messages (Enter keeps, Esc cancels)"},
 		{Key: "Esc", Desc: "Clear the search"},
 		{Key: "f", Desc: "Cycle level filter"},
+		{Key: "c", Desc: "Cycle category: all, audit trail of user actions, errors"},
 		{Key: "F", Desc: "Toggle live updates (jumps to the newest entries)"},
 		{Key: "r", Desc: "Refresh"},
 	}
@@ -162,7 +175,7 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m LogsModel) handlePollResult(msg PollResultMsg) (tea.Model, tea.Cmd) {
 	page, ok := msg.Data.(logsPage)
-	if ok && page.Skip != m.skip {
+	if ok && (page.Skip != m.skip || page.Category != m.category) {
 		return m, nil // answer for a page the user already left
 	}
 	m.loading = false
@@ -204,6 +217,11 @@ func (m LogsModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.offset = 0
 		m.applyFilter()
 		return m, nil
+	case "c":
+		m.category = (m.category + 1) % len(logCategoryLabels)
+		m.skip, m.offset = 0, 0
+		m.loading = true
+		return m, m.fetchLogs()
 	case "F":
 		m.autoTail = !m.autoTail
 		if m.autoTail {
@@ -359,6 +377,9 @@ func (m LogsModel) View() tea.View {
 		b.WriteString("  " + liveStyle.Render("LIVE"))
 	}
 	status := "Filter: " + logLevelLabels[m.level]
+	if m.category != 0 {
+		status += "  Category: " + logCategoryLabels[m.category]
+	}
 	if m.search != "" && !m.searching {
 		status += fmt.Sprintf("  Search: %q", m.search)
 	}
@@ -380,9 +401,13 @@ func (m LogsModel) View() tea.View {
 	}
 
 	for _, e := range m.visibleLines() {
-		fmt.Fprintf(&b, "  %s %s %s\n",
-			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), e.Message)
-
+		more := ""
+		if e.Exc != "" {
+			// A traceback or a multi-line message: osync logs prints it whole.
+			more = labelStyle.Render(fmt.Sprintf(" (+%d lines)", strings.Count(e.Exc, "\n")+1))
+		}
+		fmt.Fprintf(&b, "  %s %s %s%s\n",
+			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), e.Message, more)
 	}
 
 	if len(m.filtered) == 0 {
@@ -432,9 +457,9 @@ func levelBadge(level string) string {
 }
 
 func (m LogsModel) fetchLogs() tea.Cmd {
-	client, skip, limit := m.client, m.skip, m.limit
+	client, skip, limit, category := m.client, m.skip, m.limit, m.category
 	return func() tea.Msg {
-		data, err := client.GetLogs(context.Background(), skip, limit)
-		return PollResultMsg{ViewID: ViewLogs, Data: logsPage{Skip: skip, Entries: data}, Err: err}
+		data, err := client.GetLogsFiltered(context.Background(), skip, limit, "", logCategoryParams[category])
+		return PollResultMsg{ViewID: ViewLogs, Data: logsPage{Skip: skip, Category: category, Entries: data}, Err: err}
 	}
 }

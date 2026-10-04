@@ -126,6 +126,40 @@ func TestErrorEnvelope(t *testing.T) {
 	}
 }
 
+// A server error names the request id (from the envelope, else the header),
+// so the user can quote it and the owner can find the log lines.
+func TestServerErrorNamesTheRequestID(t *testing.T) {
+	f := newFakeBackend(t)
+	f.on("GET", "/config", 500, map[string]any{
+		"detail": "Internal server error.", "code": "internal_error", "request_id": "3f9c1a2b4d5e6f70",
+	})
+	_, err := f.client("").GetConfig(context.Background())
+	var apiErr *api.ApiError
+	if !errors.As(err, &apiErr) || apiErr.RequestID != "3f9c1a2b4d5e6f70" {
+		t.Fatalf("err = %#v", err)
+	}
+	if !strings.Contains(err.Error(), "(request 3f9c1a2b4d5e6f70)") {
+		t.Errorf("message %q does not name the request", err.Error())
+	}
+	// A client error is about the request itself: no id in the message.
+	f.on("GET", "/config", 409, map[string]any{"detail": "Busy", "code": "sync_busy", "request_id": "3f9c1a2b4d5e6f70"})
+	_, err = f.client("").GetConfig(context.Background())
+	if strings.Contains(err.Error(), "request") {
+		t.Errorf("message %q", err.Error())
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Request-ID", "from-the-header-1")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("bad gateway"))
+	}))
+	defer srv.Close()
+	_, err = api.NewClient(srv.URL, "", "t").GetConfig(context.Background())
+	if !errors.As(err, &apiErr) || apiErr.RequestID != "from-the-header-1" {
+		t.Errorf("err = %#v", err)
+	}
+}
+
 func TestMalformedJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("not json"))

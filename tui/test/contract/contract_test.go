@@ -121,7 +121,7 @@ func checkStructKeys(t *testing.T, typ reflect.Type, obj map[string]any, path, t
 
 func TestContract_ErrorResponse(t *testing.T) {
 	e := decodeFixture[api.ErrorResponse](t, "ErrorResponse")
-	if e.Detail == "" || e.Code != "name_clash" || e.Details["names"] == nil {
+	if e.Detail == "" || e.Code != "name_clash" || e.Details["names"] == nil || e.RequestID == "" {
 		t.Errorf("ErrorResponse = %+v", e)
 	}
 }
@@ -340,7 +340,7 @@ func TestContract_Remotes(t *testing.T) {
 
 func TestContract_Logs(t *testing.T) {
 	l := decodeFixture[api.LogEntryResponse](t, "LogEntryResponse")
-	if l.Timestamp == "" || l.Level != "WARNING" || l.Message == "" {
+	if l.Timestamp == "" || l.Level != "WARNING" || l.Message == "" || l.Logger == "" || l.RequestID == "" || l.Exc == "" {
 		t.Errorf("unexpected %+v", l)
 	}
 }

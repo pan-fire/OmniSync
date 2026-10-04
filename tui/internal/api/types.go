@@ -187,20 +187,24 @@ const (
 // ErrorResponse mirrors ErrorResponse: the body of every error answer
 // (docs/api-errors.md). Detail is the message for people, Code the stable
 // machine-readable code, Details extra data for some codes (errors,
-// invalid_paths, names, replacement, retry_after).
+// invalid_paths, names, replacement, retry_after), RequestID the id the
+// backend's log lines of the request carry.
 type ErrorResponse struct {
-	Detail  string         `json:"detail"`
-	Code    string         `json:"code"`
-	Details map[string]any `json:"details"`
+	Detail    string         `json:"detail"`
+	Code      string         `json:"code"`
+	Details   map[string]any `json:"details"`
+	RequestID string         `json:"request_id"`
 }
 
 // ApiError is a non-2xx answer from the backend: the status and the parsed
 // ErrorResponse. Detail is the raw body when it was not an error envelope.
+// RequestID comes from the envelope or the X-Request-ID header.
 type ApiError struct {
 	StatusCode int
 	Detail     string
 	Code       string
 	Details    map[string]any
+	RequestID  string
 	Err        error
 }
 
@@ -213,7 +217,12 @@ func (e *ApiError) Error() string {
 		return msg
 	}
 	if e.Detail != "" {
-		return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Detail)
+		msg := fmt.Sprintf("API error %d: %s", e.StatusCode, e.Detail)
+		// A server error is the owner's to look up in the log: name the request.
+		if e.StatusCode >= http.StatusInternalServerError && e.RequestID != "" {
+			msg += " (request " + e.RequestID + ")"
+		}
+		return msg
 	}
 	if e.Err != nil {
 		return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Err.Error())
@@ -1220,8 +1229,17 @@ type TestSyncResponse struct {
 
 // --- Logs ---
 
+// LogEntryResponse is one entry of the backend's log. Logger, RequestID and
+// Exc are empty when the backend sent none (older backends, older lines).
 type LogEntryResponse struct {
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
 	Message   string `json:"message"`
+	// Logger is the logger that wrote the entry; backend.audit for the audit
+	// trail of user actions.
+	Logger string `json:"logger"`
+	// RequestID is the id of the API request the entry was written in.
+	RequestID string `json:"request_id"`
+	// Exc is the traceback or further lines that belong to the entry.
+	Exc string `json:"exc"`
 }

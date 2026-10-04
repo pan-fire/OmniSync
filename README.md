@@ -729,7 +729,7 @@ plus scripting subcommands, all with `--json`: `status`, `health`,
 `resync`, `profile show|enable|disable|stop|check|diff|resume|manual-flags`,
 `conflicts` (`resolve ID --keep local|remote|both|dismiss`), `remotes`
 (`test`, `about`), `backups` (`run`, `snapshots`, `restore`, with `--wait`),
-`logs` (`--level`, `--follow`), `notifications test` and `completion
+`logs` (`--level`, `--category`, `--follow`), `notifications test` and `completion
 bash|zsh|fish`. `osync profiles` shows each profile's mode; `osync sync
 <profile>` runs a two-way sync and `osync resync <profile> --yes` a resync
 (without `--yes` it asks in a terminal and refuses otherwise; so does

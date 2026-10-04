@@ -60,7 +60,7 @@ osync conflicts [--profile PROFILE_SLUG]
 osync conflicts resolve ID --keep local|remote|both|dismiss
 osync remotes                     # list; remotes test NAME, remotes about NAME
 osync backups PROFILE_SLUG        # backup targets; then run, snapshots, restore
-osync logs [--level LEVEL] [--limit N] [--follow]
+osync logs [--level LEVEL] [--category audit|errors] [--limit N] [--follow]
 osync notifications test [--channel NAME]
 osync completion bash|zsh|fish|powershell
 ```
@@ -111,7 +111,7 @@ The backend starts a backup or restore and answers at once; the job then runs on
 
 ### Logs and notifications
 
-`osync logs` prints the last 50 entries of the backend's log, oldest first (`--limit N`, 1-200; `--level DEBUG|INFO|WARNING|ERROR|CRITICAL`). `--follow` (`-f`) keeps asking for new entries every 2 seconds until Ctrl+C; with `--json` it prints one JSON object per line.
+`osync logs` prints the last 50 entries of the backend's log, oldest first (`--limit N`, 1-200; `--level DEBUG|INFO|WARNING|ERROR|CRITICAL`; `--category audit` for the audit trail of user actions, `--category errors` for ERROR and CRITICAL entries), each traceback indented under its entry. `--follow` (`-f`) keeps asking for new entries every 2 seconds until Ctrl+C; with `--json` it prints one JSON object per line.
 
 `osync notifications test` sends a test notification to every enabled channel; `--channel NAME` (`webpush`, `host_native`) tests that one channel even when it is turned off. It exits 1 when nothing was delivered or a channel failed, 4 for an unknown channel.
 
@@ -134,7 +134,7 @@ case $? in 0) echo resolved ;; 3) echo "not possible now" ;; 4) echo "no such co
 
 ### Shell completion
 
-`osync completion bash|zsh|fish|powershell` prints a completion script, for example `source <(osync completion bash)` in `~/.bashrc`, or `osync completion fish > ~/.config/fish/completions/osync.fish`; `osync completion SHELL --help` explains the setup per shell. Besides subcommands and flags it completes flag values (`--keep`, `--scope`, `--level`, `--channel`), profile slugs and remote names; those come from the backend, so `--url`/`--api-key` (or their environment variables or `tui.toml`) apply.
+`osync completion bash|zsh|fish|powershell` prints a completion script, for example `source <(osync completion bash)` in `~/.bashrc`, or `osync completion fish > ~/.config/fish/completions/osync.fish`; `osync completion SHELL --help` explains the setup per shell. Besides subcommands and flags it completes flag values (`--keep`, `--scope`, `--level`, `--category`, `--channel`), profile slugs and remote names; those come from the backend, so `--url`/`--api-key` (or their environment variables or `tui.toml`) apply.
 
 ---
 
@@ -456,10 +456,11 @@ Backend log lines, 200 per page, oldest at the top and newest at the bottom. The
 | `/` | Search messages (case-insensitive text; the list filters as you type; `Enter` keeps the search, `Esc` cancels) |
 | `Esc` | Clear the search |
 | `f` | Cycle level filter: ALL, DEBUG, INFO, WARNING, ERROR |
+| `c` | Cycle category: all entries, the audit trail of user actions, errors (ERROR and CRITICAL); filtered by the backend, so a page holds 200 entries of that category |
 | `F` | Toggle live updates (LIVE indicator; every 2s) |
 | `r` | Refresh |
 
-Live mode shows the newest page and keeps the newest line in view. Scrolling up or going to an older page (`n`) leaves live mode, so new lines do not move what you are reading; `F` turns it back on and jumps to the newest lines. Search and level filter apply to the page shown.
+Live mode shows the newest page and keeps the newest line in view. Scrolling up or going to an older page (`n`) leaves live mode, so new lines do not move what you are reading; `F` turns it back on and jumps to the newest lines. Search and level filter apply to the page shown. An entry with a traceback ends in "(+N lines)"; `osync logs` prints the traceback in full.
 
 ---
 
