@@ -95,8 +95,7 @@ class TwoWayMixin(ReportingMixin):
     # rclone/bisync_names.py): the real paths, or, for paths too long for
     # bisync's file names, the profile's short-name remotes. It is chosen
     # when a pair is synced for the first time or resynced, and kept
-    # otherwise (a missing value is "paths", the only form before). A run is
-    # one of:
+    # otherwise. A run is one of:
     #   * resync: the first run for this pair of folders, or confirmed by the
     #     user (resync()): the union of both sides, nothing deleted;
     #   * blocked: a resync is required (bisync said so, its listings are
