@@ -174,8 +174,8 @@ func starts(b *backend) []string {
 }
 
 // Push all previews every enabled profile, asks once, then syncs
-// every enabled profile through the per-profile endpoint with force=true;
-// the legacy /sync/start is never used. The prompt lists each profile's
+// every enabled profile through the per-profile endpoint with force=true
+// (the backend has no single-engine /sync/start). The prompt lists each profile's
 // deletes and replaces and its own delete limit.
 func TestDashboard_PushAllAsksThenUsesProfileEndpoints(t *testing.T) {
 	b := dashboardBackend(t)
@@ -224,7 +224,7 @@ func TestDashboard_PushAllAsksThenUsesProfileEndpoints(t *testing.T) {
 	m = dashStep(t, m, press("backspace"))
 	_ = typeForce(t, m)
 	if len(b.matching("POST /sync/")) != 0 {
-		t.Error("legacy /sync/* route used")
+		t.Error("a /sync/* route the backend does not have was used")
 	}
 	for _, slug := range []string{"docs", "pics"} {
 		bodies := b.bodiesOf("POST /profiles/" + slug + "/sync/start")

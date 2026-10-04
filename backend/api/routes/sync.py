@@ -1,9 +1,6 @@
-"""Cross-profile sync status, and the retired single-engine /sync routes.
+"""Cross-profile sync status: GET /sync/status/aggregate summarises every running profile.
 
-GET /sync/status/aggregate summarises every running profile. The other
-/sync/* routes acted on whichever engine happened to be first, so with more
-than one profile they could push, pull or diff the wrong folder. They now
-answer 410 Gone and name the /profiles/{slug}/... route that replaces them.
+Everything that acts on one profile lives under /profiles/{slug}/.
 """
 
 from __future__ import annotations
@@ -11,8 +8,6 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter
-
-from backend.api.errors import ApiError, api_error
 
 from backend.api.schemas import (
     AggregateStatusResponse,
@@ -82,43 +77,3 @@ async def get_aggregate_status() -> AggregateStatusResponse:
         paused_profiles=paused,
         profiles_summary=summaries,
     )
-
-
-# --- Retired single-engine routes: 410 Gone ---
-
-
-def _gone(replacement: str) -> ApiError:
-    return api_error(
-        410, "route_removed",
-        "This route acted on an arbitrary profile and has been removed. "
-        f"Use {replacement} for the profile you mean.",
-        replacement=replacement,
-    )
-
-
-# (method, legacy path, replacement)
-RETIRED_ROUTES: tuple[tuple[str, str, str], ...] = (
-    ("GET", "/status", "GET /profiles/{slug}/sync/status"),
-    ("POST", "/start", "POST /profiles/{slug}/sync/start"),
-    ("POST", "/stop", "POST /profiles/{slug}/sync/stop"),
-    ("POST", "/check", "POST /profiles/{slug}/sync/check (or /sync/preview)"),
-    ("POST", "/diff", "POST /profiles/{slug}/diff"),
-    ("POST", "/selective", "POST /profiles/{slug}/sync/selective"),
-    ("POST", "/resume-intervals", "POST /profiles/{slug}/sync/resume-intervals"),
-    ("GET", "/manual-flags", "GET /profiles/{slug}/manual-flags"),
-    ("DELETE", "/manual-flags/{file_path:path}", "DELETE /profiles/{slug}/manual-flags/{path}"),
-)
-
-
-def _register_retired(method: str, path: str, replacement: str) -> None:
-    async def retired() -> None:
-        raise _gone(replacement)
-
-    router.add_api_route(
-        path, retired, methods=[method], status_code=410,
-        summary=f"Removed: use {replacement}", include_in_schema=False,
-    )
-
-
-for _method, _path, _replacement in RETIRED_ROUTES:
-    _register_retired(_method, _path, _replacement)
