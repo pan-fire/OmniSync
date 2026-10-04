@@ -292,7 +292,9 @@ const BACKUP_TARGETS: BackupTarget[] = [{
   updated_at:          '2026-09-02T18:05:00Z',
 }];
 
-const SNAPSHOTS: Snapshot[] = [0, 1, 2, 3].map((day) => ({
+// Six nightly snapshots: more than the history list shows at once, so the
+// screenshot shows it scrolling inside its card.
+export const SNAPSHOTS: Snapshot[] = [0, 1, 2, 3, 4, 5].map((day) => ({
   snapshot_id: `2026-09-${String(30 - day).padStart(2, '0')}T030000Z`,
   created_at:  `2026-09-${String(30 - day).padStart(2, '0')}T03:00:00Z`,
   size_bytes:  Math.round((4.8 - day * 0.05) * GiB),

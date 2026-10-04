@@ -277,6 +277,36 @@ describe('Manual-flagged files show manual badge', () => {
   });
 });
 
+// The summary badges count with the plural form: "1 conflict", not "1 conflicts".
+describe('Differences summary plurals', () => {
+  it('uses the singular for one and the plural otherwise', () => {
+    const { unmount } = render(
+      <FileBrowser files={MOCK_FILES} summary={MOCK_SUMMARY} onSync={vi.fn()} />,
+      { wrapper: createWrapper() }
+    );
+    expect(screen.getByText('1 conflict')).toBeInTheDocument();
+    expect(screen.queryByText('1 conflicts')).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <FileBrowser files={MOCK_FILES} summary={{ ...MOCK_SUMMARY, modified_both: 3, total: 6 }} onSync={vi.fn()} />,
+      { wrapper: createWrapper() }
+    );
+    expect(screen.getByText('3 conflicts')).toBeInTheDocument();
+    expect(screen.getByText('6 total')).toBeInTheDocument();
+  });
+
+  it('counts the selection with the plural form', async () => {
+    const user = userEvent.setup();
+    render(
+      <FileBrowser files={MOCK_FILES} summary={MOCK_SUMMARY} onSync={vi.fn()} />,
+      { wrapper: createWrapper() }
+    );
+    await user.click(screen.getByLabelText('Select docs/readme.md'));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+});
+
 // Req 6.7: All required i18n keys exist in en.json, de.json, fa.json
 describe('All required granular i18n keys exist in all locales', () => {
   const requiredKeys = [
@@ -313,19 +343,16 @@ describe('All required granular i18n keys exist in all locales', () => {
     return current;
   }
 
+  // A count-bearing string is a plural pair: key_one / key_other.
+  function lookup (locale: Record<string, unknown>, key: string): unknown {
+    return getNestedValue(locale, key) ?? getNestedValue(locale, `${key}_other`);
+  }
+
   for (const key of requiredKeys) {
     it(`key "${key}" exists in all 3 locales`, () => {
-      const enVal = getNestedValue(enLocale as Record<string, unknown>, key);
-      expect(enVal).toBeDefined();
-      expect(typeof enVal).toBe('string');
-
-      const deVal = getNestedValue(deLocale as Record<string, unknown>, key);
-      expect(deVal).toBeDefined();
-      expect(typeof deVal).toBe('string');
-
-      const faVal = getNestedValue(faLocale as Record<string, unknown>, key);
-      expect(faVal).toBeDefined();
-      expect(typeof faVal).toBe('string');
+      for (const locale of [enLocale, deLocale, faLocale]) {
+        expect(typeof lookup(locale as Record<string, unknown>, key)).toBe('string');
+      }
     });
   }
 });

@@ -47,7 +47,7 @@ export function AggregateStatusCard ({ status, isError }: AggregateStatusCardPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('dashboard.title')}</CardTitle>
+        <CardTitle>{t('dashboard.syncStatusTitle')}</CardTitle>
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>

@@ -33,7 +33,7 @@ export function SyncStatusCard ({ status, isError }: SyncStatusCardProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t('dashboard.title')}</CardTitle>
+          <CardTitle>{t('dashboard.statusTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-destructive">{t('common.error')}</p>
@@ -46,7 +46,7 @@ export function SyncStatusCard ({ status, isError }: SyncStatusCardProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t('dashboard.title')}</CardTitle>
+          <CardTitle>{t('dashboard.statusTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">{t('common.loading')}</p>
@@ -58,7 +58,7 @@ export function SyncStatusCard ({ status, isError }: SyncStatusCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('dashboard.title')}</CardTitle>
+        <CardTitle>{t('dashboard.statusTitle')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">

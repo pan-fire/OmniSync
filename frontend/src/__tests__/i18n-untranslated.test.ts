@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import en from '@/i18n/locales/en.json';
 import de from '@/i18n/locales/de.json';
 import fa from '@/i18n/locales/fa.json';
+import { translate } from '@/i18n';
 
 // A de/fa value equal to the English one is almost always a string that
 // was added in English and never translated. The few that legitimately
@@ -21,7 +22,7 @@ const ALLOW: Record<'de' | 'fa', Allow> = {
   de: {
     keys: [
       // English loanwords German UIs use unchanged.
-      'nav.dashboard', 'dashboard.title',
+      'nav.dashboard', 'dashboard.title', 'dashboard.statusTitle',
       'nav.remotes', 'remotes.title', 'health.remotesTitle', 'config.remotes',
       'jobs.sides.remote', 'profiles.remote', 'wizard.configStep.remotePathRemote',
       'remotes.backup',
@@ -101,5 +102,35 @@ describe('i18n translations', () => {
   it('detects an untranslated value and a placeholder mismatch', () => {
     expect(allowed('fa', 'syncConfirm.pushTitle')).toBe(false);
     expect(placeholders('Push {{name}} to {{ count }}')).toEqual(['count', 'name']);
+  });
+});
+
+// A number in running text needs the plural form for its value ("1 conflict",
+// "3 conflicts"): translate() picks key_one / key_other from vars.count with
+// Intl.PluralRules. Every locale keeps the same key_one / key_other pair, even
+// where both forms read the same (Persian nouns after a number stay singular).
+const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
+
+describe('i18n plural forms', () => {
+  it('every en.json string with {{count}} is a plural form', () => {
+    const plain = Object.entries(english)
+      .filter(([key, value]) => value.includes('{{count}}') && !PLURAL_SUFFIX.test(key))
+      .map(([key]) => key);
+    expect(plain).toEqual([]);
+  });
+
+  for (const [name, values] of Object.entries({ en: english, ...locales })) {
+    it(`${name}.json has both _one and _other for every plural key in en.json`, () => {
+      const bases = new Set(Object.keys(english).filter((key) => PLURAL_SUFFIX.test(key)).map((key) => key.replace(PLURAL_SUFFIX, '')));
+      const missing = [...bases].flatMap((base) => [`${base}_one`, `${base}_other`]).filter((key) => !(key in values));
+      expect(missing).toEqual([]);
+    });
+  }
+
+  it('picks the plural form by the count', () => {
+    expect(translate('en', 'granular.modifiedBoth', { count: 1 })).toBe('1 conflict');
+    expect(translate('en', 'granular.modifiedBoth', { count: 2 })).toBe('2 conflicts');
+    expect(translate('de', 'granular.modifiedBoth', { count: 1 })).toBe('1 Konflikt');
+    expect(translate('de', 'granular.modifiedBoth', { count: 0 })).toBe('0 Konflikte');
   });
 });

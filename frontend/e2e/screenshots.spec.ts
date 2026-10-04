@@ -88,7 +88,7 @@ test('remotes', async ({ page }) => {
 test('backups', async ({ page }) => {
   await open(page, `/profiles/${PROFILE.slug}?tab=backups`);
   await page.getByRole('button', { name: 'History' }).click();
-  await expect(page.getByRole('button', { name: /Browse/ })).toHaveCount(4);
+  await expect(page.getByRole('button', { name: /Browse/ })).toHaveCount(6);
   await capture(page, 'backups');
 });
 

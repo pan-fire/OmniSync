@@ -817,7 +817,7 @@ bash|zsh|fish`. `osync profiles` shows each profile's mode; `osync sync
 `backups restore`). The exit status is 0 on success, 1 on an error or a
 failed job, 2 for wrong arguments, 3 when the request was refused (HTTP 409
 or not confirmed) and 4 when the object does not exist (HTTP 404). Download it from a release (see
-[The `osync` binary](#the-osync-binary)), or build and install it with Go 1.25:
+[The `osync` binary](#the-osync-binary)), or build and install it with Go 1.27:
 
 ```bash
 make -C tui install     # ~/.local/bin/osync-tui and the alias ~/.local/bin/osync

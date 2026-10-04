@@ -14,7 +14,7 @@ anything that could lose data needs a test that proves it does not.
 ```text
 backend/     FastAPI app (Python 3.12); tests in backend/tests, migrations in backend/migrations
 frontend/    Next.js web UI (Node 24 LTS, pnpm 10)
-tui/         Go terminal UI and CLI, `osync` (Go 1.25)
+tui/         Go terminal UI and CLI, `osync` (Go 1.27)
 docs/        user guide (docs/gem) and the API error codes (docs/api-errors.md)
 scripts/     container entrypoint, OpenAPI generator, release scripts (scripts/release)
 ```
@@ -166,7 +166,7 @@ gofmt -l .                      # must print nothing
 go mod tidy && git diff --exit-code -- go.mod go.sum
 go vet ./...
 go test -race ./...             # make test
-golangci-lint run               # make lint (CI uses v2.5.0)
+golangci-lint run               # make lint (CI uses v2.14.0)
 make install                    # ~/.local/bin/osync-tui and the alias osync
 ```
 

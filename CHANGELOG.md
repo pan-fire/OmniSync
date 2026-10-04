@@ -81,6 +81,25 @@ release notes.
   - Web UI: the sidebar state and the language are no longer migrated
     from `localStorage`.
 
+### Fixed
+
+- **A long backup snapshot list scrolls inside its card.** With five or more
+  snapshots the list grew past its card instead of scrolling; capped scroll
+  areas (the snapshot and backup job lists, the notification history, the
+  help dialog) now scroll at any length, and every row stays reachable with
+  the keyboard.
+- **Counts read correctly in every language.** "1 conflicts" and the like
+  are gone: the differences summary, the selection count, the file action
+  toasts, the sync progress and every other string with a count use the
+  plural form for that number, in English, German and Persian.
+- **The profile page fits a phone.** At 390 px wide the profile name wraps
+  instead of being cut off (in Persian it lost its start), the badges move
+  below it, and the tab list starts at its first tab and scrolls to the
+  active one.
+- **The status cards are named for what they show.** The summary card was
+  titled "Dashboard" on the dashboard and on every profile; it is now "Sync
+  status" on the dashboard and "Status" on a profile.
+
 ## [0.12.0] - 2026-10-04
 
 ### Added

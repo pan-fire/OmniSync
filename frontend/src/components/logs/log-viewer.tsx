@@ -162,7 +162,7 @@ export function LogViewer ({
                   {entry.exc && (
                     <details>
                       <summary className="text-muted-foreground cursor-pointer text-xs">
-                        {t('logs.details', { n: entry.exc.split('\n').length })}
+                        {t('logs.details', { count: entry.exc.split('\n').length })}
                       </summary>
                       <pre className="bg-muted mt-1 overflow-x-auto rounded p-2 text-xs" dir="ltr">{entry.exc}</pre>
                     </details>
