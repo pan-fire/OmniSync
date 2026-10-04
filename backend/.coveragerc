@@ -1,5 +1,8 @@
 # Coverage of the backend code (CI: pytest --cov=backend, run from backend/).
 [run]
+# SQLAlchemy's async calls switch greenlets: without greenlet tracing,
+# coverage loses a route body after its first database call.
+concurrency = greenlet, thread
 omit =
     */backend/tests/*
 
