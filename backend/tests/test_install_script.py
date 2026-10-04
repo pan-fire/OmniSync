@@ -318,14 +318,6 @@ def test_help_and_unknown_flags(sandbox):
     assert sandbox.docker_calls() == []
 
 
-def test_embedded_compose_is_deploy_compose():
-    """Releases before 0.12.0 attach no compose.yml; the script's copy must
-    be the repository's."""
-    script = SCRIPT.read_text()
-    embedded = script.split("cat <<'COMPOSE'\n", 1)[1].split("\nCOMPOSE\n", 1)[0] + "\n"
-    assert embedded == COMPOSE.read_text()
-
-
 def test_readme_compose_matches_deploy_compose():
     readme = (REPO_ROOT / "README.md").read_text()
     blocks = [b.split("```", 1)[0] for b in readme.split("```yaml\n")[1:]]
@@ -493,7 +485,7 @@ def test_checksum_mismatch_is_refused(sandbox):
     assert not any(set(c) & {"up", "pull", "run"} for c in sandbox.docker_calls())
 
 
-def test_compose_missing_from_a_new_release_is_refused(sandbox):
+def test_release_without_compose_is_refused(sandbox):
     sandbox.publish("0.12.0", in_sums=False)
     result = install(sandbox)
     assert result.returncode == 1
@@ -501,19 +493,12 @@ def test_compose_missing_from_a_new_release_is_refused(sandbox):
     assert not sandbox.dir.exists()
 
 
-def test_release_without_compose_asset_uses_the_embedded_copy(sandbox):
-    sandbox.publish("0.11.0", in_sums=False)
-    result = install(sandbox)
-    assert result.returncode == 0, result.stderr
-    assert "using the copy built into this installer" in result.stdout
-    assert (sandbox.dir / "compose.yml").read_text() == COMPOSE.read_text()
-
-
 def test_too_old_version_is_refused(sandbox):
-    sandbox.publish("0.10.0")
+    sandbox.publish("0.11.0")
     result = install(sandbox)
     assert result.returncode == 1
-    assert "0.11.0 and later" in result.stderr
+    assert "0.12.0 and later" in result.stderr
+    assert not sandbox.dir.exists()
 
 
 def test_random_bytes_without_openssl(sandbox):

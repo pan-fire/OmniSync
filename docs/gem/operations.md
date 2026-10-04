@@ -51,9 +51,8 @@ images from GHCR. It checks `compose.yml` against the release's
 `SHA256SUMS` and refuses a mismatch; with [cosign](https://docs.sigstore.dev/)
 installed it first verifies the Sigstore signature of `SHA256SUMS` (the
 same check as the README's "Verify a release"), which is what ties the
-file to the release workflow. Releases before 0.12.0 attach no
-`compose.yml`; for them (0.11.0 is the oldest the installer accepts) it
-uses the copy it carries, which is the same file.
+file to the release workflow. It installs 0.12.0 and later, the releases
+that attach `compose.yml`.
 
 **Updating.** `update` (or running the installer again) shows the installed
 and the latest version and the release notes link, asks, and then:
@@ -199,7 +198,7 @@ line was written during an API request, and the traceback on the lines
 that follow:
 
 ```text
-2026-10-04 11:50:13,660 - INFO - backend.main - OmniSync 0.11.0 backend started (0 profile engine(s))
+2026-10-04 11:50:13,660 - INFO - backend.main - OmniSync 0.12.0 backend started (0 profile engine(s))
 2026-10-04 11:50:13,980 - WARNING - backend.audit - [req:my-req-0001] profile.delete profile=nope status=404 code=profile_not_found outcome=refused client=127.0.0.1
 2026-10-04 11:50:13,973 - INFO - uvicorn.access - [req:4da3e65b6242748f] 127.0.0.1:38436 - "GET /profiles?token=*** HTTP/1.1" 401
 ```

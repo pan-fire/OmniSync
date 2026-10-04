@@ -11,8 +11,7 @@
 # SHA256SUMS, its signature and, with --osync, the osync binary); the images
 # come from ghcr.io through `docker compose pull`. compose.yml is checked
 # against SHA256SUMS before it is used, and SHA256SUMS against its Sigstore
-# signature when cosign is installed. Releases before 0.12.0 attach no
-# compose.yml; for them the copy built into this script (below) is used.
+# signature when cosign is installed.
 #
 # Nothing downloaded is executed or evaluated, .env is never sourced, and
 # the API token and the web UI password are never printed. Prompts read
@@ -29,10 +28,9 @@ readonly API_URL="https://api.github.com/repos/$REPO"
 readonly IMAGE_PREFIX="ghcr.io/pan-fire/omnisync-"
 readonly DOCS_URL="https://github.com/$REPO/blob/main/docs/gem/getting-started.md"
 readonly CERT_ISSUER="https://token.actions.githubusercontent.com"
-# The oldest release this script installs, and the first that attaches
-# compose.yml to its GitHub release (older ones use embedded_compose).
-readonly MIN_VERSION="0.11.0"
-readonly FIRST_ASSET_VERSION="0.12.0"
+# The oldest release this script installs: the first that attaches
+# compose.yml to its GitHub release.
+readonly MIN_VERSION="0.12.0"
 
 COMMAND=""
 DIR=""
@@ -440,18 +438,11 @@ fetch_compose () {
   local v=$1 out=$2
   make_tmp
   fetch_sums "$v"
-  if grep -qE '[[:space:]]\*?compose\.yml$' "$TMP/$v/SHA256SUMS"; then
-    download "$RELEASES_URL/download/v$v/compose.yml" "$out" || die "could not download compose.yml of release $v"
-    check_sum "$v" compose.yml "$out"
-    ok "compose.yml of $v matches SHA256SUMS"
-  elif version_lt "$v" "$FIRST_ASSET_VERSION"; then
-    # Releases before 0.12.0 attach no compose.yml; their images run with
-    # the same file, which this script carries.
-    embedded_compose >"$out"
-    info "release $v attaches no compose.yml: using the copy built into this installer"
-  else
-    die "release $v has no compose.yml in its SHA256SUMS: refusing to continue"
-  fi
+  grep -qE '[[:space:]]\*?compose\.yml$' "$TMP/$v/SHA256SUMS" \
+    || die "release $v has no compose.yml in its SHA256SUMS: refusing to continue"
+  download "$RELEASES_URL/download/v$v/compose.yml" "$out" || die "could not download compose.yml of release $v"
+  check_sum "$v" compose.yml "$out"
+  ok "compose.yml of $v matches SHA256SUMS"
 }
 
 # ---------------------------------------------------------------- installs
@@ -963,95 +954,6 @@ install_osync () {
 }
 
 # ---------------------------------------------------------------- main
-
-# The compose file for releases that attach none (before 0.12.0); the same
-# as deploy/compose.yml (a test checks that).
-embedded_compose () {
-  cat <<'COMPOSE'
-# OmniSync from the released images: the backend API and the web UI.
-#
-# scripts/install.sh downloads this file (a release asset, listed in the
-# release's SHA256SUMS) and writes the .env next to it; to set it up by hand,
-# see the README's "Install a release". It is the repository's
-# docker-compose.yml with the images in place of the builds; that file's
-# comments explain each setting.
-#
-# Settings go in .env next to this file:
-#   OMNISYNC_VERSION     the release to run (both images use the same one)
-#   OMNISYNC_API_TOKEN   the API key the web UI's server and osync send
-#   OMNISYNC_SYNC_DIR    the host folder profiles may sync (absolute path)
-#   PUID, PGID, TZ       the user and group files are written as; time zone
-#   OMNISYNC_BIND_ADDRESS  the host address of the API port (default 127.0.0.1)
-#   OMNISYNC_API_PORT, OMNISYNC_WEB_PORT  host ports (default 8000 and 3000)
-#   OMNISYNC_UI_PASSWORD_HASH, OMNISYNC_UI_SESSION_SECRET  the web UI login
-#   OMNISYNC_LOG_FORMAT, OMNISYNC_LOG_MAX_BYTES, OMNISYNC_LOG_BACKUPS,
-#   OMNISYNC_LOG_ACCESS  the backend's log (docs/gem/operations.md, "Logs")
-services:
-  backend:
-    image: ghcr.io/pan-fire/omnisync-backend:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
-    ports:
-      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:${OMNISYNC_API_PORT:-8000}:8000"
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-UTC}
-      - OMNISYNC_LOG_FORMAT=${OMNISYNC_LOG_FORMAT:-}
-      - OMNISYNC_LOG_MAX_BYTES=${OMNISYNC_LOG_MAX_BYTES:-}
-      - OMNISYNC_LOG_BACKUPS=${OMNISYNC_LOG_BACKUPS:-}
-      - OMNISYNC_LOG_ACCESS=${OMNISYNC_LOG_ACCESS:-}
-      - OMNISYNC_HOST_OS=linux
-      - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
-      - OMNISYNC_ALLOWED_HOSTS=backend,${OMNISYNC_ALLOWED_HOSTS:-}
-      - OMNISYNC_BROWSE_ROOTS=${OMNISYNC_SYNC_DIR:-/sync}
-    volumes:
-      - omnisync-data:/data/omnisync
-      - ${OMNISYNC_SYNC_DIR:-./sync}:${OMNISYNC_SYNC_DIR:-/sync}
-    security_opt:
-      - no-new-privileges:true
-    cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    stop_grace_period: 90s
-
-  frontend:
-    image: ghcr.io/pan-fire/omnisync-web:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
-    ports:
-      - "127.0.0.1:${OMNISYNC_WEB_PORT:-3000}:3000"
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
-      - OMNISYNC_UI_ALLOWED_HOSTS=${OMNISYNC_UI_ALLOWED_HOSTS:-}
-      - OMNISYNC_UI_PASSWORD_HASH=${OMNISYNC_UI_PASSWORD_HASH:-}
-      - OMNISYNC_UI_PASSWORD=${OMNISYNC_UI_PASSWORD:-}
-      - OMNISYNC_UI_SESSION_SECRET=${OMNISYNC_UI_SESSION_SECRET:-}
-      - OMNISYNC_UI_SESSION_DAYS=${OMNISYNC_UI_SESSION_DAYS:-}
-      - TZ=${TZ:-UTC}
-    depends_on:
-      - backend
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop: [ALL]
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-
-volumes:
-  omnisync-data:
-COMPOSE
-}
 
 main () {
   parse_args "$@"

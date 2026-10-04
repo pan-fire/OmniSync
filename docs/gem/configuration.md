@@ -353,7 +353,7 @@ The **webhook** receives a POST with this JSON body:
 
 ```json
 {
-  "source": "omnisync", "version": "0.11.0",
+  "source": "omnisync", "version": "0.12.0",
   "event_type": "sync_failed", "severity": "error",
   "title": "Sync push failed — Documents", "body": "...",
   "profile_slug": "documents", "profile_name": "Documents",
