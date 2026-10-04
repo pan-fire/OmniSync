@@ -12,10 +12,10 @@ from backend.exceptions import RcloneAuthError, RcloneError, RcloneRateLimitErro
 from backend.services.rclone import TRASH_DIR, ChangeRecorder, without_flag
 from backend.services.sync_engine import common
 from backend.services.sync_engine.common import ENGINE_STOPPED, RATE_LIMIT_BASE_DELAY, filter_escape, logger
-from backend.services.sync_engine.reporting import ReportingMixin
+from backend.services.sync_engine.partials import PartialsMixin
 
 
-class MirrorMixin(ReportingMixin):
+class MirrorMixin(PartialsMixin):
     """A push or pull: one rclone sync with retries, recorded as a job."""
 
     async def _run_sync(self, direction: SyncDirection) -> int:
@@ -154,6 +154,7 @@ class MirrorMixin(ReportingMixin):
                     )
                     if first_sync:
                         await self._write_sentinels()
+                    await self._remove_partial_leftovers(job_id)
                     # Success — record the job with what rclone changed
                     await self._finish_job(job_id, "completed", recorder=recorder)
                     if self._paused_edits == paused_edits:

@@ -18,7 +18,9 @@
 # from /dev/tty, so they work when this script is piped into bash; without
 # a terminal, --yes takes the defaults.
 #
-# Tests: backend/tests/test_install_script.py (docker and curl are stubbed).
+# Tests: backend/tests/test_install_script.py (docker and curl are stubbed),
+# and CI's "installer" job against real images (OMNISYNC_INSTALL_TEST_RELEASE_DIR,
+# see "CI test release" below; not for installs).
 
 set -euo pipefail
 
@@ -246,6 +248,7 @@ download () {
     "$RELEASES_URL"/download/*|"$API_URL"/releases/*) ;;
     *) die "refusing to download from an unexpected address: $url" ;;
   esac
+  if test_release_active; then test_release_download "$url" "$out"; return; fi
   if [ "$DOWNLOADER" = curl ]; then
     curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 -o "$out" "$url" </dev/null
   else
@@ -443,6 +446,47 @@ fetch_compose () {
   download "$RELEASES_URL/download/v$v/compose.yml" "$out" || die "could not download compose.yml of release $v"
   check_sum "$v" compose.yml "$out"
   ok "compose.yml of $v matches SHA256SUMS"
+}
+
+# ---------------------------------------------------------------- CI test release
+#
+# For the installer's end-to-end test in CI only (.github/workflows/ci.yml,
+# job "installer"), never for a real install. OMNISYNC_INSTALL_TEST_RELEASE_DIR
+# names a folder that stands in for a GitHub release:
+#   VERSION      the version the "latest release" answer names
+#   compose.yml  the release's compose file
+#   SHA256SUMS   its checksum, checked as for a real release
+# With it set, download() serves these files instead of fetching anything,
+# and no image is pulled: CI builds both images from the pull request's code
+# and tags them ghcr.io/pan-fire/omnisync-{backend,web}:VERSION locally.
+# Everything else (checksum, .env, ports, health checks) runs as usual.
+
+test_release_active () { [ -n "${OMNISYNC_INSTALL_TEST_RELEASE_DIR:-}" ]; }
+
+# test_release_check: the folder holds what it must; says it is a test.
+test_release_check () {
+  local dir=${OMNISYNC_INSTALL_TEST_RELEASE_DIR:-} name
+  test_release_active || return 0
+  for name in VERSION compose.yml SHA256SUMS; do
+    [ -f "$dir/$name" ] || die "OMNISYNC_INSTALL_TEST_RELEASE_DIR ($dir) has no $name"
+  done
+  warn "OMNISYNC_INSTALL_TEST_RELEASE_DIR is set: using the test release in $dir and the local images (for CI tests only)"
+}
+
+# test_release_download URL OUT: what download() serves for URL in the test.
+test_release_download () {
+  local url=$1 out=$2 dir=$OMNISYNC_INSTALL_TEST_RELEASE_DIR version rest
+  version=$(tr -d '[:space:]' <"$dir/VERSION")
+  case $url in
+    "$API_URL"/releases/latest)
+      printf '{"tag_name": "v%s"}\n' "$version" >"$out" ;;
+    "$RELEASES_URL/download/v$version"/*)
+      rest=${url#"$RELEASES_URL/download/v$version/"}
+      case $rest in */*|"") return 1 ;; esac
+      [ -f "$dir/$rest" ] || return 1
+      cp "$dir/$rest" "$out" ;;
+    *) return 1 ;;
+  esac
 }
 
 # ---------------------------------------------------------------- installs
@@ -734,7 +778,7 @@ cmd_install () {
   fi
 
   step "Pulling the images"
-  run compose pull --quiet
+  test_release_active || run compose pull --quiet
   if [ "$want_pw" = 1 ]; then
     if [ "$DRY_RUN" = 1 ]; then info "[dry-run] ask for the web UI password and store its hash in .env"; else hash_ui_password; fi
   fi
@@ -838,8 +882,10 @@ cmd_update () {
   fetch_compose "$target" "$compose_tmp"
 
   step "Pulling the $target images"
-  run docker pull --quiet "${IMAGE_PREFIX}backend:$target" </dev/null
-  run docker pull --quiet "${IMAGE_PREFIX}web:$target" </dev/null
+  if ! test_release_active; then
+    run docker pull --quiet "${IMAGE_PREFIX}backend:$target" </dev/null
+    run docker pull --quiet "${IMAGE_PREFIX}web:$target" </dev/null
+  fi
 
   BACKUP_FILE=""
   backup_volume "$INSTALLED"
@@ -963,6 +1009,7 @@ main () {
     DIR=${DIR%/}
   fi
   [ "$DRY_RUN" = 0 ] || step "Dry run: printing what would be done, changing nothing"
+  test_release_check
 
   case $COMMAND in
     install)

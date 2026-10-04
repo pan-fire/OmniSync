@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { HEALTHZ_PATH, SECURE_SESSION_COOKIE, SESSION_COOKIE, authSettings } from '@/lib/auth/config';
 import { clientAddress, gate, handleAuthEndpoint, isAuthEndpoint } from '@/lib/auth/gate';
 import { errorBody } from '@/lib/api-error';
+import { FORWARDED_CLIENT_HEADER, signClientAddress } from '@/lib/forwarded-client';
 import { logServerEvent } from '@/lib/server-log';
 
 // Forwards every /api request to the backend with the API token added:
@@ -174,8 +175,13 @@ export async function proxy (request: NextRequest): Promise<NextResponse> {
   headers.delete('authorization');
   // The session cookie is for this server only, not the backend.
   removeSessionCookies(headers);
+  // Only this server may vouch for the browser's address (see
+  // lib/forwarded-client.ts): whatever the browser sent is dropped.
+  headers.delete(FORWARDED_CLIENT_HEADER);
   if (token) {
     headers.set('authorization', `Bearer ${token}`);
+    const client = clientAddress(request);
+    if (client !== 'unknown') headers.set(FORWARDED_CLIENT_HEADER, signClientAddress(token, client));
   }
   // Tell the backend where the browser came from: the rewrite sends the
   // request with the backend's own Host, and the OAuth redirect URI must

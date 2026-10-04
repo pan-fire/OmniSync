@@ -12,6 +12,48 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Logs page pages into the rotated log files.** GET /logs goes on
+  past the start of `omnisync.log` into `omnisync.log.1`, `.2`, ... in
+  order, reading each from the end only as far as the page needs; the level
+  and category filters apply across all of them. The web Logs page and the
+  terminal UI's Logs view now reach every entry still on disk, and
+  `osync logs --skip N` pages back too.
+- **The audit trail names the browser for web UI actions.** The web UI's
+  proxy now sends the browser's address in an `X-OmniSync-Client` header,
+  signed with the API token (HMAC over the address and the time, valid for
+  60 seconds). The backend records it as `client` (with the web UI
+  container as `via`) only when the request has the right token and the
+  signature checks out; authentication and throttling still use the TCP
+  peer. See [The audit trail](docs/gem/operations.md#the-audit-trail).
+- **The wizard and the remote edit check what the import checks.**
+  Creating a remote (POST /wizard/create) or editing one (PUT
+  /remotes/{name}) now refuses, like the rclone.conf import, file settings
+  such as SFTP's `key_file` that point into OmniSync's data directory or
+  contain `$`, and crypt, alias or union style remotes that point at a
+  `local` remote or wrap a local path, directly or through a chain
+  (422 `invalid_params`). The checks are shared with the import
+  (`services/rclone_import.py`).
+- **Leftover `.partial` files are cleaned up.** When a push, pull or
+  two-way sync succeeds after a run that failed, was stopped or was
+  killed, rclone's leftover in-progress files of that run
+  (`<name>.<8 hex>.partial`, the pattern every sync already skips) are
+  deleted from both of the profile's folders, if they are older than the
+  run's start and outside the trash. Nothing else is touched (a file named
+  `notes.partial` stays). The log records how many were removed, with the
+  job id.
+- **The web UI image runs on Node.js 24 LTS** (24.21.0), up from Node 22,
+  and takes Debian's security updates at build time like the backend image.
+  CI builds and tests the web UI on Node 24 too.
+- **CI tests the installer end to end.** A new job builds both images from
+  the pull request and runs `scripts/install.sh` against them in a
+  temporary folder on non-default ports: install, `status`, a second run
+  (up to date) and `uninstall --purge --yes`, checking the health checks,
+  the API token and the web UI's path to the API. The installer's
+  test-only `OMNISYNC_INSTALL_TEST_RELEASE_DIR` (a local stand-in for the
+  release, see CONTRIBUTING.md) makes this possible without downloads.
+
 ### Removed
 
 - **Compatibility with builds before 0.12.0.** No installation predates

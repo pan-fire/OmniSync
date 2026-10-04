@@ -13,7 +13,7 @@ anything that could lose data needs a test that proves it does not.
 
 ```text
 backend/     FastAPI app (Python 3.12); tests in backend/tests, migrations in backend/migrations
-frontend/    Next.js web UI (Node 22, pnpm 10)
+frontend/    Next.js web UI (Node 24 LTS, pnpm 10)
 tui/         Go terminal UI and CLI, `osync` (Go 1.25)
 docs/        user guide (docs/gem) and the API error codes (docs/api-errors.md)
 scripts/     container entrypoint, OpenAPI generator, release scripts (scripts/release)
@@ -185,6 +185,20 @@ updates both kinds of pin.
 
 To check the images: `docker compose build`, then `docker compose config`
 for each combination of compose files you changed.
+
+The installer is tested end to end against images built from your checkout
+(CI's `installer` job does the same):
+
+```bash
+docker build -t ghcr.io/pan-fire/omnisync-backend:9999.0.0-ci .
+docker build -t ghcr.io/pan-fire/omnisync-web:9999.0.0-ci frontend
+scripts/test-installer-e2e.sh 9999.0.0-ci
+```
+
+It sets `OMNISYNC_INSTALL_TEST_RELEASE_DIR`, the installer's test-only
+switch: a folder with `VERSION`, `compose.yml` and `SHA256SUMS` stands in
+for the GitHub release, and the images are not pulled. It is for CI and
+this script only, never for an install.
 
 ## Pull requests
 

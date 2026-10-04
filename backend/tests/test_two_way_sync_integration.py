@@ -525,6 +525,142 @@ async def test_interrupted_run_recovers_without_resync(env, how):
     assert not any(p.name.endswith(".partial") for p in env.local.rglob("*"))
 
 
+# --- leftover .partial files of an interrupted transfer ---
+
+
+def partial_leftovers(root: Path) -> list[str]:
+    """rclone's in-progress files under root (trash included), by relative path."""
+    return sorted(str(p.relative_to(root)) for p in root.rglob("*.partial")
+                  if p.is_file() and len(p.name.split(".")) >= 3 and len(p.name.split(".")[-2]) == 8)
+
+
+def sync_pids(remote: Path) -> list[int]:
+    """The rclone processes of a mirror sync to ``remote``."""
+    pids = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            cmdline = Path(f"/proc/{entry}/cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        if cmdline and cmdline[0].endswith(b"rclone") and b"sync" in cmdline and f"testremote:{remote}".encode() in cmdline:
+            pids.append(int(entry))
+    return pids
+
+
+def plant_user_files(env: Env) -> None:
+    """What the clean-up must leave alone: a user's file with a .partial name on both
+    sides, a partial-named file newer than the next run, and one in the trash."""
+    for side in (env.local, env.remote):
+        write(side, "notes.partial", "my notes", mtime=time.time() - 7200)
+    write(env.local, "draft.0123abcd.partial", "newer than the run", mtime=time.time() + 3600)
+    write(env.remote, f"{TRASH_DIR}/20260101T000000Z/old.0123abcd.partial", "in the trash", mtime=time.time() - 7200)
+
+
+def assert_user_files_kept(env: Env) -> None:
+    assert (env.local / "notes.partial").read_text() == "my notes"
+    assert (env.remote / "notes.partial").read_text() == "my notes"
+    assert (env.local / "draft.0123abcd.partial").read_text() == "newer than the run"
+    assert (env.remote / TRASH_DIR / "20260101T000000Z" / "old.0123abcd.partial").exists()
+
+
+@pytest.mark.parametrize("env", ["short"], indirect=True)
+async def test_a_two_way_run_after_a_killed_transfer_removes_its_partial_files(env, caplog):
+    engine = await synced(env, {"a.txt": "A"})
+    (env.local / "big.bin").write_bytes(os.urandom(40_000_000))
+    slow = env.engine(rclone_args=["--bwlimit", "8M"])
+    task = asyncio.create_task(slow.two_way_sync())
+    await wait_for_transfer(env)
+    pids = rclone_pids(env.workdir)
+    assert pids
+    for pid in pids:
+        os.kill(pid, signal.SIGKILL)
+    await task
+    assert (await env.last_job()).status == "failed"
+    leftovers = [p for p in partial_leftovers(env.remote) if p.startswith("big.bin.")]
+    assert len(leftovers) == 1  # really left behind by the killed transfer
+    # Not transferred again (which would reuse and rename the partial file).
+    (env.local / "big.bin").unlink()
+    plant_user_files(env)
+
+    caplog.set_level("INFO", logger="backend.services.sync_engine")
+    engine = env.engine()
+    await engine.two_way_sync()
+
+    job = await env.last_job()
+    assert (job.direction, job.status) == ("two_way", "completed"), await env.errors(job.id)
+    assert not any(p.startswith("big.bin.") for p in partial_leftovers(env.remote))
+    assert not (env.remote / "big.bin").exists()
+    assert_user_files_kept(env)
+    assert f"(job {job.id}): removed 1 leftover partial file(s) of an interrupted transfer (local 0, remote 1)" \
+        in caplog.text
+    [record] = [r for r in caplog.records if "leftover partial" in r.getMessage()]
+    assert record.fields["partials_removed"] == 1  # type: ignore[attr-defined]
+
+    # The next run (after a completed one) does not look again.
+    caplog.clear()
+    write(env.local, "late.0123abcd.partial", "x", mtime=time.time() - 7200)
+    await engine.two_way_sync()
+    assert (await env.last_job()).status == "completed"
+    assert (env.local / "late.0123abcd.partial").exists()
+    assert "leftover partial" not in caplog.text
+
+
+@pytest.mark.parametrize("env", ["short"], indirect=True)
+async def test_a_push_after_a_killed_transfer_removes_its_partial_files(env, caplog):
+    for side in (env.local, env.remote):
+        write(side, SENTINEL_FILE, "marker")
+    write(env.local, "a.txt", "A")
+    (env.local / "big.bin").write_bytes(os.urandom(40_000_000))
+    slow = env.engine(sync_mode="mirror", rclone_args=["--bwlimit", "8M"])
+    task = asyncio.create_task(slow.push())
+    await wait_for_transfer(env)
+    pids = sync_pids(env.remote)
+    assert pids
+    for pid in pids:
+        os.kill(pid, signal.SIGKILL)
+    await task
+    assert (await env.last_job()).status == "failed"
+    assert any(p.startswith("big.bin.") for p in partial_leftovers(env.remote))
+    (env.local / "big.bin").unlink()  # not transferred again (see above)
+    plant_user_files(env)
+
+    caplog.set_level("INFO", logger="backend.services.sync_engine")
+    engine = env.engine(sync_mode="mirror")
+    await engine.push()
+
+    job = await env.last_job()
+    assert (job.direction, job.status) == ("push", "completed"), await env.errors(job.id)
+    assert not any(p.startswith("big.bin.") for p in partial_leftovers(env.remote))
+    assert not (env.remote / "big.bin").exists()
+    assert_user_files_kept(env)
+    assert f"(job {job.id}): removed 1 leftover partial file(s)" in caplog.text
+
+
+@pytest.mark.parametrize("env", ["short"], indirect=True)
+async def test_a_failed_clean_up_does_not_fail_the_run(env, caplog, monkeypatch):
+    from backend.exceptions import RcloneError
+
+    engine = await synced(env, {"a.txt": "A"})
+    async with env.factory() as session:  # an earlier run that did not complete
+        session.add(SyncJob(direction="two_way", started_at=datetime.now(timezone.utc), status="failed",
+                            files_changed=0, conflicts=0, errors=1, profile_id=env.profile_id))
+        await session.commit()
+    write(env.local, "x.0123abcd.partial", "left over", mtime=time.time() - 7200)
+
+    async def broken(root, older_than):
+        raise RcloneError("listing failed")
+
+    monkeypatch.setattr(engine._rclone, "remove_partials", broken)
+    caplog.set_level("INFO", logger="backend.services.sync_engine")
+    await engine.two_way_sync()
+    assert (await env.last_job()).status == "completed"
+    assert "could not remove the leftover partial files in the local folder: listing failed" in caplog.text
+    assert "removed 0 leftover partial file(s)" in caplog.text
+    assert (env.local / "x.0123abcd.partial").exists()
+
+
 # --- resync needed: never automatic, always confirmed ---
 
 

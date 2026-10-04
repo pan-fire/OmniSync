@@ -601,6 +601,27 @@ func TestLogs_LevelLimitAndOrder(t *testing.T) {
 	}
 }
 
+// --skip pages back through older entries (the backend reads the rotated
+// files too); it makes no sense with --follow.
+func TestLogs_SkipPagesBack(t *testing.T) {
+	f := newFakeAPI(t)
+	f.on("GET /logs", 200, []map[string]any{
+		{"timestamp": "2026-09-20T08:30:01Z", "level": "INFO", "message": "from omnisync.log.1"},
+	})
+	out, _, code := f.run("logs", "--skip", "200", "--limit", "10")
+	if code != 0 || !strings.Contains(out, "from omnisync.log.1") {
+		t.Errorf("exit %d:\n%s", code, out)
+	}
+	if q := f.last("GET", "/logs").Query; q != "limit=10&skip=200" {
+		t.Errorf("query = %q", q)
+	}
+	for _, args := range [][]string{{"logs", "--skip", "-1"}, {"logs", "--skip", "5", "--follow"}} {
+		if _, _, code := f.run(args...); code != 2 {
+			t.Errorf("%v: exit %d, want 2", args, code)
+		}
+	}
+}
+
 // --category asks the backend for the audit trail or errors; a traceback is
 // printed indented under its entry.
 func TestLogs_CategoryAndTraceback(t *testing.T) {

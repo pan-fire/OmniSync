@@ -15,7 +15,7 @@ backend/    FastAPI app, Python 3.12, async SQLAlchemy + Alembic
   services/   sync_engine/, rclone/, backup_service/, notifications, wizard
   migrations/ Alembic revisions, applied on start
   tests/      pytest (warnings are errors)
-frontend/   Next.js web UI (Node 22, pnpm 10), Vitest, Playwright smoke tests
+frontend/   Next.js web UI (Node 24 LTS, pnpm 10), Vitest, Playwright smoke tests
   src/i18n/locales/{en,de,fa}.json   every user-visible string
   src/types/api.gen.ts               generated from frontend/openapi.json
 tui/        `osync`, Go 1.25 Bubble Tea TUI and Cobra CLI

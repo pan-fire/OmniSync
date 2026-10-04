@@ -90,6 +90,11 @@ LOGGED_MARK = "_omnisync_logged"
 class RequestContext:
     """The request a log line is written in: its id and the client address.
 
+    ``client`` is the TCP peer, or, for a request from the web UI with a
+    verified ``X-OmniSync-Client`` header (backend/api/forwarded_client.py),
+    the browser's address; ``via`` is then the TCP peer (the web UI's
+    server). Both are for the audit trail and the log only.
+
     ``active`` turns False when the response is done: tasks the request
     started (which inherit the context) stop carrying its id then.
     """
@@ -97,6 +102,7 @@ class RequestContext:
     request_id: str
     client: str | None = None
     active: bool = True
+    via: str | None = None
 
 
 _current_request: ContextVar[RequestContext | None] = ContextVar("omnisync_request", default=None)

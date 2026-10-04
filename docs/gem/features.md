@@ -128,6 +128,13 @@ OmniSync keeps its own rclone configuration and never touches yours.
   (file or pasted text): it shows which remotes the file holds, which names
   are already taken (import those under another name) and which cannot be
   imported, then adds the ones you choose.
+- **The same safety checks everywhere.** Whether a remote is imported,
+  created in the wizard or edited, OmniSync refuses settings that would
+  reach this machine's own files past the checks local folders get: a
+  crypt, alias or union style remote that points at a `local` remote or
+  wraps a local path (directly or through a chain of remotes), and file
+  settings such as SFTP's key file that point into OmniSync's data folder
+  or contain `$`.
 
 ## 8. History, logs and notifications
 - **Jobs**: every sync (push, pull, two-way sync or resync) with its status

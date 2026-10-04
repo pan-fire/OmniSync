@@ -32,7 +32,7 @@ from backend.services.sync_engine.common import (
     logger,
     remote_join,
 )
-from backend.services.sync_engine.reporting import ReportingMixin
+from backend.services.sync_engine.partials import PartialsMixin
 
 # Two-way sync (rclone bisync) keeps its listings of the last successful run
 # per profile in <OMNISYNC_BISYNC_DIR>/<profile id>, next to the filters
@@ -82,7 +82,7 @@ def reset_bisync_state(profile_id: int) -> None:
     shutil.rmtree(bisync_workdir(profile_id), ignore_errors=True)
 
 
-class TwoWayMixin(ReportingMixin):
+class TwoWayMixin(PartialsMixin):
     """two_way_sync() and resync(): the run plan, bisync with retries, the delete limit."""
 
     # --- Two-way sync (rclone bisync) ---
@@ -353,6 +353,7 @@ class TwoWayMixin(ReportingMixin):
 
         self._write_bisync_state(pair=self._pair, resync_required=None,
                                  names="short" if short else "paths")
+        await self._remove_partial_leftovers(job_id)
         conflicts = await self._record_two_way_conflicts(job_id, recorder.conflicts)
         await self._finish_job(job_id, "completed", recorder=recorder, conflicts=conflicts)
         self._state.set_idle(files_processed=recorder.total)
