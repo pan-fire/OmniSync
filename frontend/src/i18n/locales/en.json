@@ -268,7 +268,13 @@
     "pagination": "Log pages",
     "newer": "Newer",
     "older": "Older",
-    "page": "Page {{n}}"
+    "page": "Page {{n}}",
+    "category": "Filter by category",
+    "categoryAll": "All entries",
+    "categoryAudit": "User actions",
+    "categoryErrors": "Errors",
+    "details": "Details ({{n}} lines)",
+    "requestId": "Request {{id}}"
   },
   "conflicts": {
     "title": "Conflicts",
@@ -323,7 +329,7 @@
     },
     "logs": {
       "title": "Logs Help",
-      "content": "The log viewer shows what OmniSync has been doing behind the scenes.\n\n**Filter by level** — Use the tabs to show only specific log levels:\n• DEBUG — Detailed technical info\n• INFO — Normal operations (sync started, completed)\n• WARNING — Something unexpected but not critical\n• ERROR — Something went wrong\n\nLogs are useful for troubleshooting when syncs fail or files aren't appearing where expected."
+      "content": "The log viewer shows what OmniSync has been doing behind the scenes.\n\n**Filter by level** — Use the tabs to show only specific log levels:\n• DEBUG — Detailed technical info\n• INFO — Normal operations (sync started, completed)\n• WARNING — Something unexpected but not critical\n• ERROR — Something went wrong\n\n**Filter by category** — All entries, User actions (the audit trail: syncs started, profiles changed, remotes deleted, backups restored, with the client address), or Errors only.\n\nAn error message in the UI may end in an ID; the entry with the same Request ID here belongs to it.\n\nLogs are useful for troubleshooting when syncs fail or files aren't appearing where expected."
     },
     "conflicts": {
       "title": "Conflicts Help",

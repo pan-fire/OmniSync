@@ -32,6 +32,8 @@ describe('API client matches the backend routes', () => {
     expect(lastUrl()).toBe('/api/logs?skip=0&limit=100');
     await api.getLogs(200, 100, 'ERROR');
     expect(lastUrl()).toBe('/api/logs?skip=200&limit=100&level=ERROR');
+    await api.getLogs(0, 100, undefined, 'audit');
+    expect(lastUrl()).toBe('/api/logs?skip=0&limit=100&category=audit');
   });
 
   it('manual flags use /profiles/{slug}/manual-flags (profiles.py)', async () => {
@@ -136,6 +138,33 @@ describe('error messages', () => {
         code:    'name_clash',
         details: { names: ['gdrive'] },
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('a server error names the request id, from the envelope or the header', async () => {
+    const originalFetch = globalThis.fetch;
+    const answer = (status: number, body: unknown, headers: Record<string, string> = {}) => ({
+      ok: false, status, json: () => Promise.resolve(body), headers: new Headers(headers),
+    });
+    try {
+      globalThis.fetch = vi.fn().mockResolvedValue(answer(500, {
+        detail: 'Internal server error.', code: 'internal_error', request_id: '3f9c1a2b4d5e6f70',
+      }));
+      const server = await api.getProfiles().catch((e: unknown) => e);
+      expect(server).toMatchObject({
+        detail:    'Internal server error.',
+        requestId: '3f9c1a2b4d5e6f70',
+        message:   'Internal server error. (ID 3f9c1a2b4d5e6f70)',
+      });
+
+      globalThis.fetch = vi.fn().mockResolvedValue(answer(502, null, { 'x-request-id': 'from-header-1' }));
+      expect(await api.getProfiles().catch((e: unknown) => e)).toMatchObject({ requestId: 'from-header-1' });
+
+      // A client error is about the request itself: the message stays as it is.
+      globalThis.fetch = vi.fn().mockResolvedValue(answer(409, { detail: 'Busy', code: 'sync_busy', request_id: 'abcdef123456' }));
+      expect(await api.getProfiles().catch((e: unknown) => e)).toMatchObject({ message: 'Busy', requestId: 'abcdef123456' });
     } finally {
       globalThis.fetch = originalFetch;
     }

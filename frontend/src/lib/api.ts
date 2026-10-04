@@ -8,6 +8,7 @@ import type {
   ConflictResolution,
   Remote,
   LogEntry,
+  LogCategory,
   Health,
   RemoteHealthResponse,
   Provider,
@@ -63,9 +64,9 @@ import { isLoginRequired, redirectToLogin } from '@/lib/auth/client';
 const API_BASE = '/api';
 
 /** The ApiError for an error answer (envelope: docs/api-errors.md). */
-function apiError (status: number, body: unknown): ApiError {
-  const { message, code, details } = parseApiError(status, body);
-  return new ApiError(status, message, code, details);
+function apiError (status: number, body: unknown, headers?: Headers): ApiError {
+  const { message, code, details, requestId } = parseApiError(status, body);
+  return new ApiError(status, message, code, details, requestId ?? headers?.get('x-request-id') ?? undefined);
 }
 
 /** Encode a relative file path for a `{file_path:path}` route, keeping the slashes. */
@@ -81,7 +82,7 @@ export async function apiFetch<T> (path: string, options?: globalThis.RequestIni
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (isLoginRequired(res.status, body)) redirectToLogin();
-    throw apiError(res.status, body);
+    throw apiError(res.status, body, res.headers);
   }
   if (res.status === 204) {
     return undefined as T;
@@ -169,7 +170,7 @@ async function fetchHealth (): Promise<Health> {
   if (isHealth && (res.ok || res.status === 503)) {
     return body as Health;
   }
-  throw apiError(res.status, body);
+  throw apiError(res.status, body, res.headers);
 }
 
 export const api = {
@@ -184,10 +185,13 @@ export const api = {
     apiFetch<void>(`/remotes/${encodeURIComponent(name)}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
   getJobs: (skip = 0, limit = 20, profile?: string) =>
     apiFetch<SyncJob[]>(`/jobs?skip=${skip}&limit=${limit}${profile ? `&profile=${encodeURIComponent(profile)}` : ''}`),
-  // GET /logs pages newest first; with a level, it pages through that
-  // level's entries only.
-  getLogs: (skip = 0, limit = 100, level?: string) =>
-    apiFetch<LogEntry[]>(`/logs?skip=${skip}&limit=${limit}${level ? `&level=${encodeURIComponent(level)}` : ''}`),
+  // GET /logs pages newest first; with a level or category, it pages
+  // through those entries only.
+  getLogs: (skip = 0, limit = 100, level?: string, category?: LogCategory) =>
+    apiFetch<LogEntry[]>(
+      `/logs?skip=${skip}&limit=${limit}${level ? `&level=${encodeURIComponent(level)}` : ''}` +
+      (category ? `&category=${category}` : '')
+    ),
   getConflicts: (profile?: string) =>
     apiFetch<Conflict[]>(`/conflicts${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`),
   resolveConflict: (id: number, resolution: ConflictResolution) =>
