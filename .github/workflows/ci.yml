@@ -174,7 +174,7 @@ jobs:
   tui:
     name: TUI (fmt, vet, lint, tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: tui
@@ -189,11 +189,70 @@ jobs:
       - name: go.mod is tidy
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
       - run: go vet ./...
-      - run: go test -race ./...
+      # The tests live in test/, outside the packages they test, so each
+      # package's own coverage reads 0%: -coverpkg=./... counts the
+      # statements of every package, whichever test binary runs them.
+      - name: go test (race, coverage)
+        run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+      # Fails below MIN, the total measured when it was set (93.6% on
+      # 2026-10-05) less 1.5 for runs that take another path through a
+      # timing-dependent branch. Raise it with the coverage, never lower it
+      # to let a change in. Per file: go tool cover -func=coverage.out.
+      - name: Coverage of the whole TUI
+        env:
+          MIN: "92.0"
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '$1 == "total:" { sub("%", "", $NF); print $NF }')
+          echo "TUI statement coverage: ${total}% (minimum ${MIN}%)"
+          awk -v total="$total" -v min="$MIN" 'BEGIN { exit !(total >= min) }'
+      # Every fuzz target (func FuzzXxx under test/) for 10 seconds, to find
+      # what its seed corpus (testdata/fuzz) does not hold yet; go test
+      # above already ran the seeds. A failure writes the input to
+      # testdata/fuzz/<target>/, which the next step keeps: commit it as a
+      # new seed with the fix.
+      - name: Fuzz (10 s per target)
+        run: |
+          set -euo pipefail
+          grep -o '^func Fuzz[A-Za-z0-9_]*' test/*/*_test.go | while IFS=: read -r file decl; do
+            target=${decl#func }
+            echo "::group::$target ($(dirname "$file"))"
+            go test "./$(dirname "$file")" -run '^$' -fuzz "^${target}\$" -fuzztime 10s
+            echo "::endgroup::"
+          done
+      - name: Upload the failing fuzz input
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: tui-fuzz-failures
+          path: tui/test/*/testdata/fuzz/
+          retention-days: 7
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.14.0
           working-directory: tui
+
+  # osync is released for macOS and Windows too (release.yml), and its
+  # config directory, paths, file modes and browser opener differ there.
+  # The same tests on those systems; the race detector and the coverage
+  # gate stay in the Linux job above.
+  tui-cross-os:
+    name: TUI tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    defaults:
+      run:
+        working-directory: tui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - run: go test ./...
 
   # Syntax, expressions, runner labels and action inputs of every workflow.
   actionlint:
