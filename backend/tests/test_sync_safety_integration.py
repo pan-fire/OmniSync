@@ -30,11 +30,13 @@ from backend.api.schemas import (
     SyncJobResponse,
     SyncState,
 )
-from backend.db.models import Base, SyncError, SyncJob, SyncProfile
+from backend.db.models import Base, FileChange, SyncError, SyncJob, SyncProfile
 from backend.models.profile_config import ProfileConfig
 from backend.exceptions import IntervalsNotResumableError, RcloneError
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR, RcloneService
 from backend.services.sync_engine import SyncEngine
+from backend.tests.real_rclone import make_env
+from backend.tests.real_rclone import write as write_bytes
 
 if shutil.which("rclone") is None and os.environ.get("OMNISYNC_REQUIRE_RCLONE") == "1":
     raise RuntimeError("OMNISYNC_REQUIRE_RCLONE=1 but rclone is not on PATH")
@@ -342,6 +344,34 @@ async def test_keep_both_keeps_both_versions_on_both_sides(env):
 
 
 # --- Job history is saved, selective jobs are readable ---
+
+
+async def test_multi_thread_transfers_are_in_the_job_history(tmp_path, monkeypatch):
+    """rclone copies a large file in several streams to or from most cloud
+    backends, and logs that as "Multi-thread Copied (...)". A `combine`
+    remote over the folder gets the same treatment from rclone, and a low
+    --multi-thread-cutoff makes a 2 MiB file large enough."""
+    env, db = await make_env(tmp_path, monkeypatch)
+    try:
+        with open(env.conf, "a") as fh:
+            fh.write(f"\n[streams]\ntype = combine\nupstreams = root={env.remote}\n")
+        engine = env.engine(remote_dir="streams:root", rclone_args=["--multi-thread-cutoff", "1M"])
+        local = env.local
+        write_bytes(local, "video.bin", os.urandom(2 << 20))
+
+        first = await env.completed(await engine.push())
+        write_bytes(local, "video.bin", os.urandom(2 << 20))
+        second = await env.completed(await engine.push())
+
+        assert (first.files_changed, second.files_changed) == (1, 1)
+        async with env.factory() as session:
+            rows = (await session.execute(select(FileChange).order_by(FileChange.id))).scalars().all()
+        assert [(r.job_id, r.file_path, r.action) for r in rows] == [
+            (first.id, "video.bin", "created"), (second.id, "video.bin", "modified"),
+        ]
+        assert (env.remote / "video.bin").read_bytes() == (local / "video.bin").read_bytes()
+    finally:
+        await db.dispose()
 
 
 async def test_selective_jobs_are_saved_and_readable(env):

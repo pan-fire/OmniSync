@@ -74,6 +74,10 @@ release notes.
   but left the process running; each check could add one. Desktop
   notifiers that hang were killed but not reaped. All of them are now
   killed and reaped when their time is up or the request is cancelled.
+- **Large files show up in the job history.** rclone copies a large file
+  (256 MiB and up, to or from most cloud storage) in several streams and
+  reports it differently; such files were left out of a sync's changed
+  files and its count. The files themselves were always synced.
 
 ### Security
 
