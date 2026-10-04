@@ -20,28 +20,37 @@ const nonEmptyRemotesArb = fc
     remotes.map((r, i) => ({ ...r, name: `${r.name}${i}` }))
   );
 
+// Mount once and rerender per run: a fresh mount (query client, i18n, the
+// wizard and delete dialogs) per run made 100 runs take over 3 s under
+// coverage on a loaded machine. Each row is read once instead of a text
+// query per field, which is cheaper and checks name and type stay together.
+function Manager ({ remotes }: { remotes: Remote[] }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <RemoteManager remotes={remotes} />
+      </I18nProvider>
+    </QueryClientProvider>
+  );
+}
+const queryClient = new QueryClient();
+
 describe('Remote list rendering completeness', () => {
   it("for any non-empty Remote array, the rendered list contains each remote's name and type", () => {
+    const { container, rerender } = render(<Manager remotes={[]} />);
     fc.assert(
       fc.property(nonEmptyRemotesArb, (remotes: Remote[]) => {
-        const { unmount, container } = render(
-          <QueryClientProvider client={new QueryClient()}>
-            <I18nProvider>
-              <RemoteManager remotes={remotes} />
-            </I18nProvider>
-          </QueryClientProvider>
-        );
+        rerender(<Manager remotes={remotes} />);
 
-        const view = within(container);
-
+        // [name, type] of each row, in order
+        const rows = Array.from(container.querySelectorAll('span.font-medium'), (name) =>
+          [name.textContent, name.nextElementSibling?.textContent]);
+        expect(rows).toEqual(remotes.map((remote) => [remote.name, remote.type]));
         for (const remote of remotes) {
-          expect(view.getAllByText(remote.name).length).toBeGreaterThanOrEqual(1);
-          expect(view.getAllByText(remote.type).length).toBeGreaterThanOrEqual(1);
+          expect(within(container).getByLabelText(`Delete remote ${remote.name}`)).toHaveRole('button');
         }
-
-        unmount();
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 });

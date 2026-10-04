@@ -50,29 +50,28 @@ const ACTION_LABELS = ['Keep Local', 'Keep Remote', 'Keep Both', 'Dismiss'];
 
 describe('Conflict list rendering completeness', () => {
   it("for any non-empty unresolved Conflict array, the rendered list contains each conflict's file_path and its four actions", () => {
+    // Mounted once and rerendered per run: a fresh mount and role queries per
+    // run took over 3 s for 30 runs under coverage on a loaded machine.
+    const List = ({ conflicts }: { conflicts: Conflict[] }) => (
+      <I18nProvider><ConflictList conflicts={conflicts} onResolve={vi.fn()} /></I18nProvider>
+    );
+    const { container, rerender } = render(<List conflicts={[]} />);
     fc.assert(
       fc.property(uniqueUnresolvedConflictsArb(1, 5), (conflicts: Conflict[]) => {
-        const { unmount, container } = render(
-          <I18nProvider>
-            <ConflictList conflicts={conflicts} onResolve={vi.fn()} />
-          </I18nProvider>
-        );
+        rerender(<List conflicts={conflicts} />);
 
         const view = within(container);
 
         for (const conflict of conflicts) {
           expect(view.getAllByText(conflict.file_path).length).toBeGreaterThanOrEqual(1);
-          const group = view.getByRole('group', { name: `Actions for ${conflict.file_path}` });
-          for (const label of ACTION_LABELS) {
-            expect(within(group).getByRole('button', { name: label })).toBeInTheDocument();
-          }
+          const group = view.getByLabelText(`Actions for ${conflict.file_path}`);
+          expect(group).toHaveRole('group');
+          expect(Array.from(group.querySelectorAll('button'), (b) => b.textContent)).toEqual(ACTION_LABELS);
         }
-
-        unmount();
       }),
       { numRuns: 30 }
     );
-  }, 30000);
+  });
 });
 
 const CONFLICT: Conflict = {
