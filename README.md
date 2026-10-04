@@ -220,11 +220,15 @@ services:
   backend:
     image: ghcr.io/pan-fire/omnisync-backend:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
     ports:
-      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:${OMNISYNC_API_PORT:-8000}:8000"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
+      - OMNISYNC_LOG_FORMAT=${OMNISYNC_LOG_FORMAT:-}
+      - OMNISYNC_LOG_MAX_BYTES=${OMNISYNC_LOG_MAX_BYTES:-}
+      - OMNISYNC_LOG_BACKUPS=${OMNISYNC_LOG_BACKUPS:-}
+      - OMNISYNC_LOG_ACCESS=${OMNISYNC_LOG_ACCESS:-}
       - OMNISYNC_HOST_OS=linux
       - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
       - OMNISYNC_ALLOWED_HOSTS=backend,${OMNISYNC_ALLOWED_HOSTS:-}
@@ -248,7 +252,7 @@ services:
   frontend:
     image: ghcr.io/pan-fire/omnisync-web:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${OMNISYNC_WEB_PORT:-3000}:3000"
     environment:
       - BACKEND_URL=http://backend:8000
       - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
