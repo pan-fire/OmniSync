@@ -1,0 +1,4 @@
+go test fuzz v1
+string("\u001bP+q544e\u001b\\ \u001b_apc\u001b\\ \u001b^pm\u001b\\ \u001bXsos\u001b\\ \u001bc reset")
+string("\u001b[31mINFO")
+string("")

@@ -1,0 +1,4 @@
+go test fuzz v1
+string("日本語のファイル名.txt")
+string("1 KB")
+byte('\x04')

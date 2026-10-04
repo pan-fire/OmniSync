@@ -1,0 +1,4 @@
+go test fuzz v1
+string("a\u001b]52;c;cm0gLXJmIH4=\u0007b\u001b]0;owned\u001b\\c\u001b[2Jd31me\rf\bgh")
+string("ERROR")
+string("Traceback\na\u001b]52;c;cm0gLXJmIH4=\u0007b\u001b]0;owned\u001b\\c\u001b[2Jd31me\rf\bgh")
