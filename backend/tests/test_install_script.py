@@ -581,7 +581,7 @@ def test_ui_password_is_hashed_by_the_web_image(sandbox):
     """The prompt needs a terminal; run the script under a pseudo-terminal."""
     sandbox.publish("0.12.0")
     script = """
-import os, pty, sys
+import os, pty, sys, termios, time
 pid, fd = pty.fork()
 if pid == 0:
     os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
@@ -600,6 +600,12 @@ while True:
     for prompt, reply in replies.items():
         if prompt in pending:
             pending = b""
+            if b"correct horse" in reply:
+                # Type the password only once `read -s` has turned echo
+                # off; typed earlier, the terminal itself would echo it.
+                deadline = time.monotonic() + 10
+                while termios.tcgetattr(fd)[3] & termios.ECHO and time.monotonic() < deadline:
+                    time.sleep(0.01)
             os.write(fd, reply)
 os.waitpid(pid, 0)
 sys.stdout.write(out.decode(errors="replace"))
