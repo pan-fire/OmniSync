@@ -2,15 +2,17 @@ import type { ErrorResponse } from '@/types';
 
 // The error envelope shared by the backend and this server's own /api and
 // /auth answers (docs/api-errors.md):
-//   { "detail": "<message>", "code": "<snake_case>", "details": { ... } }
+//   { "detail": "<message>", "code": "<snake_case>", "details": { ... }, "request_id": "<id>" }
 
 export type ErrorDetails = Record<string, unknown>;
 
 /** A parsed error answer. `code` is missing only for a body that is not an envelope. */
 export type ParsedApiError = {
-  message:  string;
-  code?:    string;
-  details?: ErrorDetails;
+  message:    string;
+  code?:      string;
+  details?:   ErrorDetails;
+  /** The backend's id of the request; its log lines carry it. */
+  requestId?: string;
 };
 
 function isRecord (value: unknown): value is Record<string, unknown> {
@@ -23,9 +25,10 @@ export function parseApiError (status: number, body: unknown): ParsedApiError {
     return { message: `Request failed (${status})` };
   }
   return {
-    message: body.detail,
-    code:    typeof body.code === 'string' ? body.code : undefined,
-    details: isRecord(body.details) ? body.details : undefined,
+    message:   body.detail,
+    code:      typeof body.code === 'string' ? body.code : undefined,
+    details:   isRecord(body.details) ? body.details : undefined,
+    requestId: typeof body.request_id === 'string' && body.request_id ? body.request_id : undefined,
   };
 }
 

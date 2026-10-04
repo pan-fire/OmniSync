@@ -144,6 +144,7 @@ func TestExitCodes_FollowTheBackendAnswer(t *testing.T) {
 		{[]string{"conflicts", "resolve", "5"}, cli.ExitUsage},
 		{[]string{"logs", "--level", "LOUD"}, cli.ExitUsage},
 		{[]string{"logs", "--limit", "500"}, cli.ExitUsage},
+		{[]string{"logs", "--category", "secrets"}, cli.ExitUsage},
 		{[]string{"backups", "run", "docs", "x"}, cli.ExitUsage},
 		{[]string{"backups", "restore", "docs", "3", "snap", "--scope", "everything", "--yes"}, cli.ExitUsage},
 	} {
@@ -597,6 +598,23 @@ func TestLogs_LevelLimitAndOrder(t *testing.T) {
 	decodeJSON(t, out, &list)
 	if len(list) != 2 || list[0]["message"] != "oldest" {
 		t.Errorf("--json = %v", list)
+	}
+}
+
+// --category asks the backend for the audit trail or errors; a traceback is
+// printed indented under its entry.
+func TestLogs_CategoryAndTraceback(t *testing.T) {
+	f := newFakeAPI(t)
+	f.on("GET /logs", 200, []map[string]any{
+		{"timestamp": "2026-09-27T08:30:02Z", "level": "ERROR", "message": "Sync crashed", "logger": "backend.engine",
+			"request_id": "abcdef123456", "exc": "Traceback (most recent call last):\nValueError: broken"},
+	})
+	out, _, code := f.run("logs", "--category", "Errors")
+	if code != 0 || !strings.Contains(out, "Sync crashed\n    Traceback (most recent call last):\n    ValueError: broken\n") {
+		t.Errorf("exit %d:\n%s", code, out)
+	}
+	if q := f.last("GET", "/logs").Query; q != "category=errors&limit=50&skip=0" {
+		t.Errorf("query = %q", q)
 	}
 }
 

@@ -370,7 +370,8 @@ The API is reachable from this machine only, and every request needs a token:
   (`openssl rand -hex 32`); a shorter `OMNISYNC_API_TOKEN` still works but
   logs a warning at every start.
 - **Failed logins:** a request with a wrong token is logged with the client
-  address (at most one line per address and minute). After 10 wrong tokens
+  address (the audit event `auth.token_rejected`, at most one line per
+  address and minute). After 10 wrong tokens
   within a minute that address gets `429 Too Many Requests` for every request
   without the right token (except `/health`) for a minute; requests with the
   right token always pass, so the web UI and other clients keep working.
@@ -642,7 +643,11 @@ directly):
 | `OMNISYNC_OAUTH_REDIRECT_URI` | derived | OAuth callback URL for your own OAuth apps. Unset: built from the web UI's `X-Forwarded-*` headers, else from the request address. Set: every sign-in uses it |
 | `OMNISYNC_DB_PATH` | `/data/omnisync/omnisync.db` | SQLite database |
 | `OMNISYNC_CONFIG_PATH` | `/data/omnisync/config.toml` | Global settings and notification channels (may hold channel credentials) |
-| `OMNISYNC_LOG_PATH` | `/data/omnisync/omnisync.log` | Log file (rotated at 5 MB, 3 kept) shown on the Logs page |
+| `OMNISYNC_LOG_PATH` | `/data/omnisync/omnisync.log` | Log file (owner-only, mode 0600) shown on the Logs page; see [Logs](docs/gem/operations.md#logs) |
+| `OMNISYNC_LOG_FORMAT` | `text` | `json` writes one JSON object per line (`ts`, `level`, `logger`, `msg`, `exc`, `request_id`, `fields`) for Loki, Elastic and the like |
+| `OMNISYNC_LOG_MAX_BYTES` | `5242880` (5 MB) | Size at which the log file is rotated |
+| `OMNISYNC_LOG_BACKUPS` | `3` | Rotated log files kept (`omnisync.log.1` ...) |
+| `OMNISYNC_LOG_ACCESS` | off | `1` also writes uvicorn's access log (one line per request) to the log file; it always goes to `docker logs` |
 | `OMNISYNC_RCLONE_CONFIG` | `/data/omnisync/rclone.conf` | OmniSync's own rclone config |
 | `OMNISYNC_VAPID_DIR` | `/data/omnisync/vapid` | Web Push keys |
 | `OMNISYNC_MAX_DELETE` | `50` | Files one sync may delete before it stops (two-way: per side, checked before the sync) |
@@ -729,7 +734,7 @@ plus scripting subcommands, all with `--json`: `status`, `health`,
 `resync`, `profile show|enable|disable|stop|check|diff|resume|manual-flags`,
 `conflicts` (`resolve ID --keep local|remote|both|dismiss`), `remotes`
 (`test`, `about`), `backups` (`run`, `snapshots`, `restore`, with `--wait`),
-`logs` (`--level`, `--follow`), `notifications test` and `completion
+`logs` (`--level`, `--category`, `--follow`), `notifications test` and `completion
 bash|zsh|fish`. `osync profiles` shows each profile's mode; `osync sync
 <profile>` runs a two-way sync and `osync resync <profile> --yes` a resync
 (without `--yes` it asks in a terminal and refuses otherwise; so does

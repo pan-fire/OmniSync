@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { LOGS_PAGE_SIZE, useLogs } from '@/hooks/use-logs';
-import { LogViewer, type LogLevel } from '@/components/logs/log-viewer';
+import { LogViewer, type LogCategoryFilter, type LogLevel } from '@/components/logs/log-viewer';
 import { PageHelp } from '@/components/layout/page-help';
 import { PageHeader } from '@/components/layout/page-header';
 import { useTranslation } from '@/i18n';
@@ -10,8 +10,9 @@ import { useTranslation } from '@/i18n';
 export default function LogsPage () {
   const { t } = useTranslation();
   const [level, setLevel] = useState<LogLevel>('ALL');
+  const [category, setCategory] = useState<LogCategoryFilter>('all');
   const [page, setPage] = useState(0);
-  const logs = useLogs(page, level);
+  const logs = useLogs(page, level, category);
 
   return (
     <div className="space-y-6">
@@ -27,6 +28,8 @@ export default function LogsPage () {
         isFetching={logs.isFetching}
         level={level}
         onLevelChange={(next) => { setLevel(next); setPage(0); }}
+        category={category}
+        onCategoryChange={(next) => { setCategory(next); setPage(0); }}
         page={page}
         // A full page means there may be older entries.
         hasNext={(logs.data?.length ?? 0) >= LOGS_PAGE_SIZE}

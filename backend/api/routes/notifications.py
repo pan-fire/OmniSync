@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error
 from backend.api.schemas import (
     ChannelConfig,
@@ -180,6 +181,7 @@ def _merged_settings(name: str, current: BaseModel | None, update: ChannelConfig
 
 
 @router.put("/config", response_model=NotificationConfigResponse, response_model_exclude_none=True)
+@audited("notifications.update", lambda kw: {"channels": sorted(kw["request"].channels or {})})
 async def update_notification_config(
     request: NotificationConfigUpdateRequest,
 ) -> NotificationConfigResponse:
@@ -269,6 +271,7 @@ async def get_vapid_public_key() -> VapidPublicKeyResponse:
 
 
 @router.post("/push-subscription", status_code=201)
+@audited("notifications.push_subscribe")
 async def subscribe_push(request: PushSubscriptionRequest, response: Response) -> dict[str, str]:
     """Register a browser push subscription (idempotent: a known endpoint is updated)."""
     webpush = _get_webpush()
@@ -284,6 +287,7 @@ async def subscribe_push(request: PushSubscriptionRequest, response: Response) -
 
 
 @router.delete("/push-subscription")
+@audited("notifications.push_unsubscribe")
 async def unsubscribe_push(request: PushUnsubscribeRequest) -> dict[str, str]:
     """Remove a browser push subscription."""
     webpush = _get_webpush()

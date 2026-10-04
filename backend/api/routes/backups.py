@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, ApiError, api_error
 from backend.api.schemas import (
     BackupJobResponse,
@@ -279,6 +280,7 @@ async def _check_encryption_change(svc: BackupService, target_path: str) -> None
 
 
 @router.post("", status_code=201, response_model=BackupTargetResponse)
+@audited("backup.target_create", lambda kw: {"name": kw["request"].name, "type": kw["request"].target_type, "encrypted": bool(kw["request"].encryption_passphrase)}, profile="slug")
 async def create_backup_target(
     slug: str, request: BackupTargetCreateRequest,
 ) -> BackupTargetResponse:
@@ -354,6 +356,7 @@ async def get_backup_target(slug: str, target_id: int) -> BackupTargetResponse:
 
 
 @router.put("/{target_id}", response_model=BackupTargetResponse)
+@audited("backup.target_update", lambda kw: {"fields": sorted(kw["request"].model_fields_set)}, profile="slug", target="target_id")
 async def update_backup_target(
     slug: str, target_id: int, request: BackupTargetUpdateRequest,
 ) -> BackupTargetResponse:
@@ -411,6 +414,7 @@ async def update_backup_target(
 
 
 @router.delete("/{target_id}", status_code=204)
+@audited("backup.target_delete", profile="slug", target="target_id")
 async def delete_backup_target(
     slug: str,
     target_id: int,
@@ -434,6 +438,7 @@ def _busy(exc: SyncBusyError) -> ApiError:
 
 
 @router.post("/{target_id}/run", status_code=202, response_model=BackupJobResponse)
+@audited("backup.run", profile="slug", target="target_id")
 async def run_backup_now(slug: str, target_id: int) -> BackupJobResponse:
     """Start a backup; answers 202 with the running job (follow it with GET .../jobs/{job_id}).
 
@@ -482,6 +487,7 @@ async def list_snapshots(slug: str, target_id: int) -> list[SnapshotResponse]:
 
 
 @router.post("/{target_id}/restore", status_code=202, response_model=BackupJobResponse)
+@audited("backup.restore", lambda kw: {"snapshot": kw["request"].snapshot_id, "scope": kw["request"].restore_scope}, profile="slug", target="target_id")
 async def restore_from_snapshot(
     slug: str, target_id: int, request: RestoreRequest,
 ) -> BackupJobResponse:
@@ -587,6 +593,7 @@ async def preview_restore(slug: str, target_id: int, request: RestoreRequest) ->
 
 
 @router.post("/{target_id}/restore-files", status_code=202, response_model=BackupJobResponse)
+@audited("backup.restore_files", lambda kw: {"snapshot": kw["request"].snapshot_id, "files": len(kw["request"].paths), "elsewhere": kw["request"].target_dir is not None}, profile="slug", target="target_id")
 async def restore_snapshot_files(slug: str, target_id: int, request: RestoreFilesRequest) -> BackupJobResponse:
     """Restore chosen files and folders of a snapshot, to their place or into another local folder.
 

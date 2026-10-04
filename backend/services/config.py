@@ -11,6 +11,7 @@ import toml
 
 from backend.api.schemas import GlobalConfigResponse, GlobalConfigUpdateRequest
 from backend.exceptions import ConfigError
+from backend.logging_setup import apply_level
 from backend.security import atomic_write_file
 
 logger = logging.getLogger(__name__)
@@ -21,15 +22,17 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 
 def apply_log_level(level: str | None) -> None:
-    """Set the level of the "backend" logger, which all app logging goes through.
+    """Set the level of OmniSync's own loggers ("backend.*").
 
-    An unknown level (e.g. a hand-edited config.toml) falls back to INFO.
+    Libraries log warnings and errors only, unless the level is DEBUG; the
+    audit trail is always recorded (backend.logging_setup.apply_level). An
+    unknown level (e.g. a hand-edited config.toml) falls back to INFO.
     """
     name = (level or "INFO").upper()
     if name not in LOG_LEVELS:
         logger.warning("Unknown log_level %r in config; using INFO", level)
         name = "INFO"
-    logging.getLogger("backend").setLevel(name)
+    apply_level(name)
 
 
 def _holds_secrets(data: dict) -> bool:

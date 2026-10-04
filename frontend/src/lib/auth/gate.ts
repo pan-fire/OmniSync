@@ -23,6 +23,7 @@ import {
 } from './session';
 import { LoginThrottle } from './throttle';
 import { errorBody } from '@/lib/api-error';
+import { logServerEvent } from '@/lib/server-log';
 
 // The login, run inside src/proxy.ts: session checks for every request it
 // sees, and the UI server's own /auth/* endpoints. See config.ts for the
@@ -76,25 +77,25 @@ function warnOnce (key: string, log: () => void): void {
 function checkSettings (settings: AuthSettings): void {
   const rawSecret = process.env.OMNISYNC_UI_SESSION_SECRET ?? '';
   if (rawSecret && rawSecret.length < MIN_SECRET_LENGTH) {
-    warnOnce('short-secret', () => console.error(
-      `[auth] OMNISYNC_UI_SESSION_SECRET is shorter than ${MIN_SECRET_LENGTH} characters and is ignored; use \`openssl rand -hex 32\`.`
+    warnOnce('short-secret', () => logServerEvent('ERROR', 'auth.config',
+      `OMNISYNC_UI_SESSION_SECRET is shorter than ${MIN_SECRET_LENGTH} characters and is ignored; use \`openssl rand -hex 32\`.`
     ));
   }
   if (settings.mode === 'hash' && process.env.OMNISYNC_UI_PASSWORD) {
-    warnOnce('both', () => console.warn('[auth] Both OMNISYNC_UI_PASSWORD_HASH and OMNISYNC_UI_PASSWORD are set; the hash is used.'));
+    warnOnce('both', () => logServerEvent('WARNING', 'auth.config', 'Both OMNISYNC_UI_PASSWORD_HASH and OMNISYNC_UI_PASSWORD are set; the hash is used.'));
   }
   if (settings.mode === 'hash' && !isValidHash(settings.passwordHash)) {
-    warnOnce('bad-hash', () => console.error(
-      '[auth] OMNISYNC_UI_PASSWORD_HASH is not a hash made by scripts/hash-password.mjs; every login is refused.'
+    warnOnce('bad-hash', () => logServerEvent('ERROR', 'auth.config',
+      'OMNISYNC_UI_PASSWORD_HASH is not a hash made by scripts/hash-password.mjs; every login is refused.'
     ));
   }
   if (settings.mode === 'plain') {
-    warnOnce('plain', () => console.warn(
-      '[auth] OMNISYNC_UI_PASSWORD holds the password in plain text; prefer OMNISYNC_UI_PASSWORD_HASH (node scripts/hash-password.mjs).' +
+    warnOnce('plain', () => logServerEvent('WARNING', 'auth.config',
+      'OMNISYNC_UI_PASSWORD holds the password in plain text; prefer OMNISYNC_UI_PASSWORD_HASH (node scripts/hash-password.mjs).' +
       (settings.sessionSecret ? '' : ' Without OMNISYNC_UI_SESSION_SECRET, restarting the UI signs everyone out.')
     ));
     if (settings.password.length < 12) {
-      warnOnce('short-password', () => console.warn('[auth] OMNISYNC_UI_PASSWORD is shorter than 12 characters.'));
+      warnOnce('short-password', () => logServerEvent('WARNING', 'auth.config', 'OMNISYNC_UI_PASSWORD is shorter than 12 characters.'));
     }
   }
 }
@@ -294,7 +295,9 @@ async function login (request: NextRequest, settings: AuthSettings, isAllowedHos
   const client = clientAddress(request);
   const wait = throttle.check(client);
   if (wait > 0) {
-    console.warn(`[auth] Login attempt from ${client} refused: throttled for ${Math.ceil(wait / 1000)} s`);
+    logServerEvent('WARNING', 'auth.login_throttled', 'Login attempt refused: throttled', {
+      client, retry_after: Math.ceil(wait / 1000),
+    });
     return throttled(wait);
   }
 
@@ -303,13 +306,18 @@ async function login (request: NextRequest, settings: AuthSettings, isAllowedHos
     matches = await passwordMatches(password, settings);
   } catch (error) {
     throttle.release();
-    console.error('[auth] Password check failed:', error instanceof Error ? error.message : error);
+    // The error's kind only: its text is not needed, and must never risk the password.
+    logServerEvent('ERROR', 'auth.login_error', 'Password check failed', {
+      client, error: error instanceof Error ? error.name : typeof error,
+    });
     return NextResponse.json(errorBody('login_failed', 'Login failed.'), { status: 500 });
   }
 
   if (!matches) {
     const lockMs = throttle.failure(client);
-    console.warn(`[auth] Failed login from ${client}`);
+    logServerEvent('WARNING', 'auth.login_failed', 'Failed login', {
+      client, retry_after: lockMs > 0 ? Math.ceil(lockMs / 1000) : undefined,
+    });
     return NextResponse.json(
       errorBody('invalid_password', 'Wrong password.', {
         retry_after: lockMs > 0 ? Math.ceil(lockMs / 1000) : undefined,
@@ -319,7 +327,7 @@ async function login (request: NextRequest, settings: AuthSettings, isAllowedHos
   }
 
   throttle.success(client);
-  console.info(`[auth] Login from ${client}`);
+  logServerEvent('INFO', 'auth.login', 'Login', { client });
   const { token } = createSessionToken(sessionKey(settings), { lifetimeMs: settings.sessionMs });
   const response = NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
   setSessionCookie(response, token, settings, isSecureRequest(request, isAllowedHost));
@@ -335,7 +343,7 @@ function logout (request: NextRequest, settings: AuthSettings): NextResponse {
       const auth = state();
       auth.revoked.prune();
       auth.revoked.revoke(session.id, Math.floor((Date.now() + settings.sessionMs) / 1000));
-      console.info(`[auth] Logout from ${clientAddress(request)}`);
+      logServerEvent('INFO', 'auth.logout', 'Logout', { client: clientAddress(request) });
     }
   }
   const response = new NextResponse(null, { status: 204, headers: { 'cache-control': 'no-store' } });

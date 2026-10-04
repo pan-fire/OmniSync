@@ -140,7 +140,7 @@ def responses() -> dict[str, BaseModel]:
         "ResumeIntervalsResponse": s.ResumeIntervalsResponse(detail="Intervals resumed"),
         "ErrorResponse": s.ErrorResponse(
             detail="Remotes with these names exist already: gdrive", code="name_clash",
-            details={"names": ["gdrive"]},
+            details={"names": ["gdrive"]}, request_id="3f9c1a2b4d5e6f70",
         ),
         "SyncJobResponse": s.SyncJobResponse(
             id=42, direction=s.JobDirection.TWO_WAY, started_at=T1, finished_at=T2,
@@ -190,7 +190,10 @@ def responses() -> dict[str, BaseModel]:
                 s.RemoteDependencyBackupTarget(profile_slug="docs", target_name="Nightly", target_id=3),
             ],
         ),
-        "LogEntryResponse": s.LogEntryResponse(timestamp=T1, level="WARNING", message="disk almost full"),
+        "LogEntryResponse": s.LogEntryResponse(
+            timestamp=T1, level="WARNING", message="disk almost full", logger="backend.services.sync_engine",
+            request_id="3f9c1a2b4d5e6f70", exc="Traceback (most recent call last):\nOSError: no space left",
+        ),
         "ProviderResponse": s.ProviderResponse(
             id="s3", display_name="Amazon S3", icon="s3", auth_type=s.AuthType.KEY,
             fields=[

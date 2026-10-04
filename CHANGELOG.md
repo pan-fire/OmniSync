@@ -12,6 +12,52 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **One log for the whole backend.** Besides OmniSync's own lines, the log
+  file and `docker compose logs backend` now get uvicorn's start, stop and
+  errors, warnings and errors of the libraries OmniSync uses, and every
+  unhandled exception with its traceback (in a request, a background task
+  or a thread). The Logs page shows a traceback under the entry's
+  **Details**; `osync logs` prints it indented under the entry. See
+  [Logs](docs/gem/operations.md#logs).
+- **Audit trail.** User actions (syncs and pauses, profile, remote and
+  backup target changes, backup runs and restores, trash and conflict
+  actions, notification settings, log level changes, rejected API tokens)
+  are recorded in the log by `backend.audit`, with the outcome, the request
+  id and the client address, names and ids only. The Logs page, the
+  terminal UI's Logs view (`c`) and `osync logs --category audit|errors`
+  filter by category; `GET /logs` takes `category=audit|errors` and returns
+  each entry's `logger`, `request_id` and `exc`.
+- **Request ids.** Every API answer carries an `X-Request-ID` header and
+  every error answer a `request_id`; the log lines written for the request
+  carry the same id. Server error messages in the web UI and the terminal UI
+  end in the id, so a problem can be found in the log.
+- **JSON log lines** with `OMNISYNC_LOG_FORMAT=json` (`ts`, `level`,
+  `logger`, `msg`, `exc`, `request_id`, `fields`), for Loki, Elastic and
+  other log shippers. `OMNISYNC_LOG_MAX_BYTES` and `OMNISYNC_LOG_BACKUPS`
+  set the rotation (still 5 MB and 3 files by default);
+  `OMNISYNC_LOG_ACCESS=1` also writes the access log to the file.
+- **Web UI server events** (refused requests, logins, failed and
+  throttled logins, logouts) are logged as JSON lines on its standard
+  output (`docker compose logs frontend`), without passwords, session ids
+  or query strings, and limited to 20 lines a minute per event type.
+
+### Changed
+
+- **Secrets are masked in every log line**, on both outputs and in
+  tracebacks: the API token, Bearer tokens, OAuth tokens, secret-named
+  `name=value` and JSON pairs, credentials in URLs, backup passphrases,
+  notification passwords and tokens. Before, only rclone command lines and
+  errors were masked.
+- The log file is created owner-only (mode 0600); an existing file and its
+  rotated copies are tightened on the next start.
+- At log level DEBUG, SQL statements and outgoing HTTP request URLs stay
+  out of the log.
+- A rejected API token is logged as the audit event `auth.token_rejected`
+  (still at most once per client address and minute) instead of a
+  `backend.security` warning.
+
 ## [0.11.0] - 2026-10-03
 
 ### Breaking changes and upgrade notes

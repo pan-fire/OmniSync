@@ -14,9 +14,19 @@ import type { LogEntry } from '@/types';
 const LOG_LEVELS = ['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/** 'all', the audit trail of user actions (backend.audit), or ERROR/CRITICAL entries. */
+const LOG_CATEGORIES = ['all', 'audit', 'errors'] as const;
+export type LogCategoryFilter = (typeof LOG_CATEGORIES)[number];
+const CATEGORY_LABELS: Record<LogCategoryFilter, string> = {
+  all:    'logs.categoryAll',
+  audit:  'logs.categoryAudit',
+  errors: 'logs.categoryErrors',
+};
+
 function getLevelVariant (level: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (level.toUpperCase()) {
     case 'ERROR':
+    case 'CRITICAL':
       return 'destructive';
     case 'WARNING':
       return 'default';
@@ -45,23 +55,27 @@ export function sortLogsReverseChronological (logs: LogEntry[]): LogEntry[] {
 }
 
 interface LogViewerProps {
-  logs:           LogEntry[] | undefined;
-  onRefresh:      () => void;
-  isLoading?:     boolean;
-  isError?:       boolean;
-  isFetching?:    boolean;
+  logs:              LogEntry[] | undefined;
+  onRefresh:         () => void;
+  isLoading?:        boolean;
+  isError?:          boolean;
+  isFetching?:       boolean;
   /** Controlled level filter; without it the viewer filters on its own. */
-  level?:         LogLevel;
-  onLevelChange?: (level: LogLevel) => void;
+  level?:            LogLevel;
+  onLevelChange?:    (level: LogLevel) => void;
+  /** Category filter (applied by the server); without onCategoryChange there is no control. */
+  category?:         LogCategoryFilter;
+  onCategoryChange?: (category: LogCategoryFilter) => void;
   /** Paging (0-based page, newest first); without onPageChange there are no page controls. */
-  page?:          number;
-  hasNext?:       boolean;
-  onPageChange?:  (page: number) => void;
+  page?:             number;
+  hasNext?:          boolean;
+  onPageChange?:     (page: number) => void;
 }
 
 export function LogViewer ({
   logs, onRefresh, isLoading, isError, isFetching,
-  level: controlledLevel, onLevelChange, page = 0, hasNext = false, onPageChange,
+  level: controlledLevel, onLevelChange, category = 'all', onCategoryChange,
+  page = 0, hasNext = false, onPageChange,
 }: LogViewerProps) {
   const { t, locale } = useTranslation();
   const [ownLevel, setOwnLevel] = useState<LogLevel>('ALL');
@@ -73,16 +87,29 @@ export function LogViewer ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Tabs value={level} onValueChange={(v) => setLevel(v as LogLevel)}>
-          <TabsList>
-            {LOG_LEVELS.map((l) => (
-              <TabsTrigger key={l} value={l}>
-                {t(`logs.${l.toLowerCase()}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs value={level} onValueChange={(v) => setLevel(v as LogLevel)}>
+            <TabsList aria-label={t('logs.filterLevel')}>
+              {LOG_LEVELS.map((l) => (
+                <TabsTrigger key={l} value={l}>
+                  {t(`logs.${l.toLowerCase()}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          {onCategoryChange && (
+            <Tabs value={category} onValueChange={(v) => onCategoryChange(v as LogCategoryFilter)}>
+              <TabsList aria-label={t('logs.category')}>
+                {LOG_CATEGORIES.map((c) => (
+                  <TabsTrigger key={c} value={c}>
+                    {t(CATEGORY_LABELS[c])}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
+        </div>
         <Button variant="outline" size="sm" onClick={onRefresh} disabled={isFetching}>
           <RefreshCw className={cn('me-2 h-4 w-4', isFetching && 'animate-spin')} aria-hidden="true" />
           {t('logs.refresh')}
@@ -122,8 +149,25 @@ export function LogViewer ({
                 <Badge variant={getLevelVariant(entry.level)} className="shrink-0">
                   {entry.level}
                 </Badge>
-                {/* Backend messages are English and full of paths. */}
-                <span className="break-all" dir="auto">{entry.message}</span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {/* Backend messages are English and full of paths. */}
+                  <span className="break-all" dir="auto">{entry.message}</span>
+                  {(entry.logger || entry.request_id) && (
+                    <p className="text-muted-foreground font-mono text-xs" dir="ltr">
+                      {entry.logger}
+                      {entry.logger && entry.request_id ? ' · ' : ''}
+                      {entry.request_id ? t('logs.requestId', { id: entry.request_id }) : ''}
+                    </p>
+                  )}
+                  {entry.exc && (
+                    <details>
+                      <summary className="text-muted-foreground cursor-pointer text-xs">
+                        {t('logs.details', { n: entry.exc.split('\n').length })}
+                      </summary>
+                      <pre className="bg-muted mt-1 overflow-x-auto rounded p-2 text-xs" dir="ltr">{entry.exc}</pre>
+                    </details>
+                  )}
+                </div>
               </div>
             ))}
           </div>

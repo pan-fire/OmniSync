@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from typing import Any
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -10,6 +12,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error, failed_test_sync, public_test_sync_result
 from backend.api.schemas import (
     DiffResponse,
@@ -72,6 +75,12 @@ from backend.services.trash import apply_to_trash, list_trash
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
+
+
+def _trash_fields(kwargs: Mapping[str, Any]) -> dict[str, object]:
+    """Audit fields of a trash action: which side and how many items (not their paths)."""
+    request: TrashActionRequest = kwargs["request"]
+    return {"side": request.side, "items": len(request.ids), "overwrite": request.overwrite}
 
 _manager: SyncEngineManager | None = None
 _profile_service: ProfileService | None = None
@@ -195,6 +204,7 @@ def _check_browse_roots(local_dir: str) -> None:
 
 
 @router.post("", status_code=201, response_model=ProfileResponse)
+@audited("profile.create", lambda kw: {"name": kw["request"].name})
 async def create_profile(request: ProfileCreateRequest) -> ProfileResponse:
     svc = _get_profile_service()
     _get_manager()
@@ -209,6 +219,7 @@ async def create_profile(request: ProfileCreateRequest) -> ProfileResponse:
 
 
 @router.post("/pause-all", response_model=PauseAllResponse)
+@audited("sync.pause_all")
 async def pause_all_profiles() -> PauseAllResponse:
     """Pause automatic syncing of every enabled profile ("Paused by user").
 
@@ -233,6 +244,7 @@ async def pause_all_profiles() -> PauseAllResponse:
 
 
 @router.post("/resume-all", response_model=PauseAllResponse)
+@audited("sync.resume_all")
 async def resume_all_profiles() -> PauseAllResponse:
     """Lift the user's pause of every profile (pause-all, or a profile's own Pause).
 
@@ -284,6 +296,7 @@ async def get_profile(slug: str) -> ProfileStatusResponse:
 
 
 @router.put("/{slug}", response_model=ProfileResponse)
+@audited("profile.update", lambda kw: {"fields": sorted(kw["request"].model_fields_set)}, profile="slug")
 async def update_profile(slug: str, request: ProfileUpdateRequest) -> ProfileResponse:
     svc = _get_profile_service()
     _get_manager()
@@ -325,6 +338,7 @@ async def update_profile(slug: str, request: ProfileUpdateRequest) -> ProfileRes
 
 
 @router.delete("/{slug}", status_code=204)
+@audited("profile.delete", profile="slug")
 async def delete_profile(slug: str, confirm: bool = Query(False)) -> Response:
     if not confirm:
         raise api_error(400, "confirmation_required", "Pass ?confirm=true to delete a profile")
@@ -344,6 +358,7 @@ async def delete_profile(slug: str, confirm: bool = Query(False)) -> Response:
 
 
 @router.post("/{slug}/enable", response_model=ProfileResponse)
+@audited("profile.enable", profile="slug")
 async def enable_profile(slug: str) -> ProfileResponse:
     svc = _get_profile_service()
     _get_manager()
@@ -358,6 +373,7 @@ async def enable_profile(slug: str) -> ProfileResponse:
 
 
 @router.post("/{slug}/disable", response_model=ProfileResponse)
+@audited("profile.disable", profile="slug")
 async def disable_profile(slug: str) -> ProfileResponse:
     svc = _get_profile_service()
     mgr = _get_manager()
@@ -420,6 +436,7 @@ async def _launch_sync(
     "/{slug}/sync/start", status_code=202, response_model=SyncStartResponse,
     responses={200: {"model": SyncStartResponse, "description": "The run ended before changing anything"}},
 )
+@audited("sync.start", lambda kw: {"direction": kw["request"].direction, "force": kw["request"].force}, profile="slug")
 async def start_profile_sync(slug: str, request: SyncStartRequest, response: Response) -> SyncStartResponse:
     """Start a push, pull or two-way sync; answers 202 while it runs (see _launch_sync).
 
@@ -457,6 +474,7 @@ async def start_profile_sync(slug: str, request: SyncStartRequest, response: Res
     "/{slug}/sync/resync", status_code=202, response_model=SyncStartResponse,
     responses={200: {"model": SyncStartResponse, "description": "The run ended before changing anything"}},
 )
+@audited("sync.resync", profile="slug")
 async def resync_profile(slug: str, request: ResyncRequest, response: Response) -> SyncStartResponse:
     """Confirmed two-way resync: the union of both folders, nothing deleted.
 
@@ -475,6 +493,7 @@ async def resync_profile(slug: str, request: ResyncRequest, response: Response) 
 
 
 @router.post("/{slug}/sync/stop", response_model=SyncStopResponse)
+@audited("sync.stop", profile="slug")
 async def stop_profile_sync(slug: str) -> SyncStopResponse:
     engine = await _engine_for(slug)
     # Stops the running rclone (the job is recorded as failed); the watcher
@@ -525,6 +544,7 @@ async def get_profile_diff(
 
 
 @router.post("/{slug}/sync/selective", status_code=202, response_model=SelectiveSyncResponse)
+@audited("sync.selective", lambda kw: {"items": len(kw["request"].items)}, profile="slug")
 async def profile_selective_sync(slug: str, request: SelectiveSyncRequest) -> SelectiveSyncResponse:
     """Start per-file actions on the cached diff; answers 202 (status "running") at once.
 
@@ -567,6 +587,7 @@ async def profile_selective_result(
 
 
 @router.post("/{slug}/sync/pause", response_model=ResumeIntervalsResponse)
+@audited("sync.pause", profile="slug")
 async def profile_pause(slug: str) -> ResumeIntervalsResponse:
     """Pause automatic syncing of this profile for the user (see pause-all); resume-intervals lifts it."""
     engine = await _engine_for(slug)
@@ -575,6 +596,7 @@ async def profile_pause(slug: str) -> ResumeIntervalsResponse:
 
 
 @router.post("/{slug}/sync/resume-intervals", response_model=ResumeIntervalsResponse)
+@audited("sync.resume", profile="slug")
 async def profile_resume_intervals(slug: str) -> ResumeIntervalsResponse:
     engine = await _engine_for(slug)
     try:
@@ -713,6 +735,7 @@ async def _trash_action(slug: str, action: str, request: TrashActionRequest) -> 
 
 
 @router.post("/{slug}/trash/restore", response_model=TrashActionResponse)
+@audited("trash.restore", _trash_fields, profile="slug")
 async def restore_from_trash(slug: str, request: TrashActionRequest) -> TrashActionResponse:
     """Move trashed files back to where they were.
 
@@ -725,6 +748,7 @@ async def restore_from_trash(slug: str, request: TrashActionRequest) -> TrashAct
 
 
 @router.post("/{slug}/trash/delete", response_model=TrashActionResponse)
+@audited("trash.delete", _trash_fields, profile="slug")
 async def delete_from_trash(slug: str, request: TrashActionRequest) -> TrashActionResponse:
     """Delete trashed files for good."""
     return await _trash_action(slug, "delete", request)

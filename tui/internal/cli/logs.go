@@ -20,15 +20,20 @@ var LogsPollInterval = 2 * time.Second
 // logLevels are the levels the backend filters by.
 var logLevels = []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
+// logCategories are the categories the backend filters by.
+var logCategories = []string{"audit", "errors"}
+
 // maxLogPage is the backend's largest page of log entries.
 const maxLogPage = 200
 
 func logsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "logs [--level LEVEL] [--limit N] [--follow]",
+		Use:   "logs [--level LEVEL] [--category audit|errors] [--limit N] [--follow]",
 		Short: "Show the backend's log (newest last); --follow keeps printing new entries",
 		Long: "Show the last entries of the backend's log, oldest first. --level shows only one level\n" +
-			"(DEBUG, INFO, WARNING, ERROR or CRITICAL). --follow keeps asking for new entries every few\n" +
+			"(DEBUG, INFO, WARNING, ERROR or CRITICAL); --category audit shows the audit trail of user\n" +
+			"actions, --category errors the ERROR and CRITICAL entries. Tracebacks are printed indented\n" +
+			"under their entry. --follow keeps asking for new entries every few\n" +
 			"seconds until Ctrl+C. With --json the entries are a JSON array, or with --follow one JSON\n" +
 			"object per line.",
 		Args: usageArgs(cobra.NoArgs),
@@ -38,13 +43,18 @@ func logsCmd() *cobra.Command {
 			if level != "" && !contains(logLevels, level) {
 				return usagef("--level must be one of %s", strings.Join(logLevels, ", "))
 			}
+			category, _ := cmd.Flags().GetString("category")
+			category = strings.ToLower(strings.TrimSpace(category))
+			if category != "" && !contains(logCategories, category) {
+				return usagef("--category must be one of %s", strings.Join(logCategories, ", "))
+			}
 			limit, _ := cmd.Flags().GetInt("limit")
 			if limit < 1 || limit > maxLogPage {
 				return usagef("--limit must be between 1 and %d", maxLogPage)
 			}
 			follow, _ := cmd.Flags().GetBool("follow")
 			client := newClientFromFlags(cmd)
-			entries, err := client.GetLogsLevel(cmd.Context(), 0, limit, level)
+			entries, err := client.GetLogsFiltered(cmd.Context(), 0, limit, level, category)
 			if err != nil {
 				return fmt.Errorf("failed to read the log: %w", err)
 			}
@@ -62,13 +72,15 @@ func logsCmd() *cobra.Command {
 				}
 				return nil
 			}
-			return followLogs(cmd, client, level, entries)
+			return followLogs(cmd, client, level, category, entries)
 		},
 	}
 	cmd.Flags().String("level", "", "Only entries of this level: DEBUG, INFO, WARNING, ERROR or CRITICAL")
+	cmd.Flags().String("category", "", "Only the audit trail (audit) or errors (errors)")
 	cmd.Flags().Int("limit", 50, "Number of entries to show (1-200)")
 	cmd.Flags().BoolP("follow", "f", false, "Keep printing new entries until Ctrl+C")
 	_ = cmd.RegisterFlagCompletionFunc("level", fixedCompletion(logLevels...))
+	_ = cmd.RegisterFlagCompletionFunc("category", fixedCompletion(logCategories...))
 	return cmd
 }
 
@@ -89,6 +101,11 @@ func reverse[T any](s []T) {
 
 func printLogEntry(w io.Writer, e api.LogEntryResponse) {
 	_, _ = fmt.Fprintf(w, "%s  %-8s %s\n", e.Timestamp, e.Level, e.Message)
+	if e.Exc != "" {
+		for _, line := range strings.Split(e.Exc, "\n") {
+			_, _ = fmt.Fprintf(w, "    %s\n", line)
+		}
+	}
 }
 
 // logCursor remembers what 'logs --follow' printed: the newest timestamp and
@@ -154,7 +171,7 @@ func (c *logCursor) fresh(page []api.LogEntryResponse) []api.LogEntryResponse {
 }
 
 // followLogs prints first, then polls for new entries until interrupted.
-func followLogs(cmd *cobra.Command, client *api.Client, level string, first []api.LogEntryResponse) error {
+func followLogs(cmd *cobra.Command, client *api.Client, level, category string, first []api.LogEntryResponse) error {
 	parent := cmd.Context()
 	if parent == nil {
 		parent = context.Background()
@@ -189,7 +206,7 @@ func followLogs(cmd *cobra.Command, client *api.Client, level string, first []ap
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			page, err := client.GetLogsLevel(ctx, 0, maxLogPage, level)
+			page, err := client.GetLogsFiltered(ctx, 0, maxLogPage, level, category)
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil

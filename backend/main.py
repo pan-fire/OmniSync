@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-import logging.handlers
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import cast
 
 from fastapi import Depends, FastAPI
 
 from backend.api.errors import ERROR_RESPONSES, install_error_handlers
+from backend.api.request_id import RequestIdMiddleware
 from backend.api.routes import backups, browse, config, conflicts, health, jobs, logs, notifications, remotes, sync, wizard
 from backend.api.routes import profiles as profiles_router
 from backend.api.wiring import RouteServices, unwire_routes, wire_routes
@@ -37,52 +36,23 @@ from backend.services.backup_service import BackupService
 from backend.security import BodySizeLimit, TrustedHostGuard, get_api_token, require_api_token
 from backend.services.path_guard import warn_about_stored_paths
 from backend.version import get_version
+from backend.logging_setup import TEXT_FORMAT, configure_logging, install_loop_exception_handler
 
-LOG_FILE = Path(os.environ.get("OMNISYNC_LOG_PATH", "/data/omnisync/omnisync.log"))
-LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-
-
-def _setup_logging() -> None:
-    """Configure logging to write to both stderr and the OmniSync log file.
-
-    The log file is what the /logs endpoint reads from, so without this
-    the Logs page in the UI would always be empty.
-    """
-    # The level is the global log_level setting, applied at startup and on
-    # every change (backend.services.config.apply_log_level); the handlers
-    # pass whatever the logger lets through.
-    root = logging.getLogger("backend")
-    root.setLevel(logging.INFO)
-
-    # Avoid adding duplicate handlers on uvicorn reload
-    if any(isinstance(h, logging.handlers.RotatingFileHandler) for h in root.handlers):
-        return
-
-    # Stream handler (stderr) — so docker logs still work
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(logging.Formatter(LOG_FORMAT))
-    root.addHandler(stream_handler)
-
-    # File handler — rotating, 5 MB max, keep 3 backups
-    # Gracefully skip if the directory can't be created (e.g. outside Docker)
-    try:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.handlers.RotatingFileHandler(
-            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8",
-        )
-        file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
-        root.addHandler(file_handler)
-    except (PermissionError, OSError) as exc:
-        root.warning("Could not set up log file at %s: %s", LOG_FILE, exc)
-
-
-_setup_logging()
+# One logging setup for the whole process (backend/logging_setup.py): the
+# backend, uvicorn and libraries all write to stderr and the log file GET
+# /logs reads, with secrets masked. Runs when uvicorn imports this module,
+# after uvicorn configured its own loggers, so it replaces their handlers.
+LOG_SETTINGS = configure_logging()
+LOG_FILE = LOG_SETTINGS.path
+LOG_FORMAT = TEXT_FORMAT
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: init DB, migrate legacy config, start engines. Shutdown: stop engines."""
+    # A background task that crashes is logged with its traceback.
+    install_loop_exception_handler()
     await init_database()
 
     # Resolve (or generate) the API token now, so a fresh install writes its
@@ -218,7 +188,10 @@ app = FastAPI(
 )
 install_error_handlers(app)
 app.add_middleware(BodySizeLimit)
-app.add_middleware(TrustedHostGuard)  # outermost: foreign hosts are refused first
+app.add_middleware(TrustedHostGuard)  # foreign hosts are refused before anything else runs
+# Outermost: every answer (also a refused host) gets an X-Request-ID, and
+# every line logged during the request carries it.
+app.add_middleware(RequestIdMiddleware)
 
 # Register routers
 app.include_router(health.router)

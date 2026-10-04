@@ -26,9 +26,18 @@ DOC = ROOT / "docs" / "api-errors.md"
 def _assert_envelope(body: dict, code: str) -> None:
     assert isinstance(body["detail"], str) and body["detail"]
     assert body["code"] == code
-    assert set(body) <= {"detail", "code", "details"}
+    assert set(body) <= {"detail", "code", "details", "request_id"}
     if "details" in body:
         assert isinstance(body["details"], dict) and body["details"]
+    if "request_id" in body:
+        assert re.fullmatch(r"[A-Za-z0-9._-]{8,64}", body["request_id"])
+
+
+def _assert_request_id(resp) -> str:
+    """The answer carries the request id in the body and in X-Request-ID."""
+    request_id = resp.json()["request_id"]
+    assert resp.headers["x-request-id"] == request_id
+    return request_id
 
 
 @pytest.fixture
@@ -44,6 +53,7 @@ async def test_route_error_has_code(test_client):
     resp = await test_client.get("/profiles/nope")
     assert resp.status_code == 404
     _assert_envelope(resp.json(), "profile_not_found")
+    _assert_request_id(resp)
     assert resp.json()["detail"] == "Profile 'nope' not found"
 
 
@@ -93,10 +103,18 @@ async def test_middleware_answers_use_the_envelope(bare_client):
     resp = await bare_client.get("/health", headers={"Host": "evil.example"})
     assert resp.status_code == 400
     _assert_envelope(resp.json(), "host_not_allowed")
+    _assert_request_id(resp)
 
     resp = await bare_client.post("/profiles", headers={**AUTH_HEADERS, "content-length": str(10 ** 9)}, content=b"{}")
     assert resp.status_code == 413
     _assert_envelope(resp.json(), "body_too_large")
+    _assert_request_id(resp)
+
+
+async def test_token_errors_carry_the_request_id(bare_client):
+    resp = await bare_client.get("/profiles")
+    assert resp.status_code == 401
+    _assert_request_id(resp)
 
 
 async def test_retired_route_names_its_replacement(test_client):
@@ -128,6 +146,33 @@ async def test_unexpected_exception_and_legacy_details():
 
         resp = await c.get("/legacy")
         assert resp.json() == {"detail": "Taken", "code": "name_clash", "details": {"names": ["a"]}}
+
+
+async def test_unexpected_exception_is_logged_once_with_the_request_id(caplog):
+    """A 500 carries the request id, and the log has the traceback under the same id."""
+    from backend.api.request_id import RequestIdMiddleware
+    from backend.logging_setup import LogRecordFilter
+
+    app = FastAPI()
+    install_error_handlers(app)
+    app.add_middleware(RequestIdMiddleware)
+
+    @app.get("/boom")
+    async def boom() -> None:
+        raise RuntimeError("boom with password=hunter22")
+
+    async with AsyncClient(transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://t") as c:
+        resp = await c.get("/boom", headers={"X-Request-ID": "client-supplied-1"})
+    assert resp.status_code == 500
+    assert _assert_request_id(resp) == "client-supplied-1"
+    [record] = [r for r in caplog.records if r.name == "backend.api.errors"]
+    assert getattr(record, "request_id", None) == "client-supplied-1"
+    assert record.exc_info and "boom" in str(record.exc_info[1])
+    # uvicorn's own report of the same exception is dropped by the log filter.
+    import logging
+    duplicate = logging.LogRecord("uvicorn.error", logging.ERROR, "x", 1, "Exception in ASGI application", None,
+                                  record.exc_info)
+    assert LogRecordFilter().filter(duplicate) is False
 
 
 def test_api_error_is_an_http_exception_with_details():

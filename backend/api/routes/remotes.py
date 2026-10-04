@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error
 from backend.api.schemas import (
     BackupTargetType,
@@ -188,6 +189,7 @@ async def preview_import(request: ImportConfigRequest) -> ImportPreviewResponse:
 
 
 @router.post("/remotes/import", response_model=ImportRemotesResponse)
+@audited("remote.import", lambda kw: {"remotes": [s.name or s.source for s in kw["request"].remotes]})
 async def import_remotes(request: ImportRemotesRequest) -> ImportRemotesResponse:
     """Add the selected remotes of an uploaded rclone.conf, all or none.
 
@@ -294,6 +296,7 @@ async def get_remote_config(name: str) -> RemoteConfigResponse:
 
 
 @router.put("/remotes/{name}")
+@audited("remote.edit", lambda kw: {"fields": sorted(kw["request"].params)}, remote="name")
 async def update_remote(name: str, request: UpdateRemoteRequest) -> dict[str, str]:
     """Change a remote's settings without deleting it.
 
@@ -469,6 +472,7 @@ async def get_remote_dependencies(name: str) -> RemoteDependenciesResponse:
 
 
 @router.delete("/remotes/{name}")
+@audited("remote.delete", remote="name", force="force")
 async def delete_remote(name: str, force: bool = Query(False)) -> dict[str, str]:
     """Delete an rclone remote. Returns 409 if dependencies exist unless force=true."""
     rclone = _get_rclone()

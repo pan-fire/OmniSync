@@ -30,9 +30,12 @@ async def get_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = Query(None),
+    category: Literal["audit", "errors"] | None = Query(
+        None, description="audit: the audit trail of user actions (logger backend.audit); errors: ERROR and CRITICAL.",
+    ),
 ) -> list[LogEntryResponse]:
-    """Return paginated log entries, most recent first, optionally of one level."""
+    """Return paginated log entries, most recent first, optionally of one level or category."""
     if _log_reader is None:
         return []
     # file I/O off the event loop
-    return await asyncio.to_thread(_log_reader.read, skip=skip, limit=limit, level=level)
+    return await asyncio.to_thread(_log_reader.read, skip=skip, limit=limit, level=level, category=category)

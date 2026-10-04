@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Literal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from backend.logging_setup import register_secret
 from backend.api.schemas import BackupTargetType, RestoreScope, SnapshotResponse
 from backend.db.models import BackupJob, BackupTarget, SyncProfile
 from backend.services.notification_dispatcher import NotificationDispatcher
@@ -45,6 +46,7 @@ def crypt_root(target_id: int, target_path: str, obscured_password: str) -> str:
     can be read with any rclone that has a crypt remote with the same
     settings and passphrase.
     """
+    register_secret(obscured_password)  # masked in the log wherever it shows up
     return define_env_remote(target_id, {"type": "crypt", "remote": target_path, "password": obscured_password})
 
 
@@ -94,8 +96,14 @@ class BackupBase:
         return target.target_type == BackupTargetType.LOCAL.value and not target.encryption_password
 
     async def obscure_passphrase(self, passphrase: str) -> str:
-        """rclone's obscured form of a passphrase, as stored in the database."""
-        return await self._rclone.obscure(passphrase)
+        """rclone's obscured form of a passphrase, as stored in the database.
+
+        Both forms are masked in the log from now on.
+        """
+        register_secret(passphrase)
+        obscured = await self._rclone.obscure(passphrase)
+        register_secret(obscured)
+        return obscured
 
     def profile_lock(self, profile_id: int) -> asyncio.Lock:
         """The profile's sync lock, shared with its engine whether or not one runs now.

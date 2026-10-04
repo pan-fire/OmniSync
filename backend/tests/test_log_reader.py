@@ -104,3 +104,111 @@ async def test_logs_route_filters_by_level(test_client, tmp_path: Path, monkeypa
     assert res.status_code == 200
     assert [e["message"] for e in res.json()] == ["message 1"]
     assert (await test_client.get("/logs", params={"level": "LOUD"})).status_code == 422
+
+
+# --- tracebacks, JSON lines, categories -------------------------------------------
+
+TRACEBACK = (
+    "Traceback (most recent call last):\n"
+    '  File "/app/backend/x.py", line 3, in run\n'
+    "    boom()\n"
+    "ValueError: broken\n"
+)
+
+
+def test_traceback_lines_belong_to_the_entry_above(tmp_path: Path) -> None:
+    path = tmp_path / "o.log"
+    path.write_text(
+        line(1)
+        + "2026-09-27 10:00:02,000 - ERROR - backend.engine - [req:abcdef123456] Sync crashed\n"
+        + TRACEBACK
+        + line(3)
+    )
+    newest, crashed, oldest = LogReader(path).read()
+    assert newest.message == "message 3" and newest.exc is None
+    assert crashed.message == "Sync crashed"
+    assert crashed.logger == "backend.engine"
+    assert crashed.request_id == "abcdef123456"
+    assert crashed.exc == TRACEBACK.rstrip("\n")
+    assert oldest.message == "message 1" and oldest.logger == "backend.x"
+
+
+def test_traceback_spanning_chunks(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(log_reader_module, "TAIL_CHUNK", 11)
+    path = tmp_path / "o.log"
+    path.write_text("2026-09-27 10:00:02,000 - ERROR - backend.engine - Sync crashed\n" + TRACEBACK)
+    [entry] = LogReader(path).read()
+    assert entry.exc == TRACEBACK.rstrip("\n")
+
+
+def test_very_long_continuations_are_cut(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(log_reader_module, "MAX_CONTINUATION_LINES", 3)
+    path = tmp_path / "o.log"
+    path.write_text(line(1) + "".join(f"  frame {i}\n" for i in range(10)))
+    [entry] = LogReader(path).read()
+    assert entry.exc == "... (7 more lines)\n  frame 7\n  frame 8\n  frame 9"
+
+
+def test_lines_before_the_first_entry_are_dropped(tmp_path: Path) -> None:
+    path = tmp_path / "o.log"
+    path.write_text("  orphaned frame\n" + line(1))
+    [entry] = LogReader(path).read()
+    assert entry.message == "message 1" and entry.exc is None
+
+
+def _json_line(msg: str, level: str = "INFO", logger: str = "backend.x", **extra: object) -> str:
+    import json
+
+    return json.dumps({"ts": "2026-10-04T09:00:00.123Z", "level": level, "logger": logger, "msg": msg, **extra}) + "\n"
+
+
+def test_json_lines_and_a_switch_between_formats(tmp_path: Path) -> None:
+    path = tmp_path / "o.log"
+    path.write_text(
+        line(1)  # written before OMNISYNC_LOG_FORMAT=json was set
+        + _json_line("json one", request_id="r1234567890", exc="Traceback ...\nValueError: x")
+        + "{not json}\n"
+        + _json_line("json two", level="ERROR", fields={"action": "x"})
+    )
+    two, one, text = LogReader(path).read()
+    assert (two.level, two.message, two.exc) == ("ERROR", "json two", None)
+    assert one.request_id == "r1234567890" and one.exc == "Traceback ...\nValueError: x\n{not json}"
+    assert one.timestamp.tzinfo is not None and one.timestamp.hour == 9
+    assert text.message == "message 1"
+
+
+def test_category_filters(tmp_path: Path) -> None:
+    path = tmp_path / "o.log"
+    path.write_text(
+        _json_line("sync.start profile=a outcome=ok", logger="backend.audit")
+        + line(2, "ERROR")
+        + "2026-09-27 10:00:03,000 - WARNING - backend.audit - profile.delete profile=b outcome=refused\n"
+        + line(4, "CRITICAL")
+        + line(5)
+    )
+    reader = LogReader(path)
+    assert [e.message for e in reader.read(category="audit")] == [
+        "profile.delete profile=b outcome=refused", "sync.start profile=a outcome=ok",
+    ]
+    assert [e.message for e in reader.read(category="errors")] == ["message 4", "message 2"]
+    assert [e.message for e in reader.read(category="audit", level="WARNING")] == [
+        "profile.delete profile=b outcome=refused",
+    ]
+
+
+async def test_logs_route_filters_by_category(test_client, tmp_path: Path, monkeypatch) -> None:
+    from backend.api.routes import logs
+
+    path = tmp_path / "omnisync.log"
+    path.write_text(line(1, "ERROR") + "2026-09-27 10:00:02,000 - INFO - backend.audit - [req:abc12345] x.y outcome=ok\n")
+    monkeypatch.setattr(logs, "_log_reader", LogReader(path))
+    res = await test_client.get("/logs", params={"category": "audit"})
+    assert res.status_code == 200
+    assert res.json() == [{
+        "timestamp": "2026-09-27T10:00:02", "level": "INFO", "message": "x.y outcome=ok",
+        "logger": "backend.audit", "request_id": "abc12345", "exc": None,
+    }]
+    assert [e["message"] for e in (await test_client.get("/logs", params={"category": "errors"})).json()] == [
+        "message 1",
+    ]
+    assert (await test_client.get("/logs", params={"category": "secrets"})).status_code == 422

@@ -182,7 +182,13 @@
     "pagination": "Protokollseiten",
     "newer": "Neuere",
     "older": "Ältere",
-    "page": "Seite {{n}}"
+    "page": "Seite {{n}}",
+    "category": "Nach Kategorie filtern",
+    "categoryAll": "Alle Einträge",
+    "categoryAudit": "Benutzeraktionen",
+    "categoryErrors": "Fehler",
+    "details": "Details ({{n}} Zeilen)",
+    "requestId": "Anfrage {{id}}"
   },
   "conflicts": {
     "title": "Konflikte",
@@ -237,7 +243,7 @@
     },
     "logs": {
       "title": "Protokoll-Hilfe",
-      "content": "Der Protokoll-Viewer zeigt was OmniSync im Hintergrund gemacht hat.\n\n**Nach Ebene filtern:**\n• DEBUG — Detaillierte technische Informationen\n• INFO — Normale Operationen\n• WARNING — Etwas Unerwartetes aber nicht Kritisches\n• ERROR — Etwas ist schiefgelaufen\n\nProtokolle sind nützlich zur Fehlerbehebung wenn Synchronisierungen fehlschlagen."
+      "content": "Der Protokoll-Viewer zeigt was OmniSync im Hintergrund gemacht hat.\n\n**Nach Ebene filtern:**\n• DEBUG — Detaillierte technische Informationen\n• INFO — Normale Operationen\n• WARNING — Etwas Unerwartetes aber nicht Kritisches\n• ERROR — Etwas ist schiefgelaufen\n\n**Nach Kategorie filtern:** Alle Einträge, Benutzeraktionen (gestartete Synchronisierungen, geänderte Profile, gelöschte Remotes, wiederhergestellte Backups, mit der Adresse des Clients) oder nur Fehler.\n\nEine Fehlermeldung der Oberfläche kann mit einer ID enden; der Eintrag mit derselben Anfrage-ID gehört dazu.\n\nProtokolle sind nützlich zur Fehlerbehebung wenn Synchronisierungen fehlschlagen."
     },
     "conflicts": {
       "title": "Konflikte-Hilfe",

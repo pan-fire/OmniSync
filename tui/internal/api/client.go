@@ -195,7 +195,10 @@ func parseError(resp *http.Response) error {
 	if envelope.Detail != "" {
 		apiErr.Detail = envelope.Detail
 	}
-	apiErr.Code, apiErr.Details = envelope.Code, envelope.Details
+	apiErr.Code, apiErr.Details, apiErr.RequestID = envelope.Code, envelope.Details, envelope.RequestID
+	if apiErr.RequestID == "" {
+		apiErr.RequestID = resp.Header.Get("X-Request-ID")
+	}
 	return apiErr
 }
 

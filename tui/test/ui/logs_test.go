@@ -134,3 +134,41 @@ func TestLogs_NoOlderPage(t *testing.T) {
 		t.Errorf("requests %v, view:\n%s", b.log(), content(m))
 	}
 }
+
+// c cycles the category; the backend filters, so the page starts again at
+// the newest entries, and a traceback shows as "(+N lines)".
+func TestLogs_CategoryFilter(t *testing.T) {
+	b := newBackend(t)
+	b.json("GET", "/logs", 200, logEntries(10, 10, "INFO"))
+	m := open(t, ui.NewLogsModel(b.client()))
+	b.json("GET", "/logs", 200, []any{map[string]any{
+		"timestamp": "2026-09-27T08:00:00Z", "level": "INFO", "message": "sync.start profile=docs outcome=ok",
+		"logger": "backend.audit", "request_id": "abcdef123456", "exc": nil,
+	}})
+	m = drive(t, m, press("c"))
+	v := content(m)
+	if !strings.Contains(v, "Category: audit") || !strings.Contains(v, "sync.start profile=docs") {
+		t.Errorf("audit category not shown:\n%s", v)
+	}
+	b.json("GET", "/logs", 200, []any{map[string]any{
+		"timestamp": "2026-09-27T08:00:00Z", "level": "ERROR", "message": "Sync crashed",
+		"exc": "Traceback (most recent call last):\nValueError: broken",
+	}})
+	m = drive(t, m, press("c"))
+	if v := content(m); !strings.Contains(v, "Category: errors") || !strings.Contains(v, "Sync crashed (+2 lines)") {
+		t.Errorf("errors category not shown:\n%s", v)
+	}
+	b.json("GET", "/logs", 200, logEntries(10, 10, "INFO"))
+	m = drive(t, m, press("c"))
+	if v := content(m); strings.Contains(v, "Category:") {
+		t.Errorf("c did not return to all entries:\n%s", v)
+	}
+	got := b.matching("GET /logs")
+	want := []string{
+		"GET /logs?limit=200&skip=0", "GET /logs?category=audit&limit=200&skip=0",
+		"GET /logs?category=errors&limit=200&skip=0", "GET /logs?limit=200&skip=0",
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("queries = %v, want %v", got, want)
+	}
+}

@@ -16,8 +16,9 @@ The default list covers loopback; ``OMNISYNC_ALLOWED_HOSTS`` adds more
 (comma-separated host names, without ports).
 
 A token from ``OMNISYNC_API_TOKEN`` shorter than ``MIN_TOKEN_LENGTH`` is
-used, but logged as a warning at startup. Wrong tokens are logged (at most
-once per client address and minute, so the log cannot be flooded); after
+used, but logged as a warning at startup. Wrong tokens are recorded in the audit
+trail (``auth.token_rejected``, at most once per client address and minute,
+so the log cannot be flooded); after
 ``AUTH_FAILURE_LIMIT`` of them within a minute the address gets 429 for
 every request without the right token for ``AUTH_BLOCK_SECONDS``. A request
 with the right token always passes, so nobody can lock the owner out by
@@ -49,6 +50,8 @@ from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.api.errors import api_error, error_body_bytes
+from backend.audit import audit
+from backend.logging_setup import register_secret
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +144,7 @@ def get_api_token() -> str:
     global _cached
     env_token = os.environ.get("OMNISYNC_API_TOKEN", "").strip() or None
     if _cached is not None and _cached[0] == env_token:
+        register_secret(_cached[1])  # a no-op once registered
         return _cached[1]
 
     if env_token:
@@ -166,6 +170,8 @@ def get_api_token() -> str:
                 token_file,
             )
     _cached = (env_token, token)
+    # Masked in every log line from now on, whatever the line looks like.
+    register_secret(token)
     return token
 
 
@@ -238,10 +244,11 @@ def _record_failure(addr: str, now: float) -> None:
         entry.blocked_until = now + AUTH_BLOCK_SECONDS
         entry.window_start, entry.count = now, 0
     if now - entry.last_logged >= AUTH_LOG_INTERVAL:
-        logger.warning(
-            "Rejected request from %s with an invalid API token (%d failed attempt(s) since the last report)%s",
-            addr, entry.unlogged,
-            f"; blocking this address for {AUTH_BLOCK_SECONDS:.0f} s" if entry.blocked_until > now else "",
+        # In the audit trail; the guessed token itself is never logged.
+        audit(
+            "auth.token_rejected", outcome="denied", level=logging.WARNING, client=addr,
+            attempts=entry.unlogged,
+            blocked_seconds=int(AUTH_BLOCK_SECONDS) if entry.blocked_until > now else None,
         )
         entry.last_logged, entry.unlogged = now, 0
 

@@ -1,5 +1,8 @@
 {
   "timestamp": "2026-09-27T08:30:00Z",
   "level": "WARNING",
-  "message": "disk almost full"
+  "message": "disk almost full",
+  "logger": "backend.services.sync_engine",
+  "request_id": "3f9c1a2b4d5e6f70",
+  "exc": "Traceback (most recent call last):\nOSError: no space left"
 }

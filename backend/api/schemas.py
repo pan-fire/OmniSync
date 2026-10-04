@@ -36,6 +36,9 @@ class ErrorResponse(BaseModel):
     details: dict[str, Any] | None = Field(
         None, description="Extra data for some codes, e.g. errors, invalid_paths, names, replacement, retry_after.",
     )
+    request_id: str | None = Field(
+        default=None, description="The request's id (also the X-Request-ID header); the server log lines of the request carry it.",
+    )
 
 
 class SyncDirection(str, Enum):
@@ -258,9 +261,14 @@ class RemoteResponse(BaseModel):
 
 
 class LogEntryResponse(BaseModel):
+    """One entry of the server log, newest first in GET /logs."""
+
     timestamp: datetime
     level: str
     message: str
+    logger: str | None = Field(default=None, description="The logger that wrote it, e.g. backend.audit for user actions.")
+    request_id: str | None = Field(default=None, description="The id of the API request it was written in, if any.")
+    exc: str | None = Field(default=None, description="The traceback or further lines that belong to the entry.")
 
 
 class HealthResponse(BaseModel):

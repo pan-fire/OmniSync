@@ -2725,7 +2725,7 @@
     "/logs": {
       "get": {
         "summary": "Get Logs",
-        "description": "Return paginated log entries, most recent first, optionally of one level.",
+        "description": "Return paginated log entries, most recent first, optionally of one level or category.",
         "operationId": "get_logs_logs_get",
         "parameters": [
           {
@@ -2773,6 +2773,28 @@
               ],
               "title": "Level"
             }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "audit",
+                    "errors"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "audit: the audit trail of user actions (logger backend.audit); errors: ERROR and CRITICAL.",
+              "title": "Category"
+            },
+            "description": "audit: the audit trail of user actions (logger backend.audit); errors: ERROR and CRITICAL."
           }
         ],
         "responses": {
@@ -6090,6 +6112,18 @@
             ],
             "title": "Details",
             "description": "Extra data for some codes, e.g. errors, invalid_paths, names, replacement, retry_after."
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id",
+            "description": "The request's id (also the X-Request-ID header); the server log lines of the request carry it."
           }
         },
         "type": "object",
@@ -6557,6 +6591,42 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "logger": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logger",
+            "description": "The logger that wrote it, e.g. backend.audit for user actions."
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id",
+            "description": "The id of the API request it was written in, if any."
+          },
+          "exc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exc",
+            "description": "The traceback or further lines that belong to the entry."
           }
         },
         "type": "object",
@@ -6565,7 +6635,8 @@
           "level",
           "message"
         ],
-        "title": "LogEntryResponse"
+        "title": "LogEntryResponse",
+        "description": "One entry of the server log, newest first in GET /logs."
       },
       "ManualFlagsResponse": {
         "properties": {

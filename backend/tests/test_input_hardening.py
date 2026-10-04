@@ -449,12 +449,13 @@ async def bare_client(test_client):
 
 async def test_failed_logins_are_logged_once_per_minute(bare_client, caplog):
     bad = {"Authorization": "Bearer wrong"}
-    with caplog.at_level(logging.WARNING, logger="backend.security"):
+    with caplog.at_level(logging.WARNING, logger="backend.audit"):
         for _ in range(3):
             assert (await bare_client.get("/logs", headers=bad)).status_code == 401
-    lines = [r for r in caplog.records if "invalid API token" in r.getMessage()]
+    lines = [r for r in caplog.records if r.getMessage().startswith("auth.token_rejected")]
     assert len(lines) == 1
-    assert "127.0.0.1" in lines[0].getMessage()
+    assert lines[0].name == "backend.audit"
+    assert "client=127.0.0.1" in lines[0].getMessage() and "attempts=1" in lines[0].getMessage()
     assert "wrong" not in lines[0].getMessage()  # the guessed token is not logged
 
 

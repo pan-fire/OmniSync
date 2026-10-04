@@ -186,10 +186,19 @@ export interface Remote {
 }
 
 export interface LogEntry {
-  timestamp: string;
-  level:     string;
-  message:   string;
+  timestamp:   string;
+  level:       string;
+  message:     string;
+  /** The logger that wrote it; backend.audit for the audit trail of user actions. */
+  logger?:     string | null;
+  /** The API request it was written in (the X-Request-ID an error answer carries). */
+  request_id?: string | null;
+  /** The traceback or further lines that belong to the entry. */
+  exc?:        string | null;
 }
+
+/** GET /logs categories: the audit trail, or ERROR and CRITICAL entries. */
+export type LogCategory = 'audit' | 'errors';
 
 /**
  * GET /health: local checks only. Served with HTTP 503 and status "degraded"
@@ -230,9 +239,12 @@ export class ApiError extends Error {
     public status: number,
     public detail: string,
     public code?: string,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown>,
+    public requestId?: string
   ) {
-    super(detail);
+    // A server error is the owner's to look up in the log: the message (and
+    // so every error toast) names the request's id.
+    super(status >= 500 && requestId ? `${detail} (ID ${requestId})` : detail);
     this.name = 'ApiError';
   }
 }

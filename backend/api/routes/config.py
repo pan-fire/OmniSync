@@ -11,6 +11,7 @@ import logging
 
 from fastapi import APIRouter
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error, failed_test_sync, public_test_sync_result
 from backend.api.schemas import GlobalConfigResponse, GlobalConfigUpdateRequest, TestSyncRequest, TestSyncResponse
 from backend.exceptions import ConfigError
@@ -51,6 +52,7 @@ async def get_config() -> GlobalConfigResponse:
 
 
 @router.put("/config", response_model=GlobalConfigResponse)
+@audited("settings.update", lambda kw: {"fields": sorted(kw["request"].model_fields_set), "log_level": kw["request"].log_level})
 async def update_config(request: GlobalConfigUpdateRequest) -> GlobalConfigResponse:
     """Update global configuration with partial values."""
     if _config_service is None:

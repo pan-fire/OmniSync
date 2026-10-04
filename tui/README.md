@@ -96,7 +96,7 @@ osync backups run SLUG TARGET_ID [--wait]             # back up now
 osync backups snapshots SLUG TARGET_ID                # snapshots of a target
 osync backups restore SLUG TARGET_ID SNAPSHOT --scope local_only|remote_only|both [--yes] [--wait]
 
-osync logs [--level ERROR] [--limit 50] [--follow]    # backend log, oldest first; -f keeps polling
+osync logs [--level ERROR] [--category audit] [--limit 50] [--follow]    # backend log, oldest first; -f keeps polling
 osync notifications test [--channel NAME]             # send a test notification
 
 osync completion bash|zsh|fish|powershell             # shell completion script
