@@ -349,37 +349,37 @@ export function FileBrowser ({ files, summary, onSync, isSyncing, pendingPaths =
         <SummaryBadge
           variant="secondary"
           label={isSearchActive
-            ? t('granular.totalFiltered', { shown: filtered.length, total: summary.total })
-            : t('granular.total', { n: summary.total })}
+            ? t('granular.totalFiltered', { shown: filtered.length, count: summary.total })
+            : t('granular.total', { count: summary.total })}
           tip={t('granular.tipTotal')}
         />
         <SummaryBadge
           className={CATEGORY_COLORS.local_only}
-          label={t('granular.localOnly', { n: summary.local_only })}
+          label={t('granular.localOnly', { count: summary.local_only })}
           tip={t('granular.tipLocalOnly')}
         />
         <SummaryBadge
           className={CATEGORY_COLORS.remote_only}
-          label={t('granular.remoteOnly', { n: summary.remote_only })}
+          label={t('granular.remoteOnly', { count: summary.remote_only })}
           tip={t('granular.tipRemoteOnly')}
         />
         <SummaryBadge
           className={CATEGORY_COLORS.modified_local}
-          label={t('granular.modifiedLocal', { n: summary.modified_local })}
+          label={t('granular.modifiedLocal', { count: summary.modified_local })}
           tip={t('granular.tipModifiedLocal')}
         />
         <SummaryBadge
           className={CATEGORY_COLORS.modified_remote}
-          label={t('granular.modifiedRemote', { n: summary.modified_remote })}
+          label={t('granular.modifiedRemote', { count: summary.modified_remote })}
           tip={t('granular.tipModifiedRemote')}
         />
         <SummaryBadge
           className={CATEGORY_COLORS.modified_both}
-          label={t('granular.modifiedBoth', { n: summary.modified_both })}
+          label={t('granular.modifiedBoth', { count: summary.modified_both })}
           tip={t('granular.tipModifiedBoth')}
         />
         {summary.manual > 0 && (
-          <Badge variant="outline">{t('granular.manualCount', { n: summary.manual })}</Badge>
+          <Badge variant="outline">{t('granular.manualCount', { count: summary.manual })}</Badge>
         )}
       </div>
       </TooltipProvider>

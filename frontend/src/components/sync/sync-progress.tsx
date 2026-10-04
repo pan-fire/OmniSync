@@ -41,7 +41,7 @@ export function SyncProgressView ({ progress, compact, className }: SyncProgress
     progress.total_bytes > 0
       ? t('progress.bytes', { done: formatBytes(progress.bytes, locale), total: formatBytes(progress.total_bytes, locale) })
       : null,
-    progress.files_total > 0 ? t('progress.files', { done: progress.files_done, total: progress.files_total }) : null,
+    progress.files_total > 0 ? t('progress.files', { done: progress.files_done, count: progress.files_total }) : null,
     progress.speed > 0 ? t('progress.speed', { speed: formatBytes(progress.speed, locale) }) : null,
     progress.eta_seconds != null && progress.eta_seconds > 0
       ? t('progress.eta', { time: formatDuration(progress.eta_seconds, locale) })

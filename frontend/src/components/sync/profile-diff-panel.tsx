@@ -107,15 +107,15 @@ export function ProfileDiffPanel ({ slug, emptyExtra }: ProfileDiffPanelProps) {
           toast.warning(t('granular.toastPartialFail', {
             action:    actionName,
             succeeded: res.succeeded,
-            total:     res.total,
+            count:     res.total,
             failed:    res.failed,
           }), { description: failedFileList(res.errors, t) });
         } else if (items.length === 1) {
           toast.success(t(SINGLE_TOAST_KEYS[action], { path: items[0].path }));
         } else if (sameAction) {
-          toast.success(t(BATCH_TOAST_KEYS[action], { n: res.succeeded }));
+          toast.success(t(BATCH_TOAST_KEYS[action], { count: res.succeeded }));
         } else {
-          toast.success(t('granular.toastBatchMixed', { n: res.succeeded }));
+          toast.success(t('granular.toastBatchMixed', { count: res.succeeded }));
         }
       },
       onError: (error: Error) => {

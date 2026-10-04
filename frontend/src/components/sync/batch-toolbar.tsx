@@ -19,7 +19,7 @@ export function BatchToolbar ({ selectedCount, onAction, onClear, disabled }: Ba
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
       <Badge variant="secondary">
-        {t('granular.selectedCount', { n: selectedCount })}
+        {t('granular.selectedCount', { count: selectedCount })}
       </Badge>
       <Button size="sm" variant="outline" onClick={() => onAction('push')} disabled={disabled}>
         <ArrowUp className="h-3.5 w-3.5" />
