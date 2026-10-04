@@ -28,12 +28,13 @@ const maxLogPage = 200
 
 func logsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "logs [--level LEVEL] [--category audit|errors] [--limit N] [--follow]",
+		Use:   "logs [--level LEVEL] [--category audit|errors] [--limit N] [--skip N] [--follow]",
 		Short: "Show the backend's log (newest last); --follow keeps printing new entries",
 		Long: "Show the last entries of the backend's log, oldest first. --level shows only one level\n" +
 			"(DEBUG, INFO, WARNING, ERROR or CRITICAL); --category audit shows the audit trail of user\n" +
 			"actions, --category errors the ERROR and CRITICAL entries. Tracebacks are printed indented\n" +
-			"under their entry. --follow keeps asking for new entries every few\n" +
+			"under their entry. --skip leaves out that many of the newest entries, to page back\n" +
+			"through older ones (the rotated log files included). --follow keeps asking for new entries every few\n" +
 			"seconds until Ctrl+C. With --json the entries are a JSON array, or with --follow one JSON\n" +
 			"object per line.",
 		Args: usageArgs(cobra.NoArgs),
@@ -52,9 +53,16 @@ func logsCmd() *cobra.Command {
 			if limit < 1 || limit > maxLogPage {
 				return usagef("--limit must be between 1 and %d", maxLogPage)
 			}
+			skip, _ := cmd.Flags().GetInt("skip")
+			if skip < 0 {
+				return usagef("--skip must be 0 or more")
+			}
 			follow, _ := cmd.Flags().GetBool("follow")
+			if follow && skip > 0 {
+				return usagef("--skip cannot be combined with --follow")
+			}
 			client := newClientFromFlags(cmd)
-			entries, err := client.GetLogsFiltered(cmd.Context(), 0, limit, level, category)
+			entries, err := client.GetLogsFiltered(cmd.Context(), skip, limit, level, category)
 			if err != nil {
 				return fmt.Errorf("failed to read the log: %w", err)
 			}
@@ -78,6 +86,7 @@ func logsCmd() *cobra.Command {
 	cmd.Flags().String("level", "", "Only entries of this level: DEBUG, INFO, WARNING, ERROR or CRITICAL")
 	cmd.Flags().String("category", "", "Only the audit trail (audit) or errors (errors)")
 	cmd.Flags().Int("limit", 50, "Number of entries to show (1-200)")
+	cmd.Flags().Int("skip", 0, "Leave out this many of the newest entries (page back through older ones)")
 	cmd.Flags().BoolP("follow", "f", false, "Keep printing new entries until Ctrl+C")
 	_ = cmd.RegisterFlagCompletionFunc("level", fixedCompletion(logLevels...))
 	_ = cmd.RegisterFlagCompletionFunc("category", fixedCompletion(logCategories...))

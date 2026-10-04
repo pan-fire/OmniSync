@@ -12,6 +12,15 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Logs page pages into the rotated log files.** GET /logs goes on
+  past the start of `omnisync.log` into `omnisync.log.1`, `.2`, ... in
+  order, reading each from the end only as far as the page needs; the level
+  and category filters apply across all of them. The web Logs page and the
+  terminal UI's Logs view now reach every entry still on disk, and
+  `osync logs --skip N` pages back too.
+
 ## [0.12.0] - 2026-10-04
 
 ### Added

@@ -179,8 +179,9 @@ check every 30 s) goes to `docker compose logs backend` only;
 like the other files in the data folder that can hold sensitive data. It
 is rotated at `OMNISYNC_LOG_MAX_BYTES` (default 5 MB) into
 `omnisync.log.1`, `.2`, ... keeping `OMNISYNC_LOG_BACKUPS` (default 3) of
-them. The Logs page shows the current file only; older lines are in the
-rotated files (`docker compose exec backend tail -n 100 /data/omnisync/omnisync.log.1`).
+them. The Logs page, the terminal UI's Logs view and `osync logs --skip N`
+page back through the current file and then the rotated ones, newest
+first; the level and category filters apply across all of them.
 
 ### Levels
 
