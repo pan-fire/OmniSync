@@ -37,8 +37,9 @@ type Config struct {
 	// NoMouse leaves the mouse to the terminal (no clickable tabs).
 	NoMouse bool `mapstructure:"no_mouse"`
 
-	// Warnings about how the API key is kept or sent, for the user to see
-	// once at startup (not read from the config file).
+	// Warnings about how the API key is kept or sent, or a config file that
+	// could not be read, for the user to see once at startup (not read from
+	// the config file).
 	Warnings []string `mapstructure:"-"`
 }
 
@@ -63,6 +64,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	v.SetDefault("no_mouse", false)
 
 	configPath := ""
+	var warnings []string
 	if dir, err := Dir(); err == nil {
 		configPath = filepath.Join(dir, "tui.toml")
 		v.SetConfigFile(configPath)
@@ -70,7 +72,9 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
 			var notFound viper.ConfigFileNotFoundError
 			if !errors.As(err, &notFound) {
-				return nil, err
+				// The file is the lowest layer: a broken one must not
+				// discard the flags and environment variables above it.
+				warnings = append(warnings, fmt.Sprintf("%s is not used: %v", configPath, err))
 			}
 		}
 	}
@@ -101,6 +105,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	cfg.Warnings = warnings
 	if cfg.URL == "" {
 		cfg.URL = DefaultURL
 	}

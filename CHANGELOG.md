@@ -29,6 +29,10 @@ release notes.
   the error and the panel just said "No data".
 - **The terminal UI's Conflicts view no longer says "all clear" when the
   conflicts could not be read**; it shows only the error.
+- **A `tui.toml` that cannot be read no longer overrides `--url`,
+  `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
+  to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
+  the file is not used and keeps the flags and environment.
 
 ## [0.13.0] - 2026-10-04
 
