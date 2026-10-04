@@ -33,6 +33,29 @@ would destroy data.
 - **Web UI** in English, German and Persian, and **`osync`**, a terminal UI
   with scripting subcommands
 
+![The OmniSync dashboard: a two-way sync of the Documents profile at 37 %, the health of four remotes, and the Music, Photos and Projects profiles idle](docs/images/dashboard.png)
+
+<details>
+<summary>More screenshots</summary>
+
+| | |
+|---|---|
+| ![A profile's overview: live progress with the files in flight, and its two-way configuration](docs/images/profile.png) | ![The Differences tab: files new, changed or in conflict on either side, with a per-file action](docs/images/differences.png) |
+| Profile with live progress | Differences and a conflict |
+| ![The Remotes page: Google Drive, S3, SFTP and Dropbox remotes with their storage use](docs/images/remotes.png) | ![The setup wizard's sign-in step for Google Drive: the redirect URI to register and the app's client ID and secret](docs/images/wizard-oauth.png) |
+| Remotes and storage use | Setup wizard, OAuth sign-in |
+| ![A backup target with encrypted, verified daily snapshots](docs/images/backups.png) | ![The snapshot browser: picking folders and files of a backup to restore](docs/images/snapshot-browser.png) |
+| Backups and snapshots | Restoring files from a snapshot |
+| ![The dashboard in the dark theme](docs/images/dashboard-dark.png) | ![The dashboard on a phone](docs/images/dashboard-mobile.png) |
+| Dark theme | On a phone |
+
+![osync, the terminal UI: sync status, health and the four profiles](docs/images/tui-dashboard.png)
+
+The screenshots show made-up data; `pnpm screenshots` in `frontend/`
+recreates them.
+
+</details>
+
 ## Quick install
 
 On Linux, macOS or Windows (WSL 2) with Docker and its compose plugin, on

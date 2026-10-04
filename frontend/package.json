@@ -14,7 +14,8 @@
     "test:coverage": "vitest --run --coverage",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshots": "playwright test -c playwright.screenshots.config.ts && python3 ../scripts/optimize-screenshots.py"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
