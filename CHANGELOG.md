@@ -29,6 +29,10 @@ release notes.
   the error and the panel just said "No data".
 - **The terminal UI's Conflicts view no longer says "all clear" when the
   conflicts could not be read**; it shows only the error.
+- **Tables in the terminal UI keep each file on one row.** A name with
+  Chinese, Japanese or Korean characters (or wide emoji) wrapped onto a
+  second line and pushed the next column; it is now cut at the column's
+  width. A newline, tab or escape sequence in a name shows as `�`.
 - **A `tui.toml` that cannot be read no longer overrides `--url`,
   `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
   to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
