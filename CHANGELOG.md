@@ -12,6 +12,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-04
+
 ### Changed
 
 - **The Logs page pages into the rotated log files.** GET /logs goes on
@@ -862,6 +864,7 @@ never published.
   Python dependencies are installed from an exact lock file.
 - The OAuth token stays on the server and is never returned by the API.
 
-[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/pan-fire/OmniSync/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0
