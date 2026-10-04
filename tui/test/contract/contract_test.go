@@ -128,11 +128,10 @@ func TestContract_ErrorResponse(t *testing.T) {
 
 func TestContract_Health(t *testing.T) {
 	h := decodeFixture[api.HealthResponse](t, "HealthResponse")
-	// /health never contacts remotes: remote_accessible is always null.
-	if h.Status != "ok" || !h.Healthy() || !h.RcloneInstalled || h.RemoteAccessible != nil || !h.DatabaseOK || h.UptimeSeconds == 0 {
+	if h.Status != "ok" || !h.Healthy() || !h.RcloneInstalled || !h.DatabaseOK || h.UptimeSeconds == 0 {
 		t.Errorf("unexpected %+v", h)
 	}
-	if h.Version != "0.9.0" {
+	if h.Version != "0.12.0" {
 		t.Errorf("version = %q", h.Version)
 	}
 }

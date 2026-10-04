@@ -80,7 +80,6 @@ async def health_check(session: AsyncSession = Depends(get_session)) -> JSONResp
     body = HealthResponse(
         status="ok" if healthy else "degraded",
         rclone_installed=rclone_installed,
-        remote_accessible=None,
         uptime_seconds=uptime_seconds,
         database_ok=db_ok,
         version=get_version(),

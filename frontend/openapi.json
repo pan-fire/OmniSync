@@ -6376,17 +6376,6 @@
             "type": "boolean",
             "title": "Rclone Installed"
           },
-          "remote_accessible": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Remote Accessible"
-          },
           "uptime_seconds": {
             "type": "number",
             "title": "Uptime Seconds"
@@ -6397,8 +6386,7 @@
           },
           "version": {
             "type": "string",
-            "title": "Version",
-            "default": ""
+            "title": "Version"
           }
         },
         "type": "object",
@@ -6406,7 +6394,8 @@
           "status",
           "rclone_installed",
           "uptime_seconds",
-          "database_ok"
+          "database_ok",
+          "version"
         ],
         "title": "HealthResponse",
         "description": "GET /health: local checks only, cheap enough for a container health check.\n\n``status`` is \"ok\" when the database answers and the rclone binary is on\nPATH, otherwise \"degraded\" (served with HTTP 503). Remote reachability\nneeds provider calls and lives at GET /health/remotes."

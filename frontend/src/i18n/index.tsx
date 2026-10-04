@@ -18,7 +18,6 @@ import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   localeDir,
-  parseLocale,
   writePreferenceCookie,
   type Locale,
 } from './config';
@@ -28,11 +27,6 @@ export type { Locale };
 type TranslationMap = Record<string, unknown>;
 
 const translations: Record<Locale, TranslationMap> = { en, fa, de };
-
-// Before the cookie, the choice lived in localStorage (older builds used
-// the pre-rename key). It is read once on mount and moved to the cookie.
-const STORAGE_KEY = 'omnisync-locale';
-const LEGACY_STORAGE_KEY = 'gsync-locale';
 
 function getNestedValue (obj: TranslationMap, key: string): string | undefined {
   const parts = key.split('.');
@@ -115,18 +109,6 @@ const I18nContext = createContext<I18nContextValue>({
   setLocale: () => {},
 });
 
-function readLegacyLocale (): Locale | null {
-  try {
-    return parseLocale(localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY));
-  } catch {
-    return null;
-  }
-}
-
-function hasLocaleCookie (): boolean {
-  return document.cookie.split('; ').some((c) => c.startsWith(`${LOCALE_COOKIE}=`));
-}
-
 interface I18nProviderProps {
   children:       ReactNode;
   /**
@@ -142,23 +124,7 @@ export function I18nProvider ({ children, initialLocale = DEFAULT_LOCALE }: I18n
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
     writePreferenceCookie(LOCALE_COOKIE, newLocale);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
-    } catch {
-      // storage unavailable: the cookie is enough
-    }
   }, []);
-
-  // One-time migration of a choice saved by an older build.
-  useEffect(() => {
-    if (hasLocaleCookie()) return;
-    const legacy = readLegacyLocale();
-    if (legacy && legacy !== initialLocale) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- runs once, after hydration
-      setLocale(legacy);
-    }
-  }, [initialLocale, setLocale]);
 
   // Keep <html lang/dir> in step when the locale changes on the client.
   useEffect(() => {

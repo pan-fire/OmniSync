@@ -53,7 +53,7 @@ func TestHealth_ExitStatusFollowsBackendStatus(t *testing.T) {
 		wantErr bool
 	}{{"ok", false}, {"degraded", true}} {
 		srv := httptest.NewServer(jsonHandler(200, map[string]any{
-			"status": tc.status, "rclone_installed": false, "remote_accessible": false, "uptime_seconds": 1, "database_ok": tc.status == "ok",
+			"status": tc.status, "rclone_installed": false, "uptime_seconds": 1, "database_ok": tc.status == "ok",
 		}))
 		for _, args := range [][]string{{"health"}, {"health", "--json"}} {
 			out, _, err := runCLI(t, append(args, "--url", srv.URL)...)
@@ -67,28 +67,9 @@ func TestHealth_ExitStatusFollowsBackendStatus(t *testing.T) {
 				}
 			}
 		}
-		// rclone/remote being false alone does not make it unhealthy:
+		// rclone being false alone does not make it unhealthy:
 		// the backend's own status decides.
 		srv.Close()
-	}
-}
-
-// GET /health sends remote_accessible: null (it does not contact remotes).
-// The CLI must not print that as a failed remote.
-func TestHealth_NullRemoteIsNotShownAsDown(t *testing.T) {
-	isolate(t)
-	srv := httptest.NewServer(jsonHandler(200, map[string]any{
-		"status": "ok", "rclone_installed": true, "remote_accessible": nil, "uptime_seconds": 1, "database_ok": true,
-	}))
-	defer srv.Close()
-	out, _, err := runCLI(t, "health", "--url", srv.URL)
-	if err != nil || strings.Contains(out, "Remote") {
-		t.Errorf("err = %v, output:\n%s", err, out)
-	}
-	out, _, _ = runCLI(t, "health", "--json", "--url", srv.URL)
-	var decoded map[string]any
-	if json.Unmarshal([]byte(out), &decoded) != nil || decoded["remote_accessible"] != nil {
-		t.Errorf("--json turns null into a value: %q", out)
 	}
 }
 

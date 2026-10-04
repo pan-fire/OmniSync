@@ -257,14 +257,11 @@ func IsUnauthorized(err error) bool {
 type HealthResponse struct {
 	Status          string `json:"status"`
 	RcloneInstalled bool   `json:"rclone_installed"`
-	// RemoteAccessible is nil from current backends: GET /health checks
-	// local state only and sends null. Remote reachability comes from
-	// GET /health/remotes (RemotesHealth). Never read nil as "down".
-	RemoteAccessible *bool   `json:"remote_accessible"`
-	UptimeSeconds    float64 `json:"uptime_seconds"`
-	DatabaseOK       bool    `json:"database_ok"`
-	// Version is the backend's release version; empty from backends older
-	// than 0.9.0.
+	// Remote reachability is not part of GET /health; it comes from
+	// GET /health/remotes (RemotesHealth).
+	UptimeSeconds float64 `json:"uptime_seconds"`
+	DatabaseOK    bool    `json:"database_ok"`
+	// Version is the backend's release version.
 	Version string `json:"version"`
 }
 

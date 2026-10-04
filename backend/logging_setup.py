@@ -326,7 +326,7 @@ class OwnerOnlyRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def _open(self):  # noqa: ANN202 - the base class's signature
         fd = os.open(self.baseFilename, os.O_WRONLY | os.O_APPEND | os.O_CREAT, LOG_FILE_MODE)
         try:
-            os.fchmod(fd, LOG_FILE_MODE)  # an older file may have been created 0644
+            os.fchmod(fd, LOG_FILE_MODE)  # a file created by something else may be 0644
         except OSError:
             pass
         return os.fdopen(fd, "a", encoding=self.encoding, errors=self.errors)
@@ -389,15 +389,6 @@ def _remove_ours(logger: logging.Logger) -> None:
             handler.close()
 
 
-def _tighten_old_files(settings: LogSettings) -> None:
-    """Rotated files from before 0600 was enforced: make them owner-only too."""
-    for i in range(1, settings.backups + 1):
-        try:
-            os.chmod(f"{settings.path}.{i}", LOG_FILE_MODE)
-        except OSError:
-            pass
-
-
 def configure_logging(env: Mapping[str, str] | None = None) -> LogSettings:
     """Set up logging for the process (see the module docstring); safe to call again."""
     settings = read_settings(env)
@@ -418,7 +409,6 @@ def configure_logging(env: Mapping[str, str] | None = None) -> LogSettings:
             ),
             settings,
         )
-        _tighten_old_files(settings)
     except OSError as exc:  # e.g. run outside Docker without /data: stderr only
         file_error = exc
 

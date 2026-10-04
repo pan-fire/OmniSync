@@ -481,7 +481,7 @@ The API is reachable from this machine only, and every request needs a token:
 **Health:** `GET /health` checks only local state (database and the rclone
 binary) and never calls a cloud provider. It answers 200 `"ok"`, or 503
 `"degraded"` with the same body when either is missing, so the container health
-check (built into the image and set in compose) fails for a broken backend. `remote_accessible` is always `null` there;
+check (built into the image and set in compose) fails for a broken backend.
 `GET /health/remotes` (token required) checks the remotes that profiles use, and
 `GET /health/network` diagnoses outbound DNS/HTTPS.
 

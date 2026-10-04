@@ -18,7 +18,7 @@ func dashboardBackend(t *testing.T) *backend {
 		"profiles_summary": []any{map[string]any{"slug": "docs", "name": "Dokumente", "state": "idle", "last_sync": "2026-09-27T08:30:00Z", "pending_changes": 1, "intervals_paused": false}},
 	})
 	// Like the real backend: /health does not contact remotes and sends null.
-	b.json("GET", "/health", 200, map[string]any{"status": "ok", "rclone_installed": true, "remote_accessible": nil, "database_ok": true, "uptime_seconds": 7200})
+	b.json("GET", "/health", 200, map[string]any{"status": "ok", "rclone_installed": true, "database_ok": true, "uptime_seconds": 7200})
 	b.json("GET", "/health/remotes", 200, map[string]any{"remotes": []any{
 		map[string]any{"remote": "gdrive", "accessible": true, "profiles": []any{"docs"}},
 		map[string]any{"remote": "onedrive", "accessible": false, "profiles": []any{"pics"}},
@@ -113,8 +113,7 @@ func TestDashboard_TickSkipsNetworkProbe(t *testing.T) {
 	}
 }
 
-// GET /health sends remote_accessible: null; the dashboard takes remote
-// reachability from GET /health/remotes instead of showing null as down.
+// The dashboard takes remote reachability from GET /health/remotes.
 func TestDashboard_RemoteReachabilityFromHealthRemotes(t *testing.T) {
 	b := dashboardBackend(t)
 	m := openDashboard(t, b)

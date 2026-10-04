@@ -10,11 +10,11 @@ import packageJson from '../../../package.json';
 import nextConfig from '../../../next.config';
 
 const HEALTH: Health = {
-  status:            'ok',
-  rclone_installed:  true,
-  remote_accessible: null,
-  uptime_seconds:    1,
-  database_ok:       true,
+  status:           'ok',
+  rclone_installed: true,
+  uptime_seconds:   1,
+  database_ok:      true,
+  version:          '0.9.0',
 };
 
 function renderVersion () {
@@ -50,14 +50,6 @@ describe('VersionInfo', () => {
     renderVersion();
     const backend = await screen.findByText(/Backend 0\.10\.0/);
     expect(backend.closest('[title]')).toHaveAttribute('title', expect.stringMatching(/different version/));
-  });
-
-  it('keeps the UI version when the backend is too old to report one', async () => {
-    vi.stubEnv('NEXT_PUBLIC_OMNISYNC_VERSION', '0.9.0');
-    vi.spyOn(api, 'getHealth').mockResolvedValue(HEALTH);
-    renderVersion();
-    await waitFor(() => expect(api.getHealth).toHaveBeenCalled());
-    expect(screen.getByTestId('version-info')).toHaveTextContent(/^OmniSync 0\.9\.0$/);
   });
 
   it('keeps the UI version when /health fails', async () => {

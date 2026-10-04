@@ -281,14 +281,11 @@ class HealthResponse(BaseModel):
 
     status: str
     rclone_installed: bool
-    # No longer checked by /health (that needed a live provider call); always
-    # null here. Kept so older clients still parse the response.
-    remote_accessible: bool | None = None
     uptime_seconds: float
     database_ok: bool
     # The release version (the repository's VERSION file). Public on purpose:
     # it carries no secret and lets clients show what they are talking to.
-    version: str = ""
+    version: str
 
 
 class RemoteHealth(BaseModel):

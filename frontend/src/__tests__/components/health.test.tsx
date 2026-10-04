@@ -9,19 +9,19 @@ import { getHealthChecks, HealthIndicators } from '@/components/sync/health-indi
 import type { Health } from '@/types';
 
 const healthArb = fc.record({
-  status:            fc.constantFrom('ok', 'degraded', 'error'),
-  rclone_installed:  fc.boolean(),
-  remote_accessible: fc.constant(null),
-  uptime_seconds:    fc.float({ min: 0, max: 86400 * 365, noNaN: true }),
-  database_ok:       fc.boolean(),
+  status:           fc.constantFrom('ok', 'degraded', 'error'),
+  rclone_installed: fc.boolean(),
+  uptime_seconds:   fc.float({ min: 0, max: 86400 * 365, noNaN: true }),
+  database_ok:      fc.boolean(),
+  version:          fc.constant('0.12.0'),
 });
 
 const HEALTHY: Health = {
-  status:            'ok',
-  rclone_installed:  true,
-  remote_accessible: null,
-  uptime_seconds:    3660,
-  database_ok:       true,
+  status:           'ok',
+  rclone_installed: true,
+  uptime_seconds:   3660,
+  database_ok:      true,
+  version:          '0.12.0',
 };
 
 describe('Health indicator rendering with failure warnings', () => {
@@ -51,8 +51,8 @@ describe('Health indicator rendering with failure warnings', () => {
     );
   });
 
-  it('never turns the always-null remote_accessible into a failed check', () => {
-    const checks = getHealthChecks({ ...HEALTHY, remote_accessible: null });
+  it('checks only local state, never remote reachability', () => {
+    const checks = getHealthChecks(HEALTHY);
     expect(checks.every((c) => c.ok)).toBe(true);
     expect(checks.map((c) => c.labelKey)).not.toContain('health.remoteAccessible');
   });

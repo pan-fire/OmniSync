@@ -2163,17 +2163,12 @@ export interface components {
             status: string;
             /** Rclone Installed */
             rclone_installed: boolean;
-            /** Remote Accessible */
-            remote_accessible?: boolean | null;
             /** Uptime Seconds */
             uptime_seconds: number;
             /** Database Ok */
             database_ok: boolean;
-            /**
-             * Version
-             * @default
-             */
-            version?: string;
+            /** Version */
+            version: string;
         };
         /**
          * ImportCandidate

@@ -28,7 +28,7 @@ async def test_health_returns_200(test_client, rclone_present):
     data = response.json()
     assert "status" in data
     assert "rclone_installed" in data
-    assert "remote_accessible" in data
+    assert "remote_accessible" not in data
     assert "uptime_seconds" in data
     assert "database_ok" in data
 
@@ -90,7 +90,6 @@ async def test_health_makes_no_rclone_or_provider_calls(test_client, rclone_pres
     engine = health._manager.engines["default"]
     response = await test_client.get("/health")
     assert response.status_code == 200
-    assert response.json()["remote_accessible"] is None
     engine._rclone.check_installed.assert_not_awaited()
     engine._rclone.check_remote.assert_not_awaited()
 

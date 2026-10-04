@@ -66,11 +66,9 @@ PROGRESS = s.SyncProgress(
 def responses() -> dict[str, BaseModel]:
     """Representative instances of every response model the TUI decodes."""
     return {
-        # remote_accessible stays null: GET /health never contacts remotes
-        # (GET /health/remotes does), and clients must not read null as down.
         "HealthResponse": s.HealthResponse(
-            status="ok", rclone_installed=True, remote_accessible=None,
-            uptime_seconds=3600.5, database_ok=True, version="0.9.0",
+            status="ok", rclone_installed=True,
+            uptime_seconds=3600.5, database_ok=True, version="0.12.0",
         ),
         "BrowseResponse": s.BrowseResponse(
             current="gdrive:Backup",

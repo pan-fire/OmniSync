@@ -205,14 +205,12 @@ export type LogCategory = 'audit' | 'errors';
  * when the database or rclone is missing.
  */
 export interface Health {
-  status:            string;
-  rclone_installed:  boolean;
-  /** Always null now; remote reachability comes from GET /health/remotes. */
-  remote_accessible: boolean | null;
-  uptime_seconds:    number;
-  database_ok:       boolean;
-  /** The backend's release version; absent from backends older than 0.9.0. */
-  version?:          string;
+  status:           string;
+  rclone_installed: boolean;
+  uptime_seconds:   number;
+  database_ok:      boolean;
+  /** The backend's release version. */
+  version:          string;
 }
 
 /** One remote a running profile syncs with (GET /health/remotes). */

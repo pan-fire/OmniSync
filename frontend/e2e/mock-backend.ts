@@ -54,13 +54,12 @@ const AGGREGATE: AggregateStatus = {
 };
 
 const HEALTH: Health = {
-  status:            'healthy',
-  rclone_installed:  true,
-  remote_accessible: null,
-  uptime_seconds:    3600,
-  database_ok:       true,
+  status:           'healthy',
+  rclone_installed: true,
+  uptime_seconds:   3600,
+  database_ok:      true,
   // The version the UI was built with, so the sidebar shows no mismatch.
-  version:           packageJson.version,
+  version:          packageJson.version,
 };
 
 const REMOTES: Remote[] = [{

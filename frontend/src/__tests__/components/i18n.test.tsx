@@ -55,8 +55,7 @@ describe('Locale switching sets correct direction', () => {
   });
 });
 
-// The locale comes from the server (cookie), not from localStorage
-// during the first render, so server and client HTML match.
+// The locale comes from the server (cookie), so server and client HTML match.
 describe('Locale without hydration mismatch', () => {
   function Title () {
     const { t } = useTranslation();
@@ -74,22 +73,6 @@ describe('Locale without hydration mismatch', () => {
     expect(html).toContain('Dashboard');
     const fa = renderToString(<I18nProvider initialLocale="fa"><Title /></I18nProvider>);
     expect(fa).toContain(faLocale.nav.dashboard);
-  });
-
-  it('the first client render ignores localStorage; a saved choice is migrated to the cookie after mount', () => {
-    localStorage.setItem('omnisync-locale', 'fa');
-    const seen: string[] = [];
-    function Probe () {
-      const { locale } = useTranslation();
-      seen.push(locale);
-      return null;
-    }
-    render(<I18nProvider initialLocale="en"><Probe /></I18nProvider>);
-    expect(seen[0]).toBe('en');
-    expect(seen.at(-1)).toBe('fa');
-    expect(document.cookie).toContain('omnisync-locale=fa');
-    expect(localStorage.getItem('omnisync-locale')).toBeNull();
-    expect(document.documentElement.getAttribute('dir')).toBe('rtl');
   });
 
   it('setLocale stores the choice in a cookie the server can read', () => {
