@@ -120,6 +120,8 @@ at the foot of the web UI's sidebar.
 5. The wizard tests the new remote and reports "Remote configured
    successfully!".
 
+![The setup wizard's sign-in step for Google Drive: the redirect URI to register with your OAuth app, and the app's client ID and secret](../images/wizard-oauth.png)
+
 Already using rclone? **Import rclone.conf** on the Remotes page adds your
 existing remotes instead (see the FAQ). Later, **Edit** on a remote's card
 changes its keys or login, and **Reconnect** renews an expired Google
@@ -176,6 +178,8 @@ its confirmation lists per side how many files would be deleted, replaced
 or newly copied, how many files changed on both sides, and whether the run
 is a resync.
 
+![A two-way profile while it syncs: progress, speed, time left and the files in flight](../images/profile.png)
+
 ### Mirror profiles
 
 When a mirror profile starts, OmniSync first compares both sides. If there
@@ -189,6 +193,8 @@ looked at the differences.
    selected** (cloud to local). With **Group by directory**, a folder's
    **Action** menu offers **Push all** / **Pull all**.
 3. When nothing is left, click **Resume Intervals**.
+
+![The Differences tab: each file that is new, changed or in conflict on either side, with a per-file action](../images/differences.png)
 
 After the first successful full push or pull, OmniSync writes the marker
 file `.omnisync-check` to both folders.
@@ -266,6 +272,8 @@ Or build it from the source:
 ```bash
 make -C tui install                 # needs Go 1.25; installs ~/.local/bin/osync
 ```
+
+![osync's dashboard: sync status, health and the profiles](../images/tui-dashboard.png)
 
 `osync --version` shows its version and `osync health` the server's.
 
