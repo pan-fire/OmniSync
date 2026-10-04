@@ -73,7 +73,7 @@ def public_job_error(job: BackupJob) -> tuple[str | None, str | None]:
         return None, None
     code = job.error_code
     if code is None:
-        # Recorded before error codes existed (or by recover_interrupted_jobs).
+        # A job ended without a code (e.g. by recover_interrupted_jobs).
         if job.error_message == INTERRUPTED:
             return "interrupted", INTERRUPTED
         if job.status == BackupJobStatus.SKIPPED.value:

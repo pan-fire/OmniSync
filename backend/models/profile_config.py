@@ -51,7 +51,7 @@ class ProfileConfig:
             rclone_args = []
 
         try:
-            stored = getattr(profile, "sync_window", None)
+            stored = profile.sync_window
             window = json.loads(stored) if stored else None
         except (json.JSONDecodeError, TypeError):
             window = None
@@ -67,7 +67,7 @@ class ProfileConfig:
             rclone_filter=rclone_filter,
             rclone_args=rclone_args,
             max_retries=profile.max_retries,
-            sync_mode=profile.sync_mode or "mirror",
-            bwlimit=getattr(profile, "bwlimit", None) or None,
+            sync_mode=profile.sync_mode,
+            bwlimit=profile.bwlimit or None,
             sync_window=window if isinstance(window, dict) else None,
         )

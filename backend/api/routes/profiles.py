@@ -162,10 +162,10 @@ def _profile_to_response(profile) -> ProfileResponse:
         enabled=profile.enabled,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
-        sync_mode=SyncMode(profile.sync_mode or SyncMode.MIRROR.value),
+        sync_mode=SyncMode(profile.sync_mode),
         mirror_notice_dismissed=bool(profile.mirror_notice_dismissed),
-        bwlimit=getattr(profile, "bwlimit", None) or None,
-        sync_window=_stored_window(getattr(profile, "sync_window", None)),
+        bwlimit=profile.bwlimit or None,
+        sync_window=_stored_window(profile.sync_window),
     )
 
 
@@ -187,7 +187,7 @@ def _profile_to_status_response(profile, engine=None) -> ProfileStatusResponse:
     if engine is not None:
         status_fields.update(engine._state.to_status_response().model_dump())
     else:
-        status_fields["user_paused"] = bool(getattr(profile, "user_paused", False))
+        status_fields["user_paused"] = bool(profile.user_paused)
     return ProfileStatusResponse(**base.model_dump(), **status_fields)
 
 
@@ -305,7 +305,7 @@ async def update_profile(slug: str, request: ProfileUpdateRequest) -> ProfileRes
     if request.local_dir is not None and not same_path(request.local_dir, before.local_dir):
         _check_browse_roots(request.local_dir)
     # The flag check of a two-way profile needs the resulting mode and flags.
-    mode = request.sync_mode or SyncMode(before.sync_mode or SyncMode.MIRROR.value)
+    mode = request.sync_mode or SyncMode(before.sync_mode)
     args = request.rclone_args if request.rclone_args is not None else \
         (json.loads(before.rclone_args) if before.rclone_args else [])
     if mode == SyncMode.TWO_WAY and (error := two_way_rclone_args_error(args)):
