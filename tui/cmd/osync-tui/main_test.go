@@ -29,7 +29,9 @@ func TestLdflagsSetVersionAndCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--version: %v\n%s", err, out)
 	}
-	if got, want := strings.TrimSpace(string(out)), "osync version 1.2.3-test (commit deadbee)"; got != want {
+	// The usage text names the program as invoked: osync.exe on Windows.
+	want := filepath.Base(bin) + " version 1.2.3-test (commit deadbee)"
+	if got := strings.TrimSpace(string(out)); got != want {
 		t.Errorf("--version = %q, want %q", got, want)
 	}
 }

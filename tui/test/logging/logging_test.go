@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -73,8 +74,13 @@ func TestOpen_WritesDebugRecordsToFile(t *testing.T) {
 	if strings.Contains(got, "secret-key") {
 		t.Error("the API key was logged")
 	}
-	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("log file mode = %v, %v", info.Mode().Perm(), err)
+	// Windows has no such mode bits (its ACLs decide); os.Stat reports 0666.
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat(path); err != nil {
+			t.Error(err)
+		} else if info.Mode().Perm() != 0o600 {
+			t.Errorf("log file mode = %v", info.Mode().Perm())
+		}
 	}
 }
 
