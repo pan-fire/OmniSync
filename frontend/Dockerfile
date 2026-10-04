@@ -14,7 +14,7 @@
 # is pulled); Dependabot (docker ecosystem) moves both together.
 
 # ---- Dependencies ----
-FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS deps
+FROM node:24-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS deps
 
 # Exact pnpm release, same major as CI (.github/workflows/ci.yml).
 ARG PNPM_VERSION=10.34.5
@@ -32,7 +32,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Runtime ----
-FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
+FROM node:24-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
@@ -44,17 +44,15 @@ ENV NODE_ENV=production \
     PORT=3000 \
     TZ=UTC
 
-# Debian's security updates (the base image digest is pinned, so fixes
-# published after it would otherwise be missing).
+# Debian's security fixes released since the base image was built (the
+# digest is pinned), and the server needs only node: drop the bundled npm
+# and corepack, which carry their own (unused) dependencies and advisories.
 # hadolint ignore=DL3005,DL3008
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# The server needs only node: drop the bundled npm and corepack, which
-# carry their own (unused) dependencies and advisories.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
-    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 WORKDIR /app
 

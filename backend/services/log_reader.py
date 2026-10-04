@@ -6,9 +6,10 @@ import json
 import logging
 import re
 from collections.abc import Iterator
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
 from backend.api.schemas import LogEntryResponse
 from backend.logging_setup import AUDIT_LOGGER, DEFAULT_LOG_PATH
@@ -30,6 +31,10 @@ Category = Literal["audit", "errors"]
 TAIL_CHUNK = 64 * 1024
 # Lines kept of what follows an entry (a traceback, a multi-line message).
 MAX_CONTINUATION_LINES = 400
+# Rotated files looked at at most (omnisync.log.1 ... .N), whatever
+# OMNISYNC_LOG_BACKUPS says: they are found by name, in order, until one is
+# missing.
+MAX_ROTATED_FILES = 100
 _ERROR_LEVELS = frozenset({"ERROR", "CRITICAL"})
 
 
@@ -38,7 +43,10 @@ class LogReader:
 
     Reads backwards from the end of the file and stops as soon as the
     requested page is complete, so a request costs about the size of the
-    entries it returns, not a parse of the whole (up to 5 MB) file.
+    entries it returns, not a parse of the whole (up to 5 MB) file. Past the
+    start of the file it goes on in the rotated files the logging handler
+    keeps (``omnisync.log.1``, then ``.2``, ...), the same way, so paging
+    reaches every entry still on disk.
 
     Lines that are not an entry of their own (the traceback after an
     exception, the rest of a multi-line message) are attached to the entry
@@ -58,29 +66,51 @@ class LogReader:
         "audit" keeps the audit trail (backend.audit), "errors" the ERROR
         and CRITICAL entries.
         """
-        if not self.log_path.exists():
-            return []
-
         wanted = skip + limit
         entries: list[LogEntryResponse] = []
         try:
-            for entry in self._entries_from_end():
-                if not _matches(entry, level, category):
-                    continue
-                entries.append(entry)
-                if len(entries) >= wanted:
-                    break
+            with ExitStack() as stack:
+                # Every file is opened before the first is read: a rotation
+                # meanwhile renames them, but the open files stay the same,
+                # so no entry is read twice or skipped.
+                files = []
+                for path in self.files():
+                    try:
+                        files.append(stack.enter_context(open(path, "rb")))
+                    except FileNotFoundError:
+                        break  # rotated away since it was listed
+                for fh in files:
+                    for entry in self._entries_from_end(fh):
+                        if not _matches(entry, level, category):
+                            continue
+                        entries.append(entry)
+                        if len(entries) >= wanted:
+                            return entries[skip : skip + limit]
         except OSError as exc:
             logger.warning("Could not read log file %s: %s", self.log_path, exc)
             return []
 
         return entries[skip : skip + limit]
 
-    def _entries_from_end(self) -> Iterator[LogEntryResponse]:
-        """The file's entries, last first, each with the lines that follow it."""
+    def files(self) -> list[Path]:
+        """The log file and its rotated copies that exist, newest first."""
+        paths = [self.log_path] if self.log_path.is_file() else []
+        for n in range(1, MAX_ROTATED_FILES + 1):
+            rotated = self.log_path.with_name(f"{self.log_path.name}.{n}")
+            if not rotated.is_file():
+                break
+            paths.append(rotated)
+        return paths
+
+    def _entries_from_end(self, fh: BinaryIO) -> Iterator[LogEntryResponse]:
+        """The file's entries, last first, each with the lines that follow it.
+
+        Lines above the file's first entry are dropped: the handler rotates
+        between records, so they never belong to an entry of the next file.
+        """
         pending: list[str] = []  # lines below the entry not yet seen, last first
         omitted = 0
-        for line in self._lines_from_end():
+        for line in self._lines_from_end(fh):
             entry = self._parse(line)
             if entry is None:
                 if not line.strip():
@@ -99,23 +129,23 @@ class LogReader:
                 pending, omitted = [], 0
             yield entry
 
-    def _lines_from_end(self) -> Iterator[str]:
+    @staticmethod
+    def _lines_from_end(fh: BinaryIO) -> Iterator[str]:
         """The file's lines, last line first, read in chunks from the end."""
-        with open(self.log_path, "rb") as fh:
-            fh.seek(0, 2)
-            position = fh.tell()
-            partial = b""
-            while position > 0:
-                size = min(TAIL_CHUNK, position)
-                position -= size
-                fh.seek(position)
-                block = fh.read(size) + partial
-                lines = block.split(b"\n")
-                partial = lines[0]  # may continue in the previous chunk
-                for raw in reversed(lines[1:]):
-                    yield raw.decode("utf-8", errors="replace")
-            if partial:
-                yield partial.decode("utf-8", errors="replace")
+        fh.seek(0, 2)
+        position = fh.tell()
+        partial = b""
+        while position > 0:
+            size = min(TAIL_CHUNK, position)
+            position -= size
+            fh.seek(position)
+            block = fh.read(size) + partial
+            lines = block.split(b"\n")
+            partial = lines[0]  # may continue in the previous chunk
+            for raw in reversed(lines[1:]):
+                yield raw.decode("utf-8", errors="replace")
+        if partial:
+            yield partial.decode("utf-8", errors="replace")
 
     @staticmethod
     def _parse(line: str) -> LogEntryResponse | None:

@@ -211,7 +211,12 @@ OmniSync checks before every sync, in both modes, and keeps what it replaces:
 - **Keeps** every file a sync or a per-file action overwrites or deletes in
   `.omnisync-trash/<timestamp>/` inside the destination folder. The trash is
   never synced, and neither are rclone's leftover `<name>.<8 hex>.partial`
-  files from an interrupted transfer. After a successful sync, timestamped trash folders older than
+  files from an interrupted transfer. When a push, pull or two-way sync
+  succeeds after a run that did not (it failed, was stopped or killed),
+  those leftovers are deleted from both folders: only files with exactly
+  that name pattern, last changed before the run started, outside the
+  trash (your own `notes.partial` stays). The log line of the job says how
+  many went. After a successful sync, timestamped trash folders older than
   `OMNISYNC_TRASH_DAYS` (default 30; `0` keeps them forever) are deleted on the
   side that was synced to, at most once an hour; anything else in the trash (pre-restore safety
   copies, your own files) is left alone.

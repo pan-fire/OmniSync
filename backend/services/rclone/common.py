@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import PurePosixPath
 
@@ -28,8 +29,11 @@ TRASH_DIR = ".omnisync-trash"
 SENTINEL_FILE = ".omnisync-check"
 TRASH_FILTER = f"- /{TRASH_DIR}/**"
 # rclone's in-progress files (<name>.<8 hex>.partial), left behind when a
-# run is killed: never carried to the other side.
-PARTIAL_FILTER = r"- {{.*\.[0-9a-f]{8}\.partial}}"
+# run is killed: never carried to the other side. PARTIAL_NAME is the same
+# pattern for a file name (the last path segment).
+PARTIAL_PATTERN = r"{{.*\.[0-9a-f]{8}\.partial}}"
+PARTIAL_FILTER = f"- {PARTIAL_PATTERN}"
+PARTIAL_NAME = re.compile(r".*\.[0-9a-f]{8}\.partial", re.DOTALL)
 
 # How long a stopped two-way sync may take to shut down gracefully (SIGINT)
 # before rclone is killed; below SyncEngine's 60 s wait for a stop.

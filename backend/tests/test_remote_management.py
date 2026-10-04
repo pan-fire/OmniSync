@@ -180,10 +180,12 @@ class TestNewProviders:
         assert resp.status_code == 422
         assert "'host' is required" in resp.json()["details"]["errors"]
 
-    async def test_crypt_over_a_local_alias_encrypts(self, client, conf, tmp_path) -> None:
+    async def test_crypt_created_in_the_wizard_encrypts(self, client, conf, tmp_path) -> None:
         store = tmp_path / "store"
         store.mkdir()
-        _write_conf(conf, {"base": {"type": "alias", "remote": str(store)}})
+        # The wizard refuses a crypt over a local folder (TestLocalAccessChecks):
+        # it is created over a remote that is not local...
+        _write_conf(conf, {"base": {"type": "memory"}})
         resp = await client.post("/wizard/create", json={"name": "secret", "provider_id": "crypt", "params": {
             "remote": "base:vault", "password": "correct horse", "password2": "battery staple",
             "filename_encryption": "standard", "directory_name_encryption": "true",
@@ -192,6 +194,12 @@ class TestNewProviders:
         section = _read_conf(conf)["secret"]
         assert section["remote"] == "base:vault"
         assert await _reveal(section["password"]) == "correct horse"
+        # ...which the test then points at a folder, to look at what rclone stores.
+        cfg = _read_conf(conf)
+        cfg.remove_option("base", "type")
+        cfg["base"].update({"type": "alias", "remote": str(store)})
+        with conf.open("w") as f:
+            cfg.write(f)
 
         src = tmp_path / "plain"
         (src / "Docs").mkdir(parents=True)
@@ -759,3 +767,110 @@ class TestImportRoutes:
     async def test_size_limit(self, client) -> None:
         big = "[a]\ntype = memory\n" + "# x\n" * 200_000
         assert (await client.post("/remotes/import/preview", json={"content": big})).status_code == 422
+
+
+# --- The import's checks in the wizard and the edit (services/rclone_import.py) ---
+
+
+def _data_dir() -> str:
+    from backend.services.path_guard import data_dirs
+
+    return str(data_dirs()[0])
+
+
+class TestLocalAccessChecks:
+    """The wizard and PUT /remotes/{name} refuse what an import refuses."""
+
+    @pytest.mark.parametrize("remotes, target, message", [
+        ({"disk": {"type": "local"}}, "disk:vault", "'disk', a local remote"),
+        ({"base": {"type": "alias", "remote": "/srv"}}, "base:vault", "'base', which wraps a local path"),
+        ({"base": {"type": "alias", "remote": ":local:/srv"}}, "base:vault", "'base', which wraps a local path"),
+        # Through a chain: outer -> inner -> a local path.
+        ({"inner": {"type": "alias", "remote": "/srv"}, "outer": {"type": "alias", "remote": "inner:x"}},
+         "outer:vault", "'inner', which wraps a local path"),
+        ({"disk": {"type": "local"}, "mix": {"type": "union", "upstreams": "gone:a disk:/b"}},
+         "mix:vault", "'disk', a local remote"),
+    ])
+    async def test_wizard_refuses_a_crypt_that_reaches_local_files(self, client, conf, remotes, target, message):
+        _write_conf(conf, remotes)
+        resp = await client.post("/wizard/create", json={"name": "secret", "provider_id": "crypt", "params": {
+            "remote": target, "password": "pw",
+        }})
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["code"] == "invalid_params"
+        assert any(message in e for e in resp.json()["details"]["errors"]), resp.json()
+        assert "secret" not in _read_conf(conf)
+
+    async def test_wizard_allows_a_crypt_over_a_cloud_remote_chain(self, client, conf):
+        _write_conf(conf, {"cloud": {"type": "memory"}, "base": {"type": "alias", "remote": "cloud:x"}})
+        resp = await client.post("/wizard/create", json={"name": "secret", "provider_id": "crypt", "params": {
+            "remote": "base:vault", "password": "pw",
+        }})
+        assert resp.status_code == 200, resp.text
+
+    @pytest.mark.parametrize("key_file, message", [
+        ("{data}/rclone.conf", "data directory"),
+        ("{data}", "data directory"),
+        ("$HOME/.ssh/id_ed25519", "environment variable"),
+        ("${{OMNISYNC_RCLONE_CONFIG}}", "environment variable"),
+    ])
+    async def test_wizard_refuses_sftp_files_in_the_data_directory(self, client, conf, key_file, message):
+        resp = await client.post("/wizard/create", json={"name": "box", "provider_id": "sftp", "params": {
+            "host": "box.example", "user": "me", "key_file": key_file.format(data=_data_dir()),
+        }})
+        assert resp.status_code == 422, resp.text
+        assert any(message in e and "'key_file'" in e for e in resp.json()["details"]["errors"]), resp.json()
+        assert not conf.exists() or "box" not in _read_conf(conf)
+
+    async def test_wizard_allows_an_sftp_key_elsewhere(self, client, conf, tmp_path):
+        resp = await client.post("/wizard/create", json={"name": "box", "provider_id": "sftp", "params": {
+            "host": "box.example", "user": "me", "key_file": str(tmp_path / "id_ed25519"),
+        }})
+        assert resp.status_code == 200, resp.text
+        assert _read_conf(conf)["box"]["key_file"] == str(tmp_path / "id_ed25519")
+
+    async def test_edit_refuses_an_sftp_key_in_the_data_directory(self, client, conf, tmp_path):
+        assert (await client.post("/wizard/create", json={"name": "box", "provider_id": "sftp", "params": {
+            "host": "box.example", "user": "me", "key_file": str(tmp_path / "id"),
+        }})).status_code == 200
+        before = conf.read_text()
+        for value in (f"{_data_dir()}/api-token", "$HOME/id"):
+            resp = await client.put("/remotes/box", json={"params": {"key_file": value}})
+            assert resp.status_code == 422, resp.text
+            assert any("'key_file'" in e for e in resp.json()["details"]["errors"])
+        assert conf.read_text() == before
+        resp = await client.put("/remotes/box", json={"params": {"key_file": str(tmp_path / "other")}})
+        assert resp.status_code == 200, resp.text
+
+    async def test_edit_refuses_pointing_a_crypt_at_local_files(self, client, conf):
+        _write_conf(conf, {
+            "cloud": {"type": "memory"},
+            "disk": {"type": "local"},
+            "base": {"type": "alias", "remote": "/srv"},
+            "outer": {"type": "alias", "remote": "base:x"},
+        })
+        assert (await client.post("/wizard/create", json={"name": "secret", "provider_id": "crypt", "params": {
+            "remote": "cloud:vault", "password": "pw",
+        }})).status_code == 200
+        before = conf.read_text()
+        for target, message in (("disk:v", "a local remote"), ("base:v", "wraps a local path"),
+                                ("outer:v", "wraps a local path")):
+            resp = await client.put("/remotes/secret", json={"params": {"remote": target}})
+            assert resp.status_code == 422, resp.text
+            assert any(message in e for e in resp.json()["details"]["errors"]), resp.json()
+        assert conf.read_text() == before
+        assert (await client.put("/remotes/secret", json={"params": {"remote": "cloud:other"}})).status_code == 200
+
+    async def test_edit_refuses_a_wrapper_loop_back_through_itself(self, client, conf):
+        """A chain through the remote being edited is checked with its new settings."""
+        _write_conf(conf, {"cloud": {"type": "memory"}, "disk": {"type": "local"}})
+        assert (await client.post("/wizard/create", json={"name": "secret", "provider_id": "crypt", "params": {
+            "remote": "cloud:vault", "password": "pw",
+        }})).status_code == 200
+        cfg = _read_conf(conf)
+        cfg["hop"] = {"type": "alias", "remote": "disk:x"}
+        with conf.open("w") as f:
+            cfg.write(f)
+        resp = await client.put("/remotes/secret", json={"params": {"remote": "hop:v"}})
+        assert resp.status_code == 422
+        assert any("'disk', a local remote" in e for e in resp.json()["details"]["errors"])
