@@ -7,7 +7,8 @@ own `/api` and `/auth/*` checks, has the same JSON body:
 {
   "detail": "Profile 'docs' not found",
   "code": "profile_not_found",
-  "details": { "...": "..." }
+  "details": { "...": "..." },
+  "request_id": "3f9c1a2b4d5e6f70"
 }
 ```
 
@@ -16,6 +17,7 @@ own `/api` and `/auth/*` checks, has the same JSON body:
 | `detail`  | string | What went wrong, written for people. Always a string: a client that only shows `detail` keeps working. The text may change between releases. |
 | `code`    | string | Stable, machine-readable, `snake_case`. Branch on this, not on `detail` or the status alone. |
 | `details` | object | Optional; present only for the codes that carry extra data (see below). |
+| `request_id` | string | The backend's id of the request, also in the `X-Request-ID` header of every answer. The backend's log lines written for the request carry it, so quote it when you report a problem (see [Logs](gem/operations.md#request-ids)). Present in the backend's error answers; the web UI server's own answers (`request_refused`, the login codes) have none. |
 
 The schema is `ErrorResponse` in the OpenAPI document (every operation lists
 it for `4XX` and `5XX`). The backend builds these answers in

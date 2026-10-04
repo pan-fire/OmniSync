@@ -94,6 +94,16 @@ Regenerate and commit these in the same change; CI fails on drift.
 - **No rclone output to clients:** rclone stderr, exception text, paths and
   tokens go to the server log (through `redact_secrets` in
   `backend/services/rclone/errors.py`), never into an API answer.
+- **Logging:** use a module logger (`logger = logging.getLogger(__name__)`
+  under `backend.`), never `print`. Never log a secret: the handlers mask
+  known shapes and registered values (`backend/logging_setup.py`,
+  `register_secret` for a new kind of secret), but that is the safety net,
+  not the rule. Record user actions with `@audited(...)` or `audit(...)`
+  from `backend/audit.py` (logger `backend.audit`), with names and ids
+  only, never request bodies or settings values. The web UI server logs
+  through `logServerEvent` (`frontend/src/lib/server-log.ts`), with a new
+  event type added to `ServerEvent`. Operators' view: the "Logs" section of
+  `docs/gem/operations.md`.
 - **Secrets:** never commit credentials; test fixtures use fake values.
   `pre-commit install` runs gitleaks locally.
 - **Workflows:** pin every `uses:` to a commit SHA with its version in a

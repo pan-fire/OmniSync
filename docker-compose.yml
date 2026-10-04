@@ -29,6 +29,13 @@ services:
       - PGID=${PGID:-1000}
       # Time zone of log timestamps and schedules (e.g. Europe/Berlin).
       - TZ=${TZ:-UTC}
+      # The log: OMNISYNC_LOG_FORMAT=json for one JSON object per line
+      # (log shippers); rotation size and count; OMNISYNC_LOG_ACCESS=1 also
+      # writes the access log to the file. See docs/gem/operations.md, "Logs".
+      - OMNISYNC_LOG_FORMAT=${OMNISYNC_LOG_FORMAT:-}
+      - OMNISYNC_LOG_MAX_BYTES=${OMNISYNC_LOG_MAX_BYTES:-}
+      - OMNISYNC_LOG_BACKUPS=${OMNISYNC_LOG_BACKUPS:-}
+      - OMNISYNC_LOG_ACCESS=${OMNISYNC_LOG_ACCESS:-}
       # Override host OS detection for notifications.
       # Values: linux, macos, windows, android
       - OMNISYNC_HOST_OS=linux
