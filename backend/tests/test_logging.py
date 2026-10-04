@@ -136,12 +136,15 @@ def test_log_level_governs_own_loggers_and_libraries_follow_only_debug(configure
     apply_log_level("WARNING")
     logging.getLogger("backend.x").info("hidden info")
     logging.getLogger(AUDIT_LOGGER).info("audit always")
-    assert logging.getLogger("httpx").level == logging.WARNING
+    assert logging.getLogger("apscheduler").level == logging.WARNING
     apply_log_level("DEBUG")
     logging.getLogger("backend.x").debug("debug shown")
-    assert logging.getLogger("httpx").level == logging.INFO
-    apply_log_level("INFO")
+    assert logging.getLogger("apscheduler").level == logging.INFO
+    # SQL statements and HTTP request URLs stay out at every level.
+    assert logging.getLogger("sqlalchemy").level == logging.WARNING
     assert logging.getLogger("httpx").level == logging.WARNING
+    apply_log_level("INFO")
+    assert logging.getLogger("apscheduler").level == logging.WARNING
     text = _text(path)
     assert "hidden info" not in text
     assert "audit always" in text and "debug shown" in text

@@ -11,7 +11,8 @@ the root reaches both:
   actions, always at INFO;
 - uvicorn's error logger (startup, shutdown, unhandled request errors);
 - libraries (apscheduler, sqlalchemy, httpx, watchdog, alembic, ...) at
-  WARNING, or INFO while ``log_level`` is DEBUG;
+  WARNING; the scheduler, file watcher and migrations at INFO while
+  ``log_level`` is DEBUG (SQL and HTTP request lines never);
 - uvicorn's access log goes to stderr only, unless ``OMNISYNC_LOG_ACCESS=1``
   adds it to the file;
 - unhandled exceptions (``sys.excepthook``, ``threading.excepthook`` and
@@ -63,12 +64,16 @@ TEXT_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 
 OWN_LOGGER = "backend"
 AUDIT_LOGGER = "backend.audit"
-# Libraries whose warnings and errors belong in the log, but whose INFO
-# lines (every scheduled run, every HTTP request) only while debugging.
+# Libraries whose warnings and errors belong in the log. Their INFO lines
+# (every scheduled run, every file event) are added while log_level is
+# DEBUG, except for the ones in QUIET_LIBRARIES: SQL statements with their
+# parameters and the URLs of HTTP requests (a webhook URL can carry a
+# token) stay out of the log at every level.
 LIBRARY_LOGGERS = (
     "apscheduler", "sqlalchemy", "httpx", "httpcore", "watchdog", "alembic",
     "aiosqlite", "asyncio", "pywebpush", "urllib3", "multipart",
 )
+QUIET_LIBRARIES = frozenset({"sqlalchemy", "httpx", "httpcore", "aiosqlite", "pywebpush", "urllib3"})
 
 # Marks the handlers this module installed, so a second configure_logging
 # (uvicorn --reload, tests) replaces them instead of adding more.
@@ -452,11 +457,12 @@ def configure_logging(env: Mapping[str, str] | None = None) -> LogSettings:
 
 def _set_library_level(debug: bool) -> None:
     for name in LIBRARY_LOGGERS:
-        logging.getLogger(name).setLevel(logging.INFO if debug else logging.WARNING)
+        verbose = debug and name not in QUIET_LIBRARIES
+        logging.getLogger(name).setLevel(logging.INFO if verbose else logging.WARNING)
 
 
 def apply_level(name: str) -> None:
-    """Set OmniSync's own level (DEBUG..CRITICAL); libraries follow only for DEBUG.
+    """Set OmniSync's own level (DEBUG..CRITICAL); some libraries follow only for DEBUG.
 
     The audit trail stays at INFO whatever the level, so user actions are
     always recorded.
