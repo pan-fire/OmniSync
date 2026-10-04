@@ -44,6 +44,13 @@ ENV NODE_ENV=production \
     PORT=3000 \
     TZ=UTC
 
+# Debian's security updates (the base image digest is pinned, so fixes
+# published after it would otherwise be missing).
+# hadolint ignore=DL3005,DL3008
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # The server needs only node: drop the bundled npm and corepack, which
 # carry their own (unused) dependencies and advisories.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
