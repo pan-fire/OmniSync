@@ -257,14 +257,11 @@ func IsUnauthorized(err error) bool {
 type HealthResponse struct {
 	Status          string `json:"status"`
 	RcloneInstalled bool   `json:"rclone_installed"`
-	// RemoteAccessible is nil from current backends: GET /health checks
-	// local state only and sends null. Remote reachability comes from
-	// GET /health/remotes (RemotesHealth). Never read nil as "down".
-	RemoteAccessible *bool   `json:"remote_accessible"`
-	UptimeSeconds    float64 `json:"uptime_seconds"`
-	DatabaseOK       bool    `json:"database_ok"`
-	// Version is the backend's release version; empty from backends older
-	// than 0.9.0.
+	// Remote reachability is not part of GET /health; it comes from
+	// GET /health/remotes (RemotesHealth).
+	UptimeSeconds float64 `json:"uptime_seconds"`
+	DatabaseOK    bool    `json:"database_ok"`
+	// Version is the backend's release version.
 	Version string `json:"version"`
 }
 
@@ -376,7 +373,6 @@ type ProfileResponse struct {
 	PullIntervalMinutes int      `json:"pull_interval_minutes"`
 	RcloneFilter        []string `json:"rclone_filter"`
 	RcloneArgs          []string `json:"rclone_args"`
-	BackupDir           *string  `json:"backup_dir"`
 	MaxRetries          int      `json:"max_retries"`
 	Enabled             bool     `json:"enabled"`
 	CreatedAt           string   `json:"created_at"`
@@ -441,7 +437,6 @@ type ProfileCreateRequest struct {
 	PullIntervalMinutes int      `json:"pull_interval_minutes,omitempty"`
 	RcloneFilter        []string `json:"rclone_filter,omitempty"`
 	RcloneArgs          []string `json:"rclone_args,omitempty"`
-	BackupDir           *string  `json:"backup_dir,omitempty"`
 	MaxRetries          int      `json:"max_retries,omitempty"`
 	// SyncMode defaults to two_way on the backend when omitted.
 	SyncMode SyncMode `json:"sync_mode,omitempty"`
@@ -458,7 +453,6 @@ type ProfileUpdateRequest struct {
 	PullIntervalMinutes *int      `json:"pull_interval_minutes,omitempty"`
 	RcloneFilter        *[]string `json:"rclone_filter,omitempty"`
 	RcloneArgs          *[]string `json:"rclone_args,omitempty"`
-	BackupDir           *string   `json:"backup_dir,omitempty"`
 	MaxRetries          *int      `json:"max_retries,omitempty"`
 	// SyncMode nil leaves the mode unchanged. Switching to two_way makes the
 	// next sync a resync (the union of both sides); switching to mirror
@@ -1005,10 +999,6 @@ type SnapshotResponse struct {
 	CreatedAt  string `json:"created_at"`
 	SizeBytes  *int64 `json:"size_bytes"`
 	Status     string `json:"status"`
-	// Kind is "full" (restores the tree as it was right after the backup)
-	// or "legacy" (a mirror version from before snapshot manifests: brings
-	// files back as they were before that backup and removes nothing).
-	Kind string `json:"kind"`
 	// Latest marks the most recent backup of the target.
 	Latest bool `json:"latest"`
 }
@@ -1064,7 +1054,6 @@ type RestorePreviewSide struct {
 type RestorePreviewResponse struct {
 	SnapshotID   string               `json:"snapshot_id"`
 	RestoreScope RestoreScope         `json:"restore_scope"`
-	Exact        bool                 `json:"exact"`
 	Sides        []RestorePreviewSide `json:"sides"`
 }
 

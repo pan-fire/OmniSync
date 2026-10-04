@@ -353,7 +353,7 @@ def test_plan_of_a_pair_synced_on_paths_that_no_longer_fit(tmp_path, bisync_dir)
     (workdir / "x.path1.lst").write_text("")
     (workdir / "x.path2.lst").write_text("")
     (workdir / "filters.txt").write_text(filters)
-    (workdir / "omnisync-state.json").write_text(json.dumps({"pair": engine._pair}))
+    (workdir / "omnisync-state.json").write_text(json.dumps({"pair": engine._pair, "names": "paths"}))
     assert engine._two_way_plan(filters) == ("run", None) and not engine._short_names(resync=False)
 
     engine._profile = replace(engine._profile, local_dir=str(tmp_path / ("d" * 250)))

@@ -103,16 +103,8 @@ func healthCmd() *cobra.Command {
 				_, _ = fmt.Fprintf(w, "Status\t%s (%s)\n", status, resp.Status)
 				_, _ = fmt.Fprintf(w, "Database\t%s\n", mark(resp.DatabaseOK))
 				_, _ = fmt.Fprintf(w, "Rclone\t%s\n", mark(resp.RcloneInstalled))
-				// Current backends send null here: GET /health does not
-				// contact the remotes (the dashboard shows them).
-				if resp.RemoteAccessible != nil {
-					_, _ = fmt.Fprintf(w, "Remote\t%s\n", mark(*resp.RemoteAccessible))
-				}
 				_, _ = fmt.Fprintf(w, "Uptime\t%.0fs\n", resp.UptimeSeconds)
-				// Empty from backends older than 0.9.0.
-				if resp.Version != "" {
-					_, _ = fmt.Fprintf(w, "Version\t%s\n", resp.Version)
-				}
+				_, _ = fmt.Fprintf(w, "Version\t%s\n", resp.Version)
 				if err := w.Flush(); err != nil {
 					return err
 				}

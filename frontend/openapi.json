@@ -6376,17 +6376,6 @@
             "type": "boolean",
             "title": "Rclone Installed"
           },
-          "remote_accessible": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Remote Accessible"
-          },
           "uptime_seconds": {
             "type": "number",
             "title": "Uptime Seconds"
@@ -6397,8 +6386,7 @@
           },
           "version": {
             "type": "string",
-            "title": "Version",
-            "default": ""
+            "title": "Version"
           }
         },
         "type": "object",
@@ -6406,7 +6394,8 @@
           "status",
           "rclone_installed",
           "uptime_seconds",
-          "database_ok"
+          "database_ok",
+          "version"
         ],
         "title": "HealthResponse",
         "description": "GET /health: local checks only, cheap enough for a container health check.\n\n``status`` is \"ok\" when the database answers and the rclone binary is on\nPATH, otherwise \"degraded\" (served with HTTP 503). Remote reachability\nneeds provider calls and lives at GET /health/remotes."
@@ -7029,18 +7018,6 @@
             "title": "Rclone Args",
             "default": []
           },
-          "backup_dir": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1024
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Dir"
-          },
           "max_retries": {
             "type": "integer",
             "maximum": 10.0,
@@ -7126,17 +7103,6 @@
             "type": "array",
             "title": "Rclone Args",
             "default": []
-          },
-          "backup_dir": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Dir"
           },
           "max_retries": {
             "type": "integer",
@@ -7248,17 +7214,6 @@
             "type": "array",
             "title": "Rclone Args",
             "default": []
-          },
-          "backup_dir": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Dir"
           },
           "max_retries": {
             "type": "integer",
@@ -7620,18 +7575,6 @@
               }
             ],
             "title": "Rclone Args"
-          },
-          "backup_dir": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1024
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Dir"
           },
           "max_retries": {
             "anyOf": [
@@ -8263,10 +8206,6 @@
           "restore_scope": {
             "$ref": "#/components/schemas/RestoreScope"
           },
-          "exact": {
-            "type": "boolean",
-            "title": "Exact"
-          },
           "sides": {
             "items": {
               "$ref": "#/components/schemas/RestorePreviewSide"
@@ -8279,7 +8218,6 @@
         "required": [
           "snapshot_id",
           "restore_scope",
-          "exact",
           "sides"
         ],
         "title": "RestorePreviewResponse"
@@ -8623,11 +8561,6 @@
           "status": {
             "type": "string",
             "title": "Status"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "default": "full"
           },
           "latest": {
             "type": "boolean",

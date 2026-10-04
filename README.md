@@ -267,8 +267,8 @@ This is what the [installer](#quick-install) sets up; by hand: put this
 [Quick start](#quick-start) plus `OMNISYNC_VERSION=<version>`, the
 release you install (the newest is on the
 [releases page](https://github.com/pan-fire/OmniSync/releases)). It is
-[`deploy/compose.yml`](deploy/compose.yml), attached to each release from
-0.12.0 on as `compose.yml`: the repository's `docker-compose.yml` with the
+[`deploy/compose.yml`](deploy/compose.yml), attached to each release as
+`compose.yml`: the repository's `docker-compose.yml` with the
 images in place of the builds, whose comments explain each setting.
 `OMNISYNC_API_PORT` and `OMNISYNC_WEB_PORT` change the host ports (default
 8000 and 3000).
@@ -393,7 +393,7 @@ from this repository's release workflow for that tag. An image's signature
 covers its multi-platform index, so one check covers both platforms.
 
 ```bash
-VERSION=0.11.0   # the release you are installing
+VERSION=0.12.0   # the release you are installing
 ID="https://github.com/pan-fire/OmniSync/.github/workflows/release.yml@refs/tags/v$VERSION"
 ISSUER=https://token.actions.githubusercontent.com
 
@@ -504,7 +504,7 @@ The API is reachable from this machine only, and every request needs a token:
 **Health:** `GET /health` checks only local state (database and the rclone
 binary) and never calls a cloud provider. It answers 200 `"ok"`, or 503
 `"degraded"` with the same body when either is missing, so the container health
-check (built into the image and set in compose) fails for a broken backend. `remote_accessible` is always `null` there;
+check (built into the image and set in compose) fails for a broken backend.
 `GET /health/remotes` (token required) checks the remotes that profiles use, and
 `GET /health/network` diagnoses outbound DNS/HTTPS.
 

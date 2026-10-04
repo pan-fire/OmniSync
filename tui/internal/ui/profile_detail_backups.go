@@ -56,23 +56,8 @@ func snapshotColumns() []components.Column {
 		{Title: "Created", Width: 19},
 		{Title: "Size", Width: 12},
 		{Title: "Status", Width: 10},
-		{Title: "Kind", Width: 17},
+		{Title: "Latest", Width: 8},
 	}
-}
-
-// snapshotKindLabel names a snapshot's kind as `osync backups snapshots`
-// does: "full" or "legacy" (a mirror version from before snapshot manifests,
-// which restores the files as they were before that backup and removes
-// nothing), with " (latest)" on the target's most recent backup.
-func snapshotKindLabel(s api.SnapshotResponse) string {
-	kind := s.Kind
-	if kind == "" {
-		kind = "full"
-	}
-	if s.Latest {
-		kind += " (latest)"
-	}
-	return kind
 }
 
 func (m ProfileDetailModel) handleBackupsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -94,10 +79,6 @@ func (m ProfileDetailModel) handleBackupsKey(msg tea.KeyPressMsg) (tea.Model, te
 				})
 				f.Intro = fmt.Sprintf("Snapshot %s of backup target %d.\nRestoring overwrites the chosen side(s) of this profile with the snapshot.\n"+
 					"Next, a preview shows what would change before anything is restored.", row.Key, m.snapshotTarget)
-				if m.snapshotKind(row.Key) == "legacy" {
-					f.Intro += "\nThis snapshot is in an older backup format: it brings files back as they were before " +
-						"that backup and removes nothing."
-				}
 				m.form = f
 			}
 		default:
@@ -334,12 +315,10 @@ func (m *ProfileDetailModel) updateBackupTable() {
 	m.backupTable.SetRows(rows)
 }
 
-// snapshotKind is the kind of the listed snapshot with this ID ("" when unknown).
-func (m ProfileDetailModel) snapshotKind(id string) string {
-	for _, s := range m.snapshots {
-		if s.SnapshotID == id {
-			return s.Kind
-		}
+// latestLabel marks the target's most recent backup in the snapshot table.
+func latestLabel(latest bool) string {
+	if latest {
+		return "yes"
 	}
 	return ""
 }
@@ -349,7 +328,7 @@ func (m *ProfileDetailModel) updateSnapshotTable() {
 	for _, s := range m.snapshots {
 		rows = append(rows, components.Row{
 			Key:    s.SnapshotID,
-			Values: []string{s.SnapshotID, formatTime(s.CreatedAt), sizeOrDash(s.SizeBytes), s.Status, snapshotKindLabel(s)},
+			Values: []string{s.SnapshotID, formatTime(s.CreatedAt), sizeOrDash(s.SizeBytes), s.Status, latestLabel(s.Latest)},
 		})
 	}
 	m.snapshotTable.SetRows(rows)
@@ -454,9 +433,6 @@ func restorePrompt(req fullRestore, preview *api.RestorePreviewResponse, err err
 		for _, s := range preview.Sides {
 			fmt.Fprintf(&b, "%s folder %s: %d added, %d replaced, %d removed, %d unchanged\n",
 				s.Side, s.Path, s.Added, s.Replaced, s.Removed, s.Unchanged)
-		}
-		if !preview.Exact {
-			b.WriteString("An old-style snapshot: files are copied back, nothing is removed.\n")
 		}
 	}
 	b.WriteString("\nReplaced and removed files are kept in .omnisync-trash/pre-restore/.")

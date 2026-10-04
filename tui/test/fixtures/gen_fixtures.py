@@ -47,7 +47,6 @@ PROFILE_BASE: dict[str, Any] = dict(
     pull_interval_minutes=15,
     rclone_filter=["- *.tmp"],
     rclone_args=["--transfers", "4"],
-    backup_dir="/home/user/.backup",
     max_retries=4,
     enabled=True,
     created_at=T1,
@@ -67,11 +66,9 @@ PROGRESS = s.SyncProgress(
 def responses() -> dict[str, BaseModel]:
     """Representative instances of every response model the TUI decodes."""
     return {
-        # remote_accessible stays null: GET /health never contacts remotes
-        # (GET /health/remotes does), and clients must not read null as down.
         "HealthResponse": s.HealthResponse(
-            status="ok", rclone_installed=True, remote_accessible=None,
-            uptime_seconds=3600.5, database_ok=True, version="0.9.0",
+            status="ok", rclone_installed=True,
+            uptime_seconds=3600.5, database_ok=True, version="0.12.0",
         ),
         "BrowseResponse": s.BrowseResponse(
             current="gdrive:Backup",
@@ -310,7 +307,7 @@ def responses() -> dict[str, BaseModel]:
             verify_status="verified", verify_message="12 file(s) match the folder",
         ),
         "SnapshotResponse": s.SnapshotResponse(
-            snapshot_id="2026-09-27T08-30-00", created_at=T1, size_bytes=123456, status="completed",
+            snapshot_id="2026-09-27T08-30-00", created_at=T1, size_bytes=123456, status="completed", latest=True,
         ),
         "SnapshotFilesResponse": s.SnapshotFilesResponse(
             snapshot_id="2026-09-27T08-30-00", path="Berichte", search="ü",
@@ -322,7 +319,7 @@ def responses() -> dict[str, BaseModel]:
             total=42, offset=10, limit=2, snapshot_files=99,
         ),
         "RestorePreviewResponse": s.RestorePreviewResponse(
-            snapshot_id="2026-09-27T08-30-00", restore_scope=s.RestoreScope.BOTH, exact=True,
+            snapshot_id="2026-09-27T08-30-00", restore_scope=s.RestoreScope.BOTH,
             sides=[
                 s.RestorePreviewSide(side="local", path="/home/user/Dokumente", added=1, replaced=2, removed=3,
                                      unchanged=4, added_examples=["a.txt"], replaced_examples=["b.txt"],

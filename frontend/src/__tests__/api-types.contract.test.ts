@@ -59,7 +59,7 @@ type ExcludeNoneProblems<Hand, Gen> = ExtraKeys<Hand, Gen> | ResponseMismatch<Ha
 
 /**
  * Fields the backend types as a plain string that the UI narrows to the
- * values the backend writes (severity, verify status, snapshot kind, SMTP
+ * values the backend writes (severity, verify status, SMTP
  * security) and the types that hold them, and
  * TestSyncResponse.steps (a list of plain objects in the backend model).
  * Checked without them; the rest of each type still is.
@@ -151,7 +151,7 @@ describe('hand-written response types read the backend models', () => {
   it('backups', () => {
     expectTypeOf<ResponseProblems<Narrowed<T.BackupTarget, 'last_verify_status'>, Schema<'BackupTargetResponse'>>>().toBeNever();
     expectTypeOf<ResponseProblems<Narrowed<T.BackupJob, 'verify_status'>, Schema<'BackupJobResponse'>>>().toBeNever();
-    expectTypeOf<ResponseProblems<Narrowed<T.Snapshot, 'kind'>, Schema<'SnapshotResponse'>>>().toBeNever();
+    expectTypeOf<ResponseProblems<T.Snapshot, Schema<'SnapshotResponse'>>>().toBeNever();
     expectTypeOf<ResponseProblems<T.SnapshotFileEntry, Schema<'SnapshotFileEntry'>>>().toBeNever();
     expectTypeOf<ResponseProblems<T.SnapshotFilesResponse, Schema<'SnapshotFilesResponse'>>>().toBeNever();
     expectTypeOf<ResponseProblems<T.RestorePreviewSide, Schema<'RestorePreviewSide'>>>().toBeNever();

@@ -859,7 +859,7 @@ async def test_mirror_profile_still_pushes_and_pulls(env):
 
 
 def edit_state(env: Env, **changes) -> None:
-    """Change omnisync-state.json as an older version (or other paths) would have left it."""
+    """Change omnisync-state.json as a sync of the pair in another form would have left it."""
     path = env.workdir / "omnisync-state.json"
     state = {**json.loads(path.read_text()), **changes}
     path.write_text(json.dumps({k: v for k, v in state.items() if v is not None}))
@@ -930,9 +930,9 @@ async def test_a_pair_synced_on_paths_that_no_longer_fit_needs_a_confirmed_resyn
 
 
 @pytest.mark.parametrize("env", ["paths"], indirect=True)
-async def test_a_pair_synced_before_names_were_recorded_keeps_its_listings(env):
+async def test_a_pair_keeps_its_names_form_until_a_resync(env):
     engine = await synced(env, {"a.txt": "A"})
-    edit_state(env, names=None)  # the state file of an earlier version
+    assert json.loads((env.workdir / "omnisync-state.json").read_text())["names"] == "paths"
     listings = sorted(p.name for p in env.workdir.glob("*.lst"))
     write(env.local, "b.txt", "B")
 
@@ -940,9 +940,7 @@ async def test_a_pair_synced_before_names_were_recorded_keeps_its_listings(env):
 
     job = await env.last_job()
     assert (job.direction, job.status) == ("two_way", "completed"), await env.errors(job.id)
-    assert files_under(env.remote)["b.txt"] == "B"
     assert sorted(p.name for p in env.workdir.glob("*.lst")) == listings
-    assert json.loads((env.workdir / "omnisync-state.json").read_text())["names"] == "paths"
 
     # A pair recorded with short names keeps them until a resync chooses anew.
     edit_state(env, names="short")

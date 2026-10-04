@@ -3,6 +3,5 @@
   "created_at": "2026-09-27T08:30:00Z",
   "size_bytes": 123456,
   "status": "completed",
-  "kind": "full",
-  "latest": false
+  "latest": true
 }

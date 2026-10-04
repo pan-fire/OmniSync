@@ -59,13 +59,12 @@ class SyncProfile(Base):
     pull_interval_minutes: Mapped[int] = mapped_column(Integer, default=5)
     rclone_filter: Mapped[str] = mapped_column(Text, default="[]")  # JSON array
     rclone_args: Mapped[str] = mapped_column(Text, default="[]")  # JSON array
-    backup_dir: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     max_retries: Mapped[int] = mapped_column(Integer, default=3)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
     # "two_way" (rclone bisync) or "mirror" (push local changes, pull on the
-    # interval). Rows from before 0004 are "mirror"; the API creates two_way.
+    # interval). The API creates two_way unless told otherwise.
     sync_mode: Mapped[str] = mapped_column(String(10), default="mirror", server_default="mirror")
     # The user dismissed the mirror-mode explanation for this profile (web UI
     # and TUI). Only shown for mirror profiles; kept when the mode changes.

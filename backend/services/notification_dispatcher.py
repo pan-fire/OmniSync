@@ -138,7 +138,7 @@ class NotificationDispatcher:
         """config.toml holds channel credentials: readable by its owner only.
 
         Saves write it 0600 already (ConfigService._save_toml); this covers
-        a file edited by hand or written by an older version.
+        a file edited by hand.
         """
         path = self._config_service.config_path
         try:

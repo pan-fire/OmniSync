@@ -205,14 +205,12 @@ export type LogCategory = 'audit' | 'errors';
  * when the database or rclone is missing.
  */
 export interface Health {
-  status:            string;
-  rclone_installed:  boolean;
-  /** Always null now; remote reachability comes from GET /health/remotes. */
-  remote_accessible: boolean | null;
-  uptime_seconds:    number;
-  database_ok:       boolean;
-  /** The backend's release version; absent from backends older than 0.9.0. */
-  version?:          string;
+  status:           string;
+  rclone_installed: boolean;
+  uptime_seconds:   number;
+  database_ok:      boolean;
+  /** The backend's release version. */
+  version:          string;
 }
 
 /** One remote a running profile syncs with (GET /health/remotes). */
@@ -694,7 +692,6 @@ export interface Profile {
   pull_interval_minutes: number;
   rclone_filter:         string[];
   rclone_args:           string[];
-  backup_dir:            string | null;
   max_retries:           number;
   enabled:               boolean;
   created_at:            string;
@@ -738,7 +735,6 @@ export interface ProfileCreateRequest {
   pull_interval_minutes?: number;
   rclone_filter?:         string[];
   rclone_args?:           string[];
-  backup_dir?:            string | null;
   max_retries?:           number;
   /** Defaults to two_way on the server; the first two-way run is a resync. */
   sync_mode?:             SyncMode;
@@ -754,7 +750,6 @@ export interface ProfileUpdateRequest {
   pull_interval_minutes?: number;
   rclone_filter?:         string[];
   rclone_args?:           string[];
-  backup_dir?:            string | null;
   max_retries?:           number;
   /** Switching to two_way makes the next sync a resync; switching to mirror forgets the two-way state. */
   sync_mode?:             SyncMode;
@@ -904,19 +899,11 @@ export interface BackupJob {
   verify_message?: string | null;
 }
 
-/**
- * full:   restores the tree exactly as it was right after that backup.
- * legacy: a mirror version from before snapshot manifests; it brings back
- *         files as they were before that backup and removes nothing.
- */
-export type SnapshotKind = 'full' | 'legacy';
-
 export interface Snapshot {
   snapshot_id: string;
   created_at:  string;
   size_bytes:  number | null;
   status:      string;
-  kind:        SnapshotKind;
   /** The most recent backup of the target. */
   latest:      boolean;
 }
@@ -978,8 +965,6 @@ export interface RestorePreviewSide {
 export interface RestorePreview {
   snapshot_id:   string;
   restore_scope: RestoreScope;
-  /** False for a legacy version: it copies files back and removes nothing. */
-  exact:         boolean;
   sides:         RestorePreviewSide[];
 }
 

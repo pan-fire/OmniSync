@@ -27,22 +27,6 @@ wrong method, request validation) and unexpected exceptions into the same
 shape. `backend/tests/test_api_errors.py` fails when the backend raises a
 code that is not listed here.
 
-## Changes from builds before the first release
-
-Before 0.10.0, the first published release, `detail` was sometimes an
-object or a list. Clients written against such a build that read those
-need to change:
-
-| Before | Now |
-|--------|-----|
-| request validation (422): `detail` was FastAPI's list of `{loc, msg, type, input}` | `code: "validation_failed"`, `detail` is `"field: message; ..."`, the list is `details.errors` (`loc`, `msg`, `type`; the submitted `input` is no longer echoed) |
-| `{"detail": {"code": "invalid_params", "errors": [...]}}` | `code: "invalid_params"`, `details.errors`; `detail` is the errors joined with `; ` |
-| `{"detail": {"code": "invalid_import", "errors": [...]}}` | `code: "invalid_import"`, `details.errors` |
-| `{"detail": {"code": "name_clash", "names": [...]}}` | `code: "name_clash"`, `details.names` |
-| `{"detail": {"message": "Invalid file paths", "invalid_paths": [...]}}` | `code: "invalid_paths"`, `details.invalid_paths` |
-| 410: `{"detail": {"code": "GONE", "message", "replacement"}}` | `code: "route_removed"`, `details.replacement` |
-| web UI server: `{"detail": {"code": "login_required", "message"}}` (and `login_throttled`, `invalid_password`, `login_misconfigured`) | `code` at the top level, `retry_after` in `details` |
-
 ## `details` keys
 
 | Key | With codes | Content |
@@ -51,7 +35,6 @@ need to change:
 | `errors` | `invalid_params`, `invalid_import` | list of strings, one per problem |
 | `names` | `name_clash` | remote names that exist already |
 | `invalid_paths` | `invalid_paths` | paths that are not in the cached diff |
-| `replacement` | `route_removed` | the route to use instead, e.g. `POST /profiles/{slug}/sync/start` |
 | `retry_after` | `auth_throttled`, `login_throttled`, `invalid_password` | seconds until the next attempt can succeed (also in the `Retry-After` header for 429) |
 
 ## Codes of the backend
@@ -69,7 +52,6 @@ route, 405, a plain `HTTPException`) get the code of their status.
 | `not_found` | 404 (unknown route) |
 | `method_not_allowed` | 405 |
 | `conflict` | 409 |
-| `gone` | 410 |
 | `body_too_large` | 413, the request body is over the limit (1 MiB) |
 | `unsupported_media_type` | 415 |
 | `invalid_request` | 422; also `POST /config/test-sync` without both folders |
@@ -107,7 +89,6 @@ route, 405, a plain `HTTPException`) get the code of their status.
 | `intervals_not_resumable` | 409 | Intervals cannot be resumed yet (differences remain) |
 | `manual_flag_not_found` | 404 | No manual flag for this path |
 | `rclone_failed` | 500, 502 | rclone failed; the OmniSync log has the details |
-| `route_removed` | 410 | A retired `/sync/*` route (`details.replacement`) |
 | `job_not_found` | 404 | No job with this id |
 | `conflict_not_found` | 404 | No conflict with this id |
 | `conflict_already_resolved` | 409 | The conflict is resolved already |

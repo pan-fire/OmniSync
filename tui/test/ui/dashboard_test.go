@@ -18,7 +18,7 @@ func dashboardBackend(t *testing.T) *backend {
 		"profiles_summary": []any{map[string]any{"slug": "docs", "name": "Dokumente", "state": "idle", "last_sync": "2026-09-27T08:30:00Z", "pending_changes": 1, "intervals_paused": false}},
 	})
 	// Like the real backend: /health does not contact remotes and sends null.
-	b.json("GET", "/health", 200, map[string]any{"status": "ok", "rclone_installed": true, "remote_accessible": nil, "database_ok": true, "uptime_seconds": 7200})
+	b.json("GET", "/health", 200, map[string]any{"status": "ok", "rclone_installed": true, "database_ok": true, "uptime_seconds": 7200})
 	b.json("GET", "/health/remotes", 200, map[string]any{"remotes": []any{
 		map[string]any{"remote": "gdrive", "accessible": true, "profiles": []any{"docs"}},
 		map[string]any{"remote": "onedrive", "accessible": false, "profiles": []any{"pics"}},
@@ -113,8 +113,7 @@ func TestDashboard_TickSkipsNetworkProbe(t *testing.T) {
 	}
 }
 
-// GET /health sends remote_accessible: null; the dashboard takes remote
-// reachability from GET /health/remotes instead of showing null as down.
+// The dashboard takes remote reachability from GET /health/remotes.
 func TestDashboard_RemoteReachabilityFromHealthRemotes(t *testing.T) {
 	b := dashboardBackend(t)
 	m := openDashboard(t, b)
@@ -174,8 +173,8 @@ func starts(b *backend) []string {
 }
 
 // Push all previews every enabled profile, asks once, then syncs
-// every enabled profile through the per-profile endpoint with force=true;
-// the legacy /sync/start is never used. The prompt lists each profile's
+// every enabled profile through the per-profile endpoint with force=true
+// (the backend has no single-engine /sync/start). The prompt lists each profile's
 // deletes and replaces and its own delete limit.
 func TestDashboard_PushAllAsksThenUsesProfileEndpoints(t *testing.T) {
 	b := dashboardBackend(t)
@@ -224,7 +223,7 @@ func TestDashboard_PushAllAsksThenUsesProfileEndpoints(t *testing.T) {
 	m = dashStep(t, m, press("backspace"))
 	_ = typeForce(t, m)
 	if len(b.matching("POST /sync/")) != 0 {
-		t.Error("legacy /sync/* route used")
+		t.Error("a /sync/* route the backend does not have was used")
 	}
 	for _, slug := range []string{"docs", "pics"} {
 		bodies := b.bodiesOf("POST /profiles/" + slug + "/sync/start")

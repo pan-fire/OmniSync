@@ -18,7 +18,6 @@ const snapshot: Snapshot = {
   created_at:  '2026-09-01T10:00:00Z',
   size_bytes:  1024,
   status:      'available',
-  kind:        'full',
   latest:      true,
 };
 
@@ -67,7 +66,7 @@ beforeEach(() => {
       const sides = scope === 'both'
         ? [side('local', '/data/docs'), side('remote', 'gdrive:Docs')]
         : [side(scope === 'remote_only' ? 'remote' : 'local', scope === 'remote_only' ? 'gdrive:Docs' : '/data/docs')];
-      return respond({ snapshot_id: snapshot.snapshot_id, restore_scope: scope, exact: true, sides });
+      return respond({ snapshot_id: snapshot.snapshot_id, restore_scope: scope, sides });
     }
     if (init?.method === 'POST') {
       return respond({

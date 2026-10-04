@@ -66,7 +66,6 @@ class BackupBase:
         self._manager = engine_manager
         self._scheduler: AsyncIOScheduler | None = None
         self._running_targets: set[int] = set()
-        self._purged_targets: set[tuple[int, str]] = set()
         # Targets whose overdue notification was sent (until they recover).
         self._overdue_notified: set[int] = set()
         # (target id, location, encrypted, snapshot id) -> files of an archive snapshot
@@ -189,13 +188,6 @@ class BackupBase:
         def pre_restore_dir(dest: str) -> str: ...
         async def _mirror_plan(
             self, root: str, snapshot_id: str, select: Callable[[str], bool] | None = None,
-        ) -> _MirrorPlan: ...
-        async def _plan_legacy(
-            self,
-            root: str,
-            versions: list[str],
-            snapshot_id: str,
-            select: Callable[[str], bool] | None = None,
         ) -> _MirrorPlan: ...
         async def _apply_copy(
             self, plan: _MirrorPlan, snapshot_id: str, dests: list[str], rclone_args: list[str] | None = None,

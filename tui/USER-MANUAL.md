@@ -107,7 +107,7 @@ osync backups restore docs 3 2026-09-27T08-30-00 --scope local_only --wait
 
 The backend starts a backup or restore and answers at once; the job then runs on the server. Without `--wait` the command prints the job ID and exits 0 (`--json`: `{"profile", "target_id", "job_id", "status": "running"}`); check the job later with `osync backups SLUG` (last backup and its status). With `--wait` it polls the job every 2 seconds until it has ended and exits 1 when it failed or a backup was skipped (target unreachable), with the reason and its code (for example `[target_unreachable]`); Ctrl+C stops waiting and the job keeps running. A refusal comes at once: a target that is already backing up, or a profile that is busy (a sync, backup or restore of it runs), exits 3.
 
-`restore --scope` picks what is restored: `local_only`, `remote_only` or `both`. A full snapshot makes that folder identical to the snapshot (newer files are overwritten, files not in the snapshot are removed); a legacy snapshot only copies its files back. Syncing of the profile is paused while the restore runs. Without `--yes` (`-y`) the command explains this and asks `Restore now? [y/N]` on a terminal; without a terminal (a script, cron) it refuses with exit 3.
+`restore --scope` picks what is restored: `local_only`, `remote_only` or `both`. A restore makes that folder identical to the snapshot (newer files are overwritten, files not in the snapshot are removed). Syncing of the profile is paused while the restore runs. Without `--yes` (`-y`) the command explains this and asks `Restore now? [y/N]` on a terminal; without a terminal (a script, cron) it refuses with exit 3.
 
 ### Logs and notifications
 

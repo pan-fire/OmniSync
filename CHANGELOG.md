@@ -54,6 +54,33 @@ release notes.
   test-only `OMNISYNC_INSTALL_TEST_RELEASE_DIR` (a local stand-in for the
   release, see CONTRIBUTING.md) makes this possible without downloads.
 
+### Removed
+
+- **Compatibility with builds before 0.12.0.** No installation predates
+  0.12.0, so the paths that only served older installs, data or clients
+  are gone; a 0.12.0 install behaves as before.
+  - Database: migrations 0001 to 0010 are squashed into one baseline that
+    creates the 0.12.0 schema. It keeps the ID `0010_backups`, so 0.12.0
+    databases need no migration for it; the adoption of pre-Alembic
+    databases is gone. Migration 0011 drops `sync_profiles.backup_dir`.
+  - Config: a single-profile `config.toml` is no longer turned into a
+    "Default" profile, and a profile's `backup_dir` no longer into a
+    "Legacy backup" target. `backup_dir` leaves the profile API.
+  - Backups: mirror version folders without a manifest are no longer
+    listed or restorable as "Before this backup" snapshots, and the
+    `current` pseudo snapshot is gone. `SnapshotResponse.kind` and
+    `RestorePreviewResponse.exact` are removed (osync and the TUI show a
+    Latest column instead of Kind). Pre-rename `.gsync-*` markers in
+    backup targets are no longer cleaned up.
+  - API: the single-engine `/sync/*` routes that answered 410
+    (`route_removed`) now get the generic 404; `GET /sync/status/aggregate`
+    stays. `GET /health` no longer sends the always-null
+    `remote_accessible`, and always sends `version`.
+  - Installer: releases must attach `compose.yml`; the copy for 0.11.0 is
+    gone and the oldest installable release is 0.12.0.
+  - Web UI: the sidebar state and the language are no longer migrated
+    from `localStorage`.
+
 ## [0.12.0] - 2026-10-04
 
 ### Added

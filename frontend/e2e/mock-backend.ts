@@ -32,7 +32,6 @@ const PROFILE_DEFAULTS = {
   pull_interval_minutes:   5,
   rclone_filter:           [],
   rclone_args:             [],
-  backup_dir:              null,
   max_retries:             3,
   enabled:                 true,
   created_at:              '2026-06-14T09:30:00Z',
@@ -143,13 +142,12 @@ const AGGREGATE: AggregateStatus = {
 };
 
 const HEALTH: Health = {
-  status:            'ok',
-  rclone_installed:  true,
-  remote_accessible: true,
-  uptime_seconds:    6 * 86_400 + 4 * 3600,
-  database_ok:       true,
+  status:           'ok',
+  rclone_installed: true,
+  uptime_seconds:   6 * 86_400 + 4 * 3600,
+  database_ok:      true,
   // The version the UI was built with, so the sidebar shows no mismatch.
-  version:           packageJson.version,
+  version:          packageJson.version,
 };
 
 const REMOTES: Remote[] = [
@@ -299,7 +297,6 @@ const SNAPSHOTS: Snapshot[] = [0, 1, 2, 3].map((day) => ({
   created_at:  `2026-09-${String(30 - day).padStart(2, '0')}T03:00:00Z`,
   size_bytes:  Math.round((4.8 - day * 0.05) * GiB),
   status:      'completed',
-  kind:        'full',
   latest:      day === 0,
 }));
 

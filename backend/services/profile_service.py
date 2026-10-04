@@ -44,7 +44,6 @@ class ProfileService:
                 pull_interval_minutes=request.pull_interval_minutes,
                 rclone_filter=json.dumps(request.rclone_filter),
                 rclone_args=json.dumps(request.rclone_args),
-                backup_dir=request.backup_dir,
                 max_retries=request.max_retries,
                 sync_mode=request.sync_mode.value,
                 bwlimit=request.bwlimit,

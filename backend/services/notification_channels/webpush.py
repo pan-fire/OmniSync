@@ -46,7 +46,6 @@ class WebPushChannel(NotificationChannelBase):
     def ensure_vapid_keys(self) -> None:
         """Generate VAPID key pair if not already present. Idempotent."""
         if self._private_key_path.exists() and self._public_key_path.exists():
-            os.chmod(self._private_key_path, 0o600)  # tighten keys written by older versions
             self._public_key = self._public_key_path.read_text().strip()
             logger.info("VAPID keys loaded from %s", self._vapid_dir)
             return

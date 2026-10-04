@@ -27,7 +27,6 @@ function profile (slug: string, name: string, enabled = true): ProfileStatus {
     pull_interval_minutes: 5,
     rclone_filter:         [],
     rclone_args:           [],
-    backup_dir:            null,
     max_retries:           3,
     enabled,
     created_at:            '2026-01-01T00:00:00Z',

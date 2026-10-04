@@ -578,19 +578,6 @@ def test_unknown_configured_log_level_falls_back_to_info(backend_logger_level):
     assert backend_logger_level.level == logging.ERROR
 
 
-async def test_legacy_config_with_out_of_range_numbers_still_migrates(env, tmp_path):
-    from backend.services.migration import migrate_legacy_config
-
-    toml = tmp_path / "legacy.toml"
-    toml.write_text(
-        'local_dir = "/home/me/Sync"\nremote_dir = "gdrive:Sync"\n'
-        "debounce_seconds = -2\npull_interval_minutes = 0\nmax_retries = 99\n"
-    )
-    await migrate_legacy_config(ConfigService(toml), env.service, env.factory)
-    (profile,) = await env.service.get_all()
-    assert (profile.debounce_seconds, profile.pull_interval_minutes, profile.max_retries) == (1, 1, 10)
-
-
 # --- Profiles router: confirmation and unknown slugs (multi-sync-profiles 12.2) ---
 
 

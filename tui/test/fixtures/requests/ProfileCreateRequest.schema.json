@@ -39,19 +39,6 @@
     }
   },
   "properties": {
-    "backup_dir": {
-      "anyOf": [
-        {
-          "maxLength": 1024,
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Backup Dir"
-    },
     "bwlimit": {
       "anyOf": [
         {

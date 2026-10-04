@@ -1,7 +1,6 @@
 {
   "snapshot_id": "2026-09-27T08-30-00",
   "restore_scope": "both",
-  "exact": true,
   "sides": [
     {
       "side": "local",

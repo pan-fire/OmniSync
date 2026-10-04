@@ -117,15 +117,7 @@ async def test_token_errors_carry_the_request_id(bare_client):
     _assert_request_id(resp)
 
 
-async def test_retired_route_names_its_replacement(test_client):
-    resp = await test_client.post("/sync/start", json={"direction": "push"})
-    assert resp.status_code == 410
-    body = resp.json()
-    _assert_envelope(body, "route_removed")
-    assert body["details"]["replacement"] in body["detail"]
-
-
-async def test_unexpected_exception_and_legacy_details():
+async def test_unexpected_exception_and_object_details():
     app = FastAPI()
     install_error_handlers(app)
 
@@ -133,8 +125,8 @@ async def test_unexpected_exception_and_legacy_details():
     async def boom() -> None:
         raise RuntimeError("secret path /etc/x")
 
-    @app.get("/legacy")
-    async def legacy() -> None:
+    @app.get("/object")
+    async def object_detail() -> None:
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail={"code": "name_clash", "message": "Taken", "names": ["a"]})
 
@@ -144,7 +136,7 @@ async def test_unexpected_exception_and_legacy_details():
         _assert_envelope(resp.json(), "internal_error")
         assert "secret" not in resp.text
 
-        resp = await c.get("/legacy")
+        resp = await c.get("/object")
         assert resp.json() == {"detail": "Taken", "code": "name_clash", "details": {"names": ["a"]}}
 
 

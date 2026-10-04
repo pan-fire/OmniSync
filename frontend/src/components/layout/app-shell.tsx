@@ -10,9 +10,6 @@ import { useTranslation } from '@/i18n';
 import { SidebarControlsProvider } from '@/components/layout/sidebar-controls';
 import { SIDEBAR_COOKIE, writePreferenceCookie } from '@/i18n/config';
 
-// Older builds kept the sidebar state in localStorage under the same name.
-const LEGACY_STORAGE_KEY = 'omnisync-sidebar-collapsed';
-
 export const MAIN_CONTENT_ID = 'main-content';
 
 type AppShellProps = {
@@ -36,22 +33,6 @@ export function AppShell ({ children, initialCollapsed = false, authEnabled = fa
     setIsSidebarCollapsed(collapsed);
     writePreferenceCookie(SIDEBAR_COOKIE, collapsed ? '1' : '0');
   }, []);
-
-  // One-time migration of the old localStorage value into the cookie.
-  useEffect(() => {
-    if (document.cookie.split('; ').some((c) => c.startsWith(`${SIDEBAR_COOKIE}=`))) return;
-    let legacy: string | null = null;
-    try {
-      legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-    } catch {
-      return;
-    }
-    if (legacy === '1' && !initialCollapsed) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- runs once, after hydration
-      setCollapsed(true);
-    }
-  }, [initialCollapsed, setCollapsed]);
 
   const toggleSidebar = useCallback(() => {
     focusAfterToggle.current = true;

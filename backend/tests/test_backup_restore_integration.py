@@ -159,8 +159,8 @@ async def test_every_snapshot_restores_exactly_including_the_latest(env):
     t1, t2, t3 = await three_mirror_backups(env, target_id)
 
     snapshots = await env.service.list_snapshots(target_ref(env))
-    assert [(s.snapshot_id, s.kind, s.latest) for s in snapshots] == [
-        (t3, "full", True), (t2, "full", False), (t1, "full", False),
+    assert [(s.snapshot_id, s.latest) for s in snapshots] == [
+        (t3, True), (t2, False), (t1, False),
     ]
     for snapshot, expected in ((t1, AFTER_T1), (t3, AFTER_T3), (t2, AFTER_T2), (t3, AFTER_T3)):
         job = await env.service.restore(target_id, snapshot, RestoreScope.LOCAL_ONLY)
@@ -213,32 +213,23 @@ async def test_a_damaged_backup_fails_the_restore_without_touching_anything(env)
     assert files_under(env.local) == before and safety_copies(env.local) == []
 
 
-async def test_pre_manifest_targets_keep_working(env):
-    """Backups written before manifests: legacy versions and the latest backup (current)."""
+async def test_a_run_that_wrote_no_manifest_is_no_snapshot_but_older_ones_restore(env):
+    """A backup that failed after moving files into versions/T but before its manifest."""
     target_id = await env.add_target(str(env.backups))
-    _, t2, t3 = await three_mirror_backups(env, target_id)
-    shutil.rmtree(env.backups / "manifests")
+    t1, t2, t3 = await three_mirror_backups(env, target_id)
+    (env.backups / "manifests" / f"{t3}.json").unlink()
 
-    snapshots = await env.service.list_snapshots(
-        type("T", (), {"id": target_id, "backup_mode": "mirror", "target_path": str(env.backups), "encryption_password": None})())
-    assert [(s.snapshot_id, s.kind, s.latest) for s in snapshots] == [
-        ("current", "full", True), (t3, "legacy", False), (t2, "legacy", False),
-    ]
+    snapshots = await env.service.list_snapshots(target_ref(env))
+    assert [(s.snapshot_id, s.latest) for s in snapshots] == [(t2, True), (t1, False)]
+    job = await env.service.restore(target_id, t3, RestoreScope.LOCAL_ONLY)
+    assert job.status == BackupJobStatus.FAILED.value
+    assert "not found" in job.error_message
 
-    # a legacy version brings back the files as they were before that backup
-    # (= after t1) over current/, and removes nothing
-    write(env.local, "e.txt", "created after every backup")
-    job = await env.service.restore(target_id, t2, RestoreScope.LOCAL_ONLY)
-    assert job.status == BackupJobStatus.COMPLETED.value, job.error_message
-    assert files_under(env.local) == {
-        "a.txt": "a1", "b.txt": "b1", "sub/c.txt": "c1", "d.txt": "d2", "e.txt": "created after every backup",
-    }
-
-    # the latest backup is restored exactly
-    job = await env.service.restore(target_id, "current", RestoreScope.LOCAL_ONLY)
-    assert job.status == BackupJobStatus.COMPLETED.value, job.error_message
-    assert files_under(env.local) == AFTER_T3
-    assert {"b.txt": "b1", "e.txt": "created after every backup"}.items() <= safety_copies(env.local)[-1].items()
+    # versions/t3 still holds what t2 had: t2 and t1 are rebuilt through it
+    for snapshot, expected in ((t2, AFTER_T2), (t1, AFTER_T1)):
+        job = await env.service.restore(target_id, snapshot, RestoreScope.LOCAL_ONLY)
+        assert job.status == BackupJobStatus.COMPLETED.value, job.error_message
+        assert files_under(env.local) == expected, snapshot
 
 
 async def test_pre_restore_safety_folders_are_never_overwritten(env):
@@ -281,7 +272,7 @@ async def test_restore_to_both_sides(env):
     env.engine.hold.assert_not_called()
 
 
-@pytest.mark.parametrize("snapshot", ["../../etc", "2025-06-01T12-00-00", "latest"])
+@pytest.mark.parametrize("snapshot", ["../../etc", "2025-06-01T12-00-00", "latest", "current"])
 async def test_unknown_or_malformed_snapshots_are_refused(env, snapshot):
     target_id = await env.add_target(str(env.backups))
     write(env.local, "a.txt", "a")

@@ -18,7 +18,7 @@ from backend.services.notification_events import backup_restore_completed_event,
 from backend.services.rclone import SENTINEL_FILE, redact_secrets
 from backend.services.sync_engine import SyncEngine
 from backend.services.backup_service import common
-from backend.services.backup_service.common import LATEST_SNAPSHOT, RestoreRefused, SnapshotFile, logger
+from backend.services.backup_service.common import RestoreRefused, SnapshotFile, logger
 from backend.services.backup_service.base import BackupBase
 from backend.services.backup_service.jobs import LOCK_TIMEOUT_MESSAGE, restore_error_code, set_job_end
 from backend.services.backup_service import archive
@@ -109,8 +109,7 @@ class BrowseMixin(BackupBase):
     async def snapshot_files(self, target: BackupTarget, snapshot_id: str) -> list[SnapshotFile]:
         """Every file of a snapshot (path, size, modification time when known).
 
-        A mirror snapshot is read from its manifest (``current`` and legacy
-        versions from listings); an archive is streamed and its member list
+        A mirror snapshot is read from its manifest; an archive is streamed and its member list
         read, without extracting anything. Archive lists are cached: an
         archive on a remote is downloaded to read it. Raises ValueError for
         an unknown snapshot.
@@ -139,20 +138,16 @@ class BrowseMixin(BackupBase):
             while len(self._archive_lists) > ARCHIVE_LIST_CACHE:
                 self._archive_lists.popitem(last=False)
             return files
-        if snapshot_id != LATEST_SNAPSHOT and self._parse_timestamp(snapshot_id) is not None:
-            manifests, versions = await self._mirror_index(root)
-            if snapshot_id in manifests:
-                return [
-                    SnapshotFile(path, f.get("size"), _parse_modtime(f.get("mtime")))
-                    for path, f in (await self._read_manifest_files(root, snapshot_id)).items()
-                    if path != SENTINEL_FILE
-                ]
-            if snapshot_id in versions:
-                plan = await self._plan_legacy(root, versions, snapshot_id)
-                return [SnapshotFile(p, e.get("Size"), _parse_modtime(e.get("ModTime")))
-                        for p, e in plan.entries.items() if p != SENTINEL_FILE]
-        plan = await self._mirror_plan(root, snapshot_id)  # current, or raises ValueError
-        return [SnapshotFile(p, e.get("Size"), _parse_modtime(e.get("ModTime"))) for p, e in plan.entries.items()]
+        if self._parse_timestamp(snapshot_id) is None:
+            raise ValueError(f"Invalid snapshot id '{snapshot_id}'")
+        manifests, _ = await self._mirror_index(root)
+        if snapshot_id not in manifests:
+            raise ValueError(f"Snapshot '{snapshot_id}' not found at the target")
+        return [
+            SnapshotFile(path, f.get("size"), _parse_modtime(f.get("mtime")))
+            for path, f in (await self._read_manifest_files(root, snapshot_id)).items()
+            if path != SENTINEL_FILE
+        ]
 
     async def _load_target(self, session: AsyncSession, target_id: int) -> BackupTarget:
         target = (await session.execute(
@@ -283,8 +278,7 @@ class BrowseMixin(BackupBase):
         Files are compared by size and modification time (what the restore's
         copy compares; a file whose times differ by at most a second counts
         as unchanged). ``removed`` counts files a restore moves to the
-        pre-restore folder because the snapshot does not have them (none for
-        a legacy version). Raises ValueError for an unknown snapshot and
+        pre-restore folder because the snapshot does not have them. Raises ValueError for an unknown snapshot and
         RuntimeError when the restore could not run (a damaged backup, a
         missing local folder).
         """
@@ -293,11 +287,9 @@ class BrowseMixin(BackupBase):
             profile = target.profile
         if target.backup_mode == BackupMode.MIRROR.value:
             plan = await self._mirror_plan(self.storage_root(target), snapshot_id)
-            exact = plan.exact
             snap = {p: (e.get("Size"), _parse_modtime(e.get("ModTime"))) for p, e in plan.entries.items()}
             members = set(plan.files)
         else:
-            exact = True
             snap = {f.path: (f.size, f.mtime) for f in await self.snapshot_files(target, snapshot_id)}
             members = set(snap)
         snap.pop(SENTINEL_FILE, None)
@@ -322,10 +314,10 @@ class BrowseMixin(BackupBase):
                     unchanged += 1
                 else:
                     replaced.append(path)
-            removed = sorted(p for p in live if p not in members) if exact else []
+            removed = sorted(p for p in live if p not in members)
             sides.append(RestorePreviewSide(
                 side=side, path=dest, added=len(added), replaced=len(replaced), removed=len(removed),
                 unchanged=unchanged, added_examples=added[:PREVIEW_EXAMPLES],
                 replaced_examples=replaced[:PREVIEW_EXAMPLES], removed_examples=removed[:PREVIEW_EXAMPLES],
             ))
-        return RestorePreviewResponse(snapshot_id=snapshot_id, restore_scope=scope, exact=exact, sides=sides)
+        return RestorePreviewResponse(snapshot_id=snapshot_id, restore_scope=scope, sides=sides)

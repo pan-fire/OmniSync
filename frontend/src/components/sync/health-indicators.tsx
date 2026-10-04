@@ -19,8 +19,7 @@ export interface HealthCheck {
 
 /**
  * The local checks of GET /health. Remote reachability is not one of them:
- * /health no longer checks it (remote_accessible is always null), it comes
- * from GET /health/remotes per remote.
+ * it comes from GET /health/remotes per remote.
  */
 export function getHealthChecks (health: Health): HealthCheck[] {
   return [

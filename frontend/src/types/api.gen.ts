@@ -2163,17 +2163,12 @@ export interface components {
             status: string;
             /** Rclone Installed */
             rclone_installed: boolean;
-            /** Remote Accessible */
-            remote_accessible?: boolean | null;
             /** Uptime Seconds */
             uptime_seconds: number;
             /** Database Ok */
             database_ok: boolean;
-            /**
-             * Version
-             * @default
-             */
-            version?: string;
+            /** Version */
+            version: string;
         };
         /**
          * ImportCandidate
@@ -2473,8 +2468,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2516,8 +2509,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2581,8 +2572,6 @@ export interface components {
              * @default []
              */
             rclone_args?: string[];
-            /** Backup Dir */
-            backup_dir?: string | null;
             /**
              * Max Retries
              * @default 3
@@ -2721,8 +2710,6 @@ export interface components {
             rclone_filter?: string[] | null;
             /** Rclone Args */
             rclone_args?: string[] | null;
-            /** Backup Dir */
-            backup_dir?: string | null;
             /** Max Retries */
             max_retries?: number | null;
             sync_mode?: components["schemas"]["SyncMode"] | null;
@@ -2995,8 +2982,6 @@ export interface components {
             /** Snapshot Id */
             snapshot_id: string;
             restore_scope: components["schemas"]["RestoreScope"];
-            /** Exact */
-            exact: boolean;
             /** Sides */
             sides: components["schemas"]["RestorePreviewSide"][];
         };
@@ -3157,11 +3142,6 @@ export interface components {
             size_bytes?: number | null;
             /** Status */
             status: string;
-            /**
-             * Kind
-             * @default full
-             */
-            kind?: string;
             /**
              * Latest
              * @default false

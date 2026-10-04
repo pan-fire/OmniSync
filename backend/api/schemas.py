@@ -281,14 +281,11 @@ class HealthResponse(BaseModel):
 
     status: str
     rclone_installed: bool
-    # No longer checked by /health (that needed a live provider call); always
-    # null here. Kept so older clients still parse the response.
-    remote_accessible: bool | None = None
     uptime_seconds: float
     database_ok: bool
     # The release version (the repository's VERSION file). Public on purpose:
     # it carries no secret and lets clients show what they are talking to.
-    version: str = ""
+    version: str
 
 
 class RemoteHealth(BaseModel):
@@ -1181,7 +1178,6 @@ class ProfileCreateRequest(BaseModel):
     sync_mode: SyncMode = SyncMode.TWO_WAY
     rclone_filter: RcloneFilter = []
     rclone_args: RcloneArgs = []
-    backup_dir: str | None = Field(default=None, max_length=MAX_PATH_LENGTH)
     max_retries: int = Field(default=3, ge=MAX_RETRIES_MIN, le=MAX_RETRIES_MAX)
     # rclone --bwlimit for this profile's syncs (see check_bwlimit).
     bwlimit: str | None = Field(default=None, max_length=MAX_BWLIMIT_LENGTH)
@@ -1239,7 +1235,6 @@ class ProfileUpdateRequest(BaseModel):
     )
     rclone_filter: RcloneFilter | None = None
     rclone_args: RcloneArgs | None = None
-    backup_dir: str | None = Field(default=None, max_length=MAX_PATH_LENGTH)
     max_retries: int | None = Field(default=None, ge=MAX_RETRIES_MIN, le=MAX_RETRIES_MAX)
     # Switching to two_way makes the next sync a resync (the union of both sides).
     sync_mode: SyncMode | None = None
@@ -1290,7 +1285,6 @@ class ProfileResponse(BaseModel):
     pull_interval_minutes: int = 5
     rclone_filter: list[str] = []
     rclone_args: list[str] = []
-    backup_dir: str | None = None
     max_retries: int = 3
     enabled: bool = True
     created_at: datetime
@@ -1600,11 +1594,6 @@ class SnapshotResponse(BaseModel):
     created_at: datetime
     size_bytes: int | None = None
     status: str
-    # "full": restores the tree exactly as it was right after the backup at
-    # created_at. "legacy": a mirror version saved before snapshot manifests
-    # existed; it brings back files as they were before that backup and
-    # removes nothing.
-    kind: str = "full"
     # The most recent backup of the target.
     latest: bool = False
 
@@ -1708,8 +1697,6 @@ class RestorePreviewSide(BaseModel):
 class RestorePreviewResponse(BaseModel):
     snapshot_id: str
     restore_scope: RestoreScope
-    # False for a legacy mirror version: it only copies files back, removes nothing.
-    exact: bool
     sides: list[RestorePreviewSide]
 
 

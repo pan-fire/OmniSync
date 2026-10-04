@@ -557,7 +557,6 @@ class TestProfileCreateRequest:
             "pull_interval_minutes": 5,
             "rclone_filter": [],
             "rclone_args": [],
-            "backup_dir": None,
             "max_retries": 3,
             "sync_mode": SyncMode.TWO_WAY,
             "bwlimit": None,

@@ -1,8 +1,7 @@
 {
   "status": "ok",
   "rclone_installed": true,
-  "remote_accessible": null,
   "uptime_seconds": 3600.5,
   "database_ok": true,
-  "version": "0.9.0"
+  "version": "0.12.0"
 }

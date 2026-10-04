@@ -127,52 +127,9 @@ class TestProfileRoutes:
         assert "other" in resp.json()["detail"]
 
 
-# The single-engine /sync/* routes acted on an arbitrary first engine.
-LEGACY_ROUTES = [
-    ("GET", "/sync/status", "/profiles/{slug}/sync/status"),
-    ("POST", "/sync/start", "/profiles/{slug}/sync/start"),
-    ("POST", "/sync/stop", "/profiles/{slug}/sync/stop"),
-    ("POST", "/sync/check", "/profiles/{slug}/sync/check"),
-    ("POST", "/sync/diff?offset=0&limit=10", "/profiles/{slug}/diff"),
-    ("POST", "/sync/selective", "/profiles/{slug}/sync/selective"),
-    ("POST", "/sync/resume-intervals", "/profiles/{slug}/sync/resume-intervals"),
-    ("GET", "/sync/manual-flags", "/profiles/{slug}/manual-flags"),
-    ("DELETE", "/sync/manual-flags/a/b.txt", "/profiles/{slug}/manual-flags/{path}"),
-]
-
-
-class TestLegacyRoutesAreGone:
+class TestAggregateStatus:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(("method", "path", "replacement"), LEGACY_ROUTES)
-    async def test_legacy_route_is_410_and_touches_no_engine(
-        self, test_client, method: str, path: str, replacement: str,
-    ) -> None:
-        engine = _get_engine()
-        engine.push = AsyncMock()
-        engine.pull = AsyncMock()
-        engine.launch = AsyncMock()
-        engine.stop_current_sync = AsyncMock()
-        engine.check_diff = AsyncMock()
-        engine.enhanced_diff = AsyncMock()
-        engine.selective_sync = AsyncMock()
-        engine.resume_intervals = AsyncMock()
-        engine.clear_manual_flag = AsyncMock()
-
-        body = {"direction": "push"} if path == "/sync/start" else None
-        resp = await test_client.request(method, path, json=body)
-
-        assert resp.status_code == 410
-        body = resp.json()
-        assert body["code"] == "route_removed"
-        assert replacement in body["details"]["replacement"]
-        assert replacement in body["detail"]
-        for mock in (engine.push, engine.pull, engine.launch, engine.stop_current_sync, engine.check_diff,
-                     engine.enhanced_diff, engine.selective_sync, engine.resume_intervals,
-                     engine.clear_manual_flag):
-            mock.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_aggregate_status_is_kept(self, test_client) -> None:
+    async def test_aggregate_status_lists_each_profile(self, test_client) -> None:
         resp = await test_client.get("/sync/status/aggregate")
         assert resp.status_code == 200
         assert resp.json()["profiles_summary"][0]["slug"] == "default"

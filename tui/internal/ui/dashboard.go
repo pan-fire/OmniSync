@@ -670,8 +670,7 @@ func (m DashboardModel) renderHealthPanel() string {
 }
 
 // renderRemotesLine shows GET /health/remotes: one mark per remote that a
-// running profile uses. GET /health sends remote_accessible as null (it does
-// not contact providers), so that field is never shown as "down".
+// running profile uses (GET /health does not contact providers).
 func (m DashboardModel) renderRemotesLine() string {
 	labelStyle := lipgloss.NewStyle().Foreground(theme.Current.Muted)
 	switch {

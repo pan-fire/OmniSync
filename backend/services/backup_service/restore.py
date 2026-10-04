@@ -21,7 +21,7 @@ from backend.services.notification_events import backup_restore_completed_event,
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR, redact_secrets
 from backend.services.sync_engine import remote_join, store_pause_reason
 from backend.services.backup_service import common
-from backend.services.backup_service.common import LATEST_SNAPSHOT, RestoreRefused, logger
+from backend.services.backup_service.common import RestoreRefused, logger
 from backend.services.backup_service.jobs import LOCK_TIMEOUT_MESSAGE, restore_error_code, set_job_end
 from backend.services.backup_service.base import BackupBase
 
@@ -33,12 +33,10 @@ PRE_RESTORE_DIR = "pre-restore"
 class _MirrorPlan:
     """Where each file of a mirror snapshot comes from.
 
-    ``exact``: the snapshot has a manifest; ``files`` is its whole tree (the
-    restore removes everything else). Otherwise ``files`` is what a legacy
-    restore copies back. ``entries`` holds each file's listing in the layer
-    it is taken from; ``layers`` the files to copy from each layer.
+    ``files`` is the snapshot's whole tree, from its manifest (the restore
+    removes everything else). ``entries`` holds each file's listing in the
+    layer it is taken from; ``layers`` the files to copy from each layer.
     """
-    exact: bool
     files: dict[str, int | None]
     entries: dict[str, dict] = field(default_factory=dict)
     layers: dict[str, list[str]] = field(default_factory=dict)
@@ -204,21 +202,14 @@ class RestoreMixin(BackupBase):
         snapshot_id: str,
         scope: RestoreScope,
     ) -> None:
-        """Restore a mirror snapshot.
+        """Restore a mirror snapshot exactly.
 
-        Snapshot T with a manifest (and ``current``) is restored exactly:
-        the destination ends up with the files of the tree right after the
-        backup at T, see _apply_exact. A version folder without a manifest
-        (written before manifests existed) can only bring back files as
-        they were before that backup, see _plan_legacy and _apply_copy.
+        The destination ends up with the files of the tree right after the
+        backup at T, from its manifest, see _apply_exact.
         """
         plan = await self._mirror_plan(self.storage_root(target), snapshot_id)
         dests = self._restore_destinations(profile, scope)
-        args = self.transfer_args(profile)
-        if plan.exact:
-            await self._apply_exact(plan, snapshot_id, dests, args)
-        else:
-            await self._apply_copy(plan, snapshot_id, dests, args)
+        await self._apply_exact(plan, snapshot_id, dests, self.transfer_args(profile))
 
     async def _mirror_plan(
         self, root: str, snapshot_id: str, select: Callable[[str], bool] | None = None,
@@ -228,18 +219,6 @@ class RestoreMixin(BackupBase):
         Raises ValueError for an unknown or malformed snapshot and
         RuntimeError for a backup that cannot rebuild it; nothing is written.
         """
-        if snapshot_id == LATEST_SNAPSHOT:
-            current = remote_join(root, "current")
-            try:
-                entries = await self._rclone.lsjson(current)
-            except RcloneError as exc:
-                if "directory not found" in str(exc).lower():
-                    raise ValueError(f"Snapshot '{snapshot_id}' not found: the target holds no backup")
-                raise
-            files = {e["Path"]: e.get("Size") for e in entries if not e.get("IsDir")}
-            if not files:
-                raise ValueError(f"Snapshot '{snapshot_id}' not found: the target holds no backup")
-            return await self._plan_exact(snapshot_id, files, [current], select)
         if self._parse_timestamp(snapshot_id) is None:
             raise ValueError(f"Invalid snapshot id '{snapshot_id}'")
         manifests, versions = await self._mirror_index(root)
@@ -250,8 +229,6 @@ class RestoreMixin(BackupBase):
             # still in current/.
             layers = [remote_join(root, f"versions/{v}") for v in versions if v > snapshot_id]
             return await self._plan_exact(snapshot_id, files, layers + [remote_join(root, "current")], select)
-        if snapshot_id in versions:
-            return await self._plan_legacy(root, versions, snapshot_id, select)
         raise ValueError(f"Snapshot '{snapshot_id}' not found at the target")
 
     async def _plan_exact(
@@ -268,7 +245,7 @@ class RestoreMixin(BackupBase):
         """
         remaining = {p: size for p, size in files.items()
                      if p != SENTINEL_FILE and (select is None or select(p))}
-        plan = _MirrorPlan(exact=True, files=files)
+        plan = _MirrorPlan(files=files)
         for layer in layers:
             if not remaining:
                 break
@@ -292,48 +269,6 @@ class RestoreMixin(BackupBase):
                 f"Snapshot {snapshot_id} cannot be rebuilt: {len(remaining)} file(s) are missing from the "
                 f"backup, e.g. '{example}'. Nothing was restored."
             )
-        return plan
-
-    async def _plan_legacy(
-        self,
-        root: str,
-        versions: list[str],
-        snapshot_id: str,
-        select: Callable[[str], bool] | None = None,
-    ) -> _MirrorPlan:
-        """Plan the restore of a pre-manifest version folder, with copy semantics.
-
-        A mirror backup at time T moves the previous version of every file
-        it replaces or deletes into ``versions/T``, so ``versions/T`` alone
-        is partial. Without a manifest the files added after T cannot be
-        told apart, so this brings back each file as it was before the
-        backup at T replaced it: from ``versions/T`` if it is there, else
-        from the next newer ``versions/*`` holding it, else from
-        ``current/``. Each file is copied from exactly one of these layers,
-        so every live file that gets replaced lands in the pre-restore
-        safety folder exactly once. Nothing is deleted from the destination.
-        """
-        # Oldest layer first: it wins for every file it holds.
-        layers = [remote_join(root, f"versions/{v}") for v in versions if v >= snapshot_id]
-        layers.append(remote_join(root, "current"))
-        plan = _MirrorPlan(exact=False, files={})
-        for layer in layers:
-            try:
-                entries = await self._rclone.lsjson(layer)
-            except RcloneError as exc:
-                if layer.endswith("current") and "directory not found" in str(exc).lower():
-                    continue
-                raise
-            paths = []
-            for e in entries:
-                path = e["Path"]
-                if e.get("IsDir") or path in plan.files or (select is not None and not select(path)):
-                    continue
-                plan.files[path] = e.get("Size")
-                plan.entries[path] = e
-                paths.append(path)
-            if paths:
-                plan.layers[layer] = paths
         return plan
 
     async def _apply_exact(

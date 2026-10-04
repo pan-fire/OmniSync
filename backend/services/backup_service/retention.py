@@ -41,9 +41,8 @@ class RetentionMixin(BackupBase):
         manifests, versions = await self._mirror_index(root)
         snapshot_ids = sorted(set(manifests) | set(versions))
         # Counted among the backups that completed (they have a manifest); a
-        # version folder a failed run left behind is no restore point. A
-        # target backed up only before manifests existed counts its versions.
-        restorable = manifests or snapshot_ids
+        # version folder a failed run left behind is no restore point.
+        restorable = manifests
         # Fewer than keep_last of them: every snapshot is kept.
         oldest_kept = restorable[-keep_last] if len(restorable) >= keep_last else ""
         deleted = 0

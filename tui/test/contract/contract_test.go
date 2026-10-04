@@ -128,11 +128,10 @@ func TestContract_ErrorResponse(t *testing.T) {
 
 func TestContract_Health(t *testing.T) {
 	h := decodeFixture[api.HealthResponse](t, "HealthResponse")
-	// /health never contacts remotes: remote_accessible is always null.
-	if h.Status != "ok" || !h.Healthy() || !h.RcloneInstalled || h.RemoteAccessible != nil || !h.DatabaseOK || h.UptimeSeconds == 0 {
+	if h.Status != "ok" || !h.Healthy() || !h.RcloneInstalled || !h.DatabaseOK || h.UptimeSeconds == 0 {
 		t.Errorf("unexpected %+v", h)
 	}
-	if h.Version != "0.9.0" {
+	if h.Version != "0.12.0" {
 		t.Errorf("version = %q", h.Version)
 	}
 }
@@ -417,7 +416,7 @@ func checkProfileBase(t *testing.T, p api.ProfileResponse) {
 	t.Helper()
 	if p.ID != 7 || p.Slug != "docs" || p.Name != "Dokumente Übersicht" || p.LocalDir == "" || p.RemoteDir == "" ||
 		p.DebounceSeconds != 9 || p.PullIntervalMinutes != 15 || len(p.RcloneFilter) != 1 || len(p.RcloneArgs) != 2 ||
-		p.BackupDir == nil || p.MaxRetries != 4 || !p.Enabled || p.CreatedAt == "" || p.UpdatedAt == "" {
+		p.MaxRetries != 4 || !p.Enabled || p.CreatedAt == "" || p.UpdatedAt == "" {
 		t.Errorf("unexpected profile %+v", p)
 	}
 	if p.SyncMode != api.SyncModeTwoWay || !p.TwoWay() {
@@ -512,7 +511,7 @@ func TestContract_Backups(t *testing.T) {
 	}
 	s := decodeFixture[api.SnapshotResponse](t, "SnapshotResponse")
 	if s.SnapshotID == "" || s.CreatedAt == "" || s.SizeBytes == nil || *s.SizeBytes != 123456 || s.Status != "completed" ||
-		s.Kind != "full" {
+		!s.Latest {
 		t.Errorf("unexpected %+v", s)
 	}
 	f := decodeFixture[api.SnapshotFilesResponse](t, "SnapshotFilesResponse")
@@ -526,7 +525,7 @@ func TestContract_Backups(t *testing.T) {
 		t.Errorf("unexpected file entry %+v", e)
 	}
 	p := decodeFixture[api.RestorePreviewResponse](t, "RestorePreviewResponse")
-	if p.RestoreScope != api.RestoreScopeBoth || !p.Exact || len(p.Sides) != 1 {
+	if p.RestoreScope != api.RestoreScopeBoth || len(p.Sides) != 1 {
 		t.Fatalf("unexpected %+v", p)
 	}
 	if side := p.Sides[0]; side.Side != "local" || side.Added != 1 || side.Replaced != 2 || side.Removed != 3 ||
@@ -684,12 +683,12 @@ func TestContract_Requests(t *testing.T) {
 	cases := map[string]any{
 		"ProfileCreateRequest": api.ProfileCreateRequest{
 			Name: "Docs", LocalDir: "/home/u/Docs", RemoteDir: "gdrive:Docs", DebounceSeconds: 5,
-			PullIntervalMinutes: 5, RcloneFilter: filters, RcloneArgs: args, BackupDir: ptr("/b"), MaxRetries: 3,
+			PullIntervalMinutes: 5, RcloneFilter: filters, RcloneArgs: args, MaxRetries: 3,
 			SyncMode: api.SyncModeTwoWay,
 		},
 		"ProfileUpdateRequest": api.ProfileUpdateRequest{
 			Name: ptr("Docs"), LocalDir: ptr("/home/u/Docs"), RemoteDir: ptr("gdrive:Docs"), DebounceSeconds: ptr(5),
-			PullIntervalMinutes: ptr(5), RcloneFilter: &filters, RcloneArgs: &args, BackupDir: ptr("/b"), MaxRetries: ptr(3),
+			PullIntervalMinutes: ptr(5), RcloneFilter: &filters, RcloneArgs: &args, MaxRetries: ptr(3),
 			SyncMode: ptr(api.SyncModeMirror), MirrorNoticeDismissed: ptr(true),
 		},
 		"SyncStartRequest": api.SyncStartRequest{Direction: api.SyncDirectionPull, Force: true},

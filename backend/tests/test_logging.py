@@ -151,9 +151,6 @@ def test_log_level_governs_own_loggers_and_libraries_follow_only_debug(configure
 
 
 def test_log_file_is_owner_only_and_rotates_as_configured(configure, tmp_path: Path) -> None:
-    old = tmp_path / "omnisync.log.1"
-    old.write_text("old\n")
-    old.chmod(0o644)
     path = configure(OMNISYNC_LOG_MAX_BYTES="2048", OMNISYNC_LOG_BACKUPS="2")
     for i in range(200):
         logging.getLogger("backend").warning("line %d %s", i, "x" * 40)

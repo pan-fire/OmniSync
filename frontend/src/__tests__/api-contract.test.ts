@@ -45,7 +45,7 @@ describe('API client matches the backend routes', () => {
     expect(lastInit().method).toBe('DELETE');
   });
 
-  it('there is no client for the non-existent POST /remotes or the legacy /sync routes', () => {
+  it('there is no client for routes the backend does not have (POST /remotes, single-engine /sync)', () => {
     const names = Object.keys(api);
     for (const gone of ['addRemote', 'getConfig', 'updateConfig', 'startSync', 'stopSync', 'checkSync', 'getSyncStatus', 'getDiff', 'selectiveSync']) {
       expect(names).not.toContain(gone);
