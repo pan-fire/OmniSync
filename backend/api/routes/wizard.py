@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error
+from backend.api.routes.remotes import section_lookup
 from backend.api.schemas import (
     AuthorizeRequest,
     AuthorizeResponse,
@@ -47,6 +48,7 @@ from backend.services.provider_registry import (
     validate_remote_params,
 )
 from backend.services.rclone import RESERVED_NAME_MESSAGE, RcloneService, is_reserved_remote_name
+from backend.services.rclone_import import local_access_problems
 from backend.services.wizard_sessions import WizardSession, WizardSessionManager
 
 logger = logging.getLogger(__name__)
@@ -514,6 +516,12 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
     )
     errors += missing_required(provider, params_in)
     if errors:
+        raise api_error(422, "invalid_params", "; ".join(errors), errors=errors)
+    # The import's checks on files and wrapped remotes (rclone_import.py).
+    options = {"type": provider.id, **{k: v for k, v in params_in.items() if v != ""}}
+    problems = await local_access_problems(options, section_lookup(rclone, {request.name: options}))
+    if problems:
+        errors = [p[:1].upper() + p[1:] for p in problems]
         raise api_error(422, "invalid_params", "; ".join(errors), errors=errors)
 
     params = await obscure_secrets(rclone, provider, {k: v for k, v in params_in.items() if v != ""}, request.name)

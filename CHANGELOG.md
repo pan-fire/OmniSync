@@ -27,6 +27,14 @@ release notes.
   container as `via`) only when the request has the right token and the
   signature checks out; authentication and throttling still use the TCP
   peer. See [The audit trail](docs/gem/operations.md#the-audit-trail).
+- **The wizard and the remote edit check what the import checks.**
+  Creating a remote (POST /wizard/create) or editing one (PUT
+  /remotes/{name}) now refuses, like the rclone.conf import, file settings
+  such as SFTP's `key_file` that point into OmniSync's data directory or
+  contain `$`, and crypt, alias or union style remotes that point at a
+  `local` remote or wrap a local path, directly or through a chain
+  (422 `invalid_params`). The checks are shared with the import
+  (`services/rclone_import.py`).
 
 ## [0.12.0] - 2026-10-04
 

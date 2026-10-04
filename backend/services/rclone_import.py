@@ -1,4 +1,6 @@
-"""Reading an uploaded rclone.conf for POST /remotes/import.
+"""Reading an uploaded rclone.conf for POST /remotes/import, and the checks
+that keep any remote (imported, created in the wizard or edited) away from
+this machine's files.
 
 The file is parsed in memory; nothing of it is logged. Values are kept
 verbatim: rclone has already obscured its passwords, and tokens are JSON
@@ -22,6 +24,9 @@ can take it safely:
   the API token and the database; a value with ``$`` is refused, since
   rclone would expand environment variables in it;
 - no value spans several lines (rclone.conf has no continuation lines).
+
+The wizard (POST /wizard/create) and the edit (PUT /remotes/{name}) apply
+the same file and wrapper checks through local_access_problems.
 """
 
 from __future__ import annotations
@@ -129,11 +134,20 @@ def _section_problems(name: str, remote_type: str, options: dict[str, str]) -> l
             problems.append(f"'{key}' runs a program on this machine and is not imported")
         elif "\n" in value or "\r" in value:
             problems.append(f"'{key}' spans several lines")
-        elif key in _REFERENCE_OPTIONS:
-            problems += _reference_problems(key, value)
-        elif _reads_local_file(key):
-            problems += _local_file_problems(key, value)
+        else:
+            problems += option_problems(key, value)
     return list(dict.fromkeys(problems))
+
+
+def option_problems(key: str, value: str) -> list[str]:
+    """Why one option would let rclone reach this machine's files: a wrapping
+    backend's target that is a local path, or a file option pointing into
+    OmniSync's data directory or using ``$``. Empty when it is fine."""
+    if key in _REFERENCE_OPTIONS:
+        return _reference_problems(key, value)
+    if _reads_local_file(key):
+        return _local_file_problems(key, value)
+    return []
 
 
 def parse_rclone_config(content: str) -> list[ImportSection]:
@@ -223,6 +237,16 @@ async def local_reference_problems(options: Mapping[str, str], lookup: SectionLo
             return ["it points at a chain of remotes too long to check"]
         pending += [(n, depth + 1) for n in referenced_remotes(section)]
     return []
+
+
+async def local_access_problems(options: Mapping[str, str], lookup: SectionLookup) -> list[str]:
+    """The checks an import applies, for a remote created or edited directly
+    (the wizard, PUT /remotes/{name}): option_problems for every option, and
+    local_reference_problems for what a wrapping backend points at.
+    ``options`` are the remote's settings as they would be stored."""
+    problems = [p for key, value in options.items() if key != "type" for p in option_problems(key, value)]
+    problems += await local_reference_problems(options, lookup)
+    return list(dict.fromkeys(problems))
 
 
 def rewrite_references(options: dict[str, str], renames: dict[str, str]) -> dict[str, str]:
