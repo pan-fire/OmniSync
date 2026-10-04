@@ -5,7 +5,9 @@ whatever the log level). One record per user action::
 
     sync.start profile=docs direction=push force=false outcome=ok client=127.0.0.1
 
-plus the request id the log filter adds (``[req:<id>]``). In the JSON
+``client`` is the TCP peer; for a web UI request whose proxy vouched for the
+browser's address (backend/api/forwarded_client.py) it is that address,
+followed by ``via=<the web UI's server>``. Plus the request id the log filter adds (``[req:<id>]``). In the JSON
 format the same values are in ``fields``: ``action``, ``outcome``,
 ``client`` and the targets (``profile``, ``remote``, ``target``, ...).
 
@@ -75,15 +77,20 @@ def audit(
 
 def _record(action: str, outcome: str, level: int, client: str | None, fields: Mapping[str, object]) -> None:
     ctx = current_request()
+    # The web UI's server, when the client is the browser behind it.
+    via = ctx.via if ctx and not client else None
     client = client or (ctx.client if ctx else None)
     values = {k: _clean(v) for k, v in fields.items() if v is not None}
     parts = [action, *(f"{k}={_render(v)}" for k, v in values.items()), f"outcome={outcome}"]
     if client:
         parts.append(f"client={_render(_clean(client))}")
+    if via:
+        parts.append(f"via={_render(_clean(via))}")
     audit_logger.log(
         level, "%s", " ".join(parts),
         extra={
-            "fields": {"action": action, **values, "outcome": outcome, "client": client},
+            "fields": {"action": action, **values, "outcome": outcome, "client": client,
+                       **({"via": via} if via else {})},
             "request_id": ctx.request_id if ctx else None,
         },
     )

@@ -20,6 +20,13 @@ release notes.
   and category filters apply across all of them. The web Logs page and the
   terminal UI's Logs view now reach every entry still on disk, and
   `osync logs --skip N` pages back too.
+- **The audit trail names the browser for web UI actions.** The web UI's
+  proxy now sends the browser's address in an `X-OmniSync-Client` header,
+  signed with the API token (HMAC over the address and the time, valid for
+  60 seconds). The backend records it as `client` (with the web UI
+  container as `via`) only when the request has the right token and the
+  signature checks out; authentication and throttling still use the TCP
+  peer. See [The audit trail](docs/gem/operations.md#the-audit-trail).
 
 ## [0.12.0] - 2026-10-04
 

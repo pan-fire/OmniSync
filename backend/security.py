@@ -28,7 +28,10 @@ The client address is the TCP peer. uvicorn must run with
 ``--no-proxy-headers`` (the Docker image does): with proxy headers on, it
 believes ``X-Forwarded-For`` from loopback, and a client there could pick
 any address per request to dodge the limit. The web UI's own login
-throttle handles ``X-Forwarded-For`` from a reverse proxy.
+throttle handles ``X-Forwarded-For`` from a reverse proxy. The browser
+address the web UI vouches for (``X-OmniSync-Client``, see
+backend/api/forwarded_client.py) goes into the audit trail only, never
+into these decisions.
 
 Request bodies larger than ``MAX_BODY_BYTES`` are refused with 413 before
 any route reads them.
@@ -50,6 +53,7 @@ from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.api.errors import api_error, error_body_bytes
+from backend.api.forwarded_client import apply_forwarded_client
 from backend.audit import audit
 from backend.logging_setup import register_secret
 
@@ -267,7 +271,10 @@ async def require_api_token(request: Request) -> None:
     header = request.headers.get("authorization", "")
     scheme, _, supplied = header.partition(" ")
     bearer = scheme.lower() == "bearer" and bool(supplied)
-    if bearer and hmac.compare_digest(supplied.strip().encode(), get_api_token().encode()):
+    token = get_api_token()
+    if bearer and hmac.compare_digest(supplied.strip().encode(), token.encode()):
+        # Only now: the web UI's word for the browser's address, for the audit trail.
+        apply_forwarded_client(request, token)
         return
     addr = _client_address(request)
     now = time.monotonic()

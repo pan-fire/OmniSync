@@ -260,9 +260,21 @@ these lines. Recorded are:
 - rejected API tokens (`auth.token_rejected`, at most one line per client
   address and minute, with the number of attempts).
 
-The client address is the backend's TCP peer: for actions taken in the web
-UI that is the web UI container, whose own log has the browser's address
-of logins (below).
+The client address is the backend's TCP peer, except for actions taken in
+the web UI: there it is the browser's address as the web UI's server saw
+it, followed by `via=` and the web UI container's address (the TCP peer).
+The web UI's proxy sends that address in an `X-OmniSync-Client` header
+signed with the API token (an HMAC over the address and the time); the
+backend believes it only on a request with the right token, when the
+signature checks out and it is at most 60 seconds old, and otherwise
+records the TCP peer (and logs a warning). It is used for the audit trail
+only: authentication and the throttling of wrong tokens always go by the
+TCP peer. The address is the last `X-Forwarded-For` entry the web UI's
+server gets: behind a reverse proxy the one the proxy adds; without one,
+Next.js fills in the address it was connected from, unless the browser
+sent the header itself. So without a reverse proxy the address is what the
+browser claims, as for the web UI's own login log; the signature only
+proves that it came through the web UI's server.
 
 ### The web UI server's log
 
