@@ -12,6 +12,24 @@ release notes.
 
 ## [Unreleased]
 
+### Security
+
+- **`osync` commands no longer pass control sequences from server text to
+  the terminal.** Log messages, file and remote names and error details
+  can come from anyone who can write to a synced folder; an escape
+  sequence in them could set the clipboard, the window title or move the
+  cursor over the output. The commands now print every control character
+  as a visible `\u001b`-style escape. `--json` output decodes to exactly
+  the same text as before. The terminal UI was not affected.
+
+### Fixed
+
+- **The terminal UI's Dashboard shows when the sync status cannot be
+  read**, also when the profile list can; before, the list's answer hid
+  the error and the panel just said "No data".
+- **The terminal UI's Conflicts view no longer says "all clear" when the
+  conflicts could not be read**; it shows only the error.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
