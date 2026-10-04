@@ -10,6 +10,7 @@ import re
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error
 from backend.api.schemas import (
     AuthorizeRequest,
@@ -446,6 +447,7 @@ def _session_app(session: WizardSession, params: dict[str, str]) -> dict[str, st
 
 
 @router.post("/create")
+@audited("remote.create", lambda kw: {"remote": kw["request"].name, "provider": kw["request"].provider_id})
 async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
     """Create an rclone remote.
 
@@ -539,6 +541,7 @@ async def create_remote(request: CreateRemoteRequest) -> dict[str, str]:
 
 
 @router.post("/reconnect")
+@audited("remote.reconnect", lambda kw: {"remote": kw["request"].name})
 async def reconnect_remote(request: ReconnectRemoteRequest) -> dict[str, str]:
     """Store the token of a completed reconnect authorization in its remote.
 

@@ -21,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.db.models import NotificationLog
 from backend.services.config import ConfigService
 from backend.services.notification_channels.base import NotificationChannelBase
-from backend.services.notification_channels.settings import SETTINGS_MODELS, has_secrets
+from backend.logging_setup import register_secret
+from backend.services.notification_channels.settings import SECRET_FIELDS, SETTINGS_MODELS, has_secrets
 from backend.services.notification_events import (
     SEVERITY_ORDER,
     NotificationEvent,
@@ -30,6 +31,20 @@ from backend.services.notification_events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _register_channel_secrets(channels: dict[str, dict[str, object]]) -> None:
+    """Mask the channels' passwords, tokens and webhook header values in the log."""
+    for name, cfg in channels.items():
+        settings = cfg.get("settings")
+        if not isinstance(settings, BaseModel):
+            continue
+        for field in SECRET_FIELDS.get(name, ()):
+            register_secret(getattr(settings, field, None))
+        headers = getattr(settings, "headers", None)
+        if isinstance(headers, dict):
+            for value in headers.values():
+                register_secret(value)
 
 MAX_LOG_ROWS = 100
 
@@ -115,6 +130,7 @@ class NotificationDispatcher:
             merged[name] = {**defaults, **self._valid_section(name, channels_cfg.get(name, {}))}
 
         self._channel_config = merged
+        _register_channel_secrets(merged)
         if has_secrets(channels_cfg):
             self._tighten_config_mode()
 

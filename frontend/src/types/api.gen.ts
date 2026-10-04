@@ -927,7 +927,7 @@ export interface paths {
         };
         /**
          * Get Logs
-         * @description Return paginated log entries, most recent first, optionally of one level.
+         * @description Return paginated log entries, most recent first, optionally of one level or category.
          */
         get: operations["get_logs_logs_get"];
         put?: never;
@@ -2054,6 +2054,11 @@ export interface components {
             details?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Request Id
+             * @description The request's id (also the X-Request-ID header); the server log lines of the request carry it.
+             */
+            request_id?: string | null;
         };
         /**
          * FieldType
@@ -2252,7 +2257,10 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "running" | "completed" | "failed";
-        /** LogEntryResponse */
+        /**
+         * LogEntryResponse
+         * @description One entry of the server log, newest first in GET /logs.
+         */
         LogEntryResponse: {
             /**
              * Timestamp
@@ -2263,6 +2271,21 @@ export interface components {
             level: string;
             /** Message */
             message: string;
+            /**
+             * Logger
+             * @description The logger that wrote it, e.g. backend.audit for user actions.
+             */
+            logger?: string | null;
+            /**
+             * Request Id
+             * @description The id of the API request it was written in, if any.
+             */
+            request_id?: string | null;
+            /**
+             * Exc
+             * @description The traceback or further lines that belong to the entry.
+             */
+            exc?: string | null;
         };
         /**
          * ManualFlagsResponse
@@ -5787,6 +5810,8 @@ export interface operations {
                 skip?: number;
                 limit?: number;
                 level?: ("DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL") | null;
+                /** @description audit: the audit trail of user actions (logger backend.audit); errors: ERROR and CRITICAL. */
+                category?: ("audit" | "errors") | null;
             };
             header?: never;
             path?: never;

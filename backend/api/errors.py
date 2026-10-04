@@ -2,12 +2,14 @@
 
 Every error answer has one shape (``ErrorResponse``, docs/api-errors.md)::
 
-    {"detail": "<message for people>", "code": "<stable_snake_case>", "details": {...}}
+    {"detail": "<message for people>", "code": "<stable_snake_case>", "details": {...},
+     "request_id": "<id>"}
 
 ``detail`` stays a human-readable string, so clients that only show it keep
 working; ``code`` is what a client branches on; ``details`` (present only
 when there is something in it) carries extra data such as ``errors``,
-``invalid_paths``, ``names``, ``replacement`` or ``retry_after``. Routes raise
+``invalid_paths``, ``names``, ``replacement`` or ``retry_after``; ``request_id`` is the id of the request (also in the
+``X-Request-ID`` header), which finds its lines in the log. Routes raise
 ``api_error(...)``; ``install_error_handlers`` puts that, FastAPI's own
 HTTP and validation errors, and unexpected exceptions into this shape.
 
@@ -28,7 +30,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from backend.api.request_id import REQUEST_ID_HEADER, scope_request_id
 from backend.api.schemas import ErrorResponse, TestSyncResponse
+from backend.logging_setup import LOGGED_MARK, current_request_id
+
+logger = logging.getLogger(__name__)
 
 # The code of an error raised without one (FastAPI's own 404/405, a plain
 # HTTPException): by status. Unlisted statuses get "http_<status>".
@@ -85,11 +91,19 @@ def api_error(
     return ApiError(status_code, code, message, headers=headers, details=details)
 
 
-def error_body(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
-    """The JSON body of an error answer; ``details`` is left out when empty."""
+def error_body(
+    code: str, message: str, details: dict[str, Any] | None = None, request_id: str | None = None,
+) -> dict[str, Any]:
+    """The JSON body of an error answer; ``details`` is left out when empty.
+
+    ``request_id`` defaults to the id of the request being handled.
+    """
     body: dict[str, Any] = {"detail": message, "code": code}
     if details:
         body["details"] = jsonable_encoder(details)
+    request_id = request_id or current_request_id()
+    if request_id:
+        body["request_id"] = request_id
     return body
 
 
@@ -153,10 +167,24 @@ async def _validation_error(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(body, status_code=422)
 
 
-async def _unexpected_error(_request: Request, _exc: Exception) -> JSONResponse:
-    # Starlette's ServerErrorMiddleware calls this, then re-raises the
-    # exception so the server logs it with its traceback.
-    return JSONResponse(error_body("internal_error", INTERNAL_ERROR_MESSAGE), status_code=500)
+async def _unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette's ServerErrorMiddleware calls this outside the request-id
+    # middleware, then re-raises the exception for the server. It is logged
+    # here, with its traceback and the request's id (the server's own
+    # "Exception in ASGI application" line for it is then dropped, see
+    # LogRecordFilter).
+    request_id = scope_request_id(request.scope)
+    logger.error(
+        "Unhandled error in %s %s", request.method, request.url.path, exc_info=exc, extra={"request_id": request_id},
+    )
+    try:
+        setattr(exc, LOGGED_MARK, True)
+    except AttributeError:  # an exception type with __slots__
+        pass
+    headers = {REQUEST_ID_HEADER: request_id} if request_id else None
+    return JSONResponse(
+        error_body("internal_error", INTERNAL_ERROR_MESSAGE, request_id=request_id), status_code=500, headers=headers,
+    )
 
 
 def install_error_handlers(app: FastAPI) -> None:

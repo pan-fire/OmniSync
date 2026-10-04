@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.audit import audited
 from backend.api.errors import SEE_LOG, api_error
 from backend.api.schemas import ConflictResolveRequest, ConflictResolution, ConflictResponse
 from backend.db.database import get_session
@@ -102,6 +103,7 @@ async def list_conflicts(
 
 
 @router.post("/{conflict_id}/resolve", response_model=ConflictResponse)
+@audited("conflict.resolve", lambda kw: {"resolution": kw["request"].resolution}, conflict="conflict_id")
 async def resolve_conflict(
     conflict_id: int,
     request: ConflictResolveRequest,
