@@ -384,7 +384,8 @@ class TestBackupJob:
             body = resp.json()
             assert body["error_code"] == code
             assert body["error_message"].endswith("The OmniSync log has the details.")
-            for fragment in ("googleapi", "403", "ya29", "docs/a.txt", "Failed to copy"):
+            # "Error 403", not a bare "403": the timestamps in the JSON may contain it.
+            for fragment in ("googleapi", "Error 403", "ya29", "docs/a.txt", "Failed to copy"):
                 assert fragment not in resp.text
 
     @pytest.mark.asyncio
