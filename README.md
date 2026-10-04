@@ -33,6 +33,43 @@ would destroy data.
 - **Web UI** in English, German and Persian, and **`osync`**, a terminal UI
   with scripting subcommands
 
+## Quick install
+
+On Linux, macOS or Windows (WSL 2) with Docker and its compose plugin, on
+x86-64 or 64-bit ARM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh | bash
+```
+
+The installer checks Docker, the ports and your system, downloads the latest
+release's compose file and checks it against the release's `SHA256SUMS`
+(and their signature, when [cosign](https://docs.sigstore.dev/) is
+installed), writes a `.env` with a new API token (mode 0600), pulls the
+images and starts OmniSync in `~/omnisync`, then waits for both health
+checks and prints the address: <http://127.0.0.1:3000>. It asks for the
+folder OmniSync may sync (default `~/OmniSync`) and, if you like, a web UI
+password, of which it stores only the hash.
+
+Inspect it first? Download it, read it, then run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh
+less install.sh
+bash install.sh --dry-run     # prints what it would do, changes nothing
+bash install.sh
+```
+
+Run it again to update (it backs up the data volume first and rolls back
+if the new version is not healthy); `bash install.sh status` shows the
+versions and health, `uninstall` removes the containers and keeps your
+data. `--help` lists the options (`--dir`, `--version`, `--sync-dir`,
+`--web-port`, `--api-port`, `--osync` for the terminal client, `--yes` for
+no questions, ...); [Operations](docs/gem/operations.md#install-update-and-uninstall-with-the-installer)
+has the details. To set it up by hand instead, see
+[Install a release](#install-a-release); to build from the source, the
+[Quick start](#quick-start).
+
 ## Why OmniSync?
 
 rclone reaches more than 70 storage providers, but on its own it is a
@@ -48,6 +85,7 @@ machine, and is free software under the GPL-3.0.
 
 ## Contents
 
+- [Quick install](#quick-install)
 - [Why OmniSync?](#why-omnisync)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
@@ -201,30 +239,40 @@ only their exact tag. Run the backend and the web UI at the same version.
 
 ### Images with docker compose
 
-Put this `compose.yml` in an empty folder, next to a `.env` made as in the
+This is what the [installer](#quick-install) sets up; by hand: put this
+`compose.yml` in an empty folder, next to a `.env` made as in the
 [Quick start](#quick-start) plus `OMNISYNC_VERSION=<version>`, the
 release you install (the newest is on the
-[releases page](https://github.com/pan-fire/OmniSync/releases)). It is the
-repository's `docker-compose.yml` with the images in place of the builds;
-its comments explain each setting.
+[releases page](https://github.com/pan-fire/OmniSync/releases)). It is
+[`deploy/compose.yml`](deploy/compose.yml), attached to each release from
+0.12.0 on as `compose.yml`: the repository's `docker-compose.yml` with the
+images in place of the builds, whose comments explain each setting.
+`OMNISYNC_API_PORT` and `OMNISYNC_WEB_PORT` change the host ports (default
+8000 and 3000).
 
 Switching from images built from the source? Keep the compose project name
 you used, or compose creates a new, empty data volume: a clone in a folder
 named `OmniSync` used the project `omnisync`, so add
 `COMPOSE_PROJECT_NAME=omnisync` to the new `.env`, and stop the old
 containers first. `docker volume ls` shows the volume it must reuse (e.g.
-`omnisync_omnisync-data`).
+`omnisync_omnisync-data`). The installer finds such an install and prints
+these steps; run it with `--project-name omnisync` (the old project name)
+and `--sync-dir` set to the old `OMNISYNC_SYNC_DIR`.
 
 ```yaml
 services:
   backend:
     image: ghcr.io/pan-fire/omnisync-backend:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
     ports:
-      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+      - "${OMNISYNC_BIND_ADDRESS:-127.0.0.1}:${OMNISYNC_API_PORT:-8000}:8000"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-UTC}
+      - OMNISYNC_LOG_FORMAT=${OMNISYNC_LOG_FORMAT:-}
+      - OMNISYNC_LOG_MAX_BYTES=${OMNISYNC_LOG_MAX_BYTES:-}
+      - OMNISYNC_LOG_BACKUPS=${OMNISYNC_LOG_BACKUPS:-}
+      - OMNISYNC_LOG_ACCESS=${OMNISYNC_LOG_ACCESS:-}
       - OMNISYNC_HOST_OS=linux
       - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
       - OMNISYNC_ALLOWED_HOSTS=backend,${OMNISYNC_ALLOWED_HOSTS:-}
@@ -248,7 +296,7 @@ services:
   frontend:
     image: ghcr.io/pan-fire/omnisync-web:${OMNISYNC_VERSION:?set OMNISYNC_VERSION in .env}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${OMNISYNC_WEB_PORT:-3000}:3000"
     environment:
       - BACKEND_URL=http://backend:8000
       - OMNISYNC_API_TOKEN=${OMNISYNC_API_TOKEN:-}
@@ -716,6 +764,11 @@ docker compose down                # stop and remove the containers; data is kep
 docker compose down -v --rmi all   # also delete the omnisync-data volume and the images
 rm ~/.local/bin/osync              # the TUI, if installed; its settings: ~/.config/osync
 ```
+
+Installed with the installer: `bash install.sh uninstall` stops and removes
+the containers and keeps the data volume and `.env`; `uninstall --purge`
+also deletes the volume, `compose.yml` and `.env` (it asks you to type the
+volume's name).
 
 `down -v` deletes the database and `rclone.conf` for good; back them up
 first if you may come back. Your files are not touched: the synced folders

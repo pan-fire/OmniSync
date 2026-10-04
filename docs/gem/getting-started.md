@@ -2,8 +2,40 @@
 
 ## 1. Install
 
-You need Docker with the compose plugin. OmniSync runs as two containers:
-the backend (the sync server, with rclone inside) and the web UI.
+You need Docker with the compose plugin, on Linux, macOS or Windows (WSL 2
+with Docker Desktop), on x86-64 or 64-bit ARM. OmniSync runs as two
+containers: the backend (the sync server, with rclone inside) and the web
+UI.
+
+### With the installer (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh | bash
+```
+
+To read it before it runs: download it (`curl -fsSLO` with the same
+address), look through `install.sh`, try `bash install.sh --dry-run`, then
+`bash install.sh`.
+
+It checks your system (Docker, the compose plugin, free ports 3000 and
+8000), asks for the folder OmniSync may sync (default `~/OmniSync`) and
+whether to protect the web UI with a password, then:
+
+- puts the latest release's `compose.yml` (checked against the release's
+  checksums) and a `.env` with your settings into `~/omnisync`;
+- generates the API token, so the web UI can reach the backend;
+- pulls the images, starts both containers and waits until they are
+  healthy;
+- prints the address of the web UI and what to do next.
+
+Without a terminal (e.g. in a provisioning script) add `--yes` to take the
+defaults: `curl -fsSL ... | bash -s -- --yes --sync-dir /srv/sync`.
+`bash install.sh --help` lists every option, and
+[Operations](operations.md#install-update-and-uninstall-with-the-installer)
+explains updating and removing it. Then continue with
+[step 2](#2-add-a-cloud-remote).
+
+### Or: build from the source
 
 ```bash
 git clone https://github.com/pan-fire/OmniSync.git
@@ -35,7 +67,7 @@ What the settings in `.env` mean:
 The web UI is now at <http://127.0.0.1:3000> and the API at
 `http://127.0.0.1:8000`, both reachable only from this machine.
 
-### Or: run a released version
+### Or: run a released version by hand
 
 The commands above build the images from the source. Each release also
 publishes ready-built images, `ghcr.io/pan-fire/omnisync-backend` and
@@ -55,7 +87,8 @@ are genuine before you run them, see the README's
 Without Docker: [Operations](operations.md#running-without-docker) shows how
 to run the backend and the web UI as systemd services.
 
-To upgrade later, read the [changelog](../../CHANGELOG.md), change
+To upgrade later (installed with the installer: just run it again), read
+the [changelog](../../CHANGELOG.md), change
 `OMNISYNC_VERSION` and run `docker compose pull && docker compose up -d`.
 Your profiles, remotes and history stay in the `omnisync-data` volume, and
 database changes are applied on start. The version you are running is shown

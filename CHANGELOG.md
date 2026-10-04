@@ -12,8 +12,23 @@ release notes.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-04
+
 ### Added
 
+- **One-line installer.** `curl -fsSL
+  https://raw.githubusercontent.com/pan-fire/OmniSync/main/scripts/install.sh
+  | bash` checks Docker and the ports, downloads the release's compose file
+  and checks it against `SHA256SUMS` (and their signature with cosign),
+  writes a `.env` with a generated API token (mode 0600), optionally a web
+  UI password hash, starts OmniSync and waits for its health checks. Run
+  again it updates, after a backup of the data volume, and rolls back if
+  the new version is not healthy; `status` and `uninstall` (`--purge`) too,
+  `--osync` for the terminal client, `--dry-run` to see the steps. It also
+  explains how to move an install built from the source over without
+  losing data. Releases now attach `compose.yml` (from `deploy/compose.yml`,
+  which adds `OMNISYNC_API_PORT` and `OMNISYNC_WEB_PORT`) and `install.sh`,
+  both listed in the signed `SHA256SUMS`. See `docs/gem/operations.md`.
 - **One log for the whole backend.** Besides OmniSync's own lines, the log
   file and `docker compose logs backend` now get uvicorn's start, stop and
   errors, warnings and errors of the libraries OmniSync uses, and every
@@ -759,5 +774,6 @@ never published.
   Python dependencies are installed from an exact lock file.
 - The OAuth token stays on the server and is never returned by the API.
 
-[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0
