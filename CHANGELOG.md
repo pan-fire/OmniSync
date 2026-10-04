@@ -46,6 +46,13 @@ release notes.
 - **The web UI image runs on Node.js 24 LTS** (24.21.0), up from Node 22,
   and takes Debian's security updates at build time like the backend image.
   CI builds and tests the web UI on Node 24 too.
+- **CI tests the installer end to end.** A new job builds both images from
+  the pull request and runs `scripts/install.sh` against them in a
+  temporary folder on non-default ports: install, `status`, a second run
+  (up to date) and `uninstall --purge --yes`, checking the health checks,
+  the API token and the web UI's path to the API. The installer's
+  test-only `OMNISYNC_INSTALL_TEST_RELEASE_DIR` (a local stand-in for the
+  release, see CONTRIBUTING.md) makes this possible without downloads.
 
 ## [0.12.0] - 2026-10-04
 
