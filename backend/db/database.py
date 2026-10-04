@@ -26,7 +26,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Connection, event, inspect
+from sqlalchemy import Connection, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -120,9 +120,6 @@ def alembic_config() -> Config:
 
 
 def _upgrade_to_head(connection: Connection) -> None:
-    tables = set(inspect(connection).get_table_names())
-    if tables and "alembic_version" not in tables:
-        logger.info("Database predates versioned migrations; adopting it at the baseline revision")
     cfg = alembic_config()
     cfg.attributes["connection"] = connection
     command.upgrade(cfg, "head")

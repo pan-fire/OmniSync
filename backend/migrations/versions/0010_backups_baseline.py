@@ -1,19 +1,13 @@
-"""Baseline: the schema as it was before Alembic.
+"""Baseline: the schema of OmniSync 0.12.0, created in one step.
 
-Until this revision the app built its schema with ``Base.metadata.create_all``
-plus a hand-written list of ``ALTER TABLE ... ADD COLUMN`` statements, run on
-every startup. This revision reproduces that schema exactly.
+The revision ID is the head revision of the 0.12.0 release, so a database
+that release created is already at this revision and nothing runs for it;
+a new database gets the whole schema from here. Later schema changes are
+new revisions on top of this one.
 
-It also adopts databases created by that code. Such a database has no
-``alembic_version`` table, so Alembic runs this revision against it: every
-table and column that already exists is left alone, and whatever an older
-release had not created yet (a table added later, or a profile column the
-old ALTER list would have added) is created the way the old code did. The
-database then continues through the later revisions like any other.
-
-Revision ID: 0001
+Revision ID: 0010_backups
 Revises:
-Create Date: 2026-09-27
+Create Date: 2026-10-04
 """
 
 from __future__ import annotations
@@ -21,15 +15,21 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import context, op
+from alembic import op
 
-revision: str = "0001"
+revision: str = "0010_backups"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+# Children after the tables they reference.
+TABLES = (
+    "sync_profiles", "remotes", "notification_log", "push_subscriptions", "sync_jobs",
+    "manual_flags", "backup_targets", "file_changes", "conflicts", "sync_errors", "backup_jobs",
+)
 
-def _sync_profiles() -> None:
+
+def upgrade() -> None:
     op.create_table(
         "sync_profiles",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -46,12 +46,16 @@ def _sync_profiles() -> None:
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.Column("sync_mode", sa.String(length=10), nullable=False, server_default="mirror"),
+        sa.Column("mirror_notice_dismissed", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("pause_reason", sa.Text(), nullable=True),
+        sa.Column("bwlimit", sa.String(length=500), nullable=True),
+        sa.Column("sync_window", sa.Text(), nullable=True),
+        sa.Column("user_paused", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_sync_profiles_slug", "sync_profiles", ["slug"], unique=True)
 
-
-def _remotes() -> None:
     op.create_table(
         "remotes",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -62,8 +66,6 @@ def _remotes() -> None:
         sa.UniqueConstraint("name"),
     )
 
-
-def _notification_log() -> None:
     op.create_table(
         "notification_log",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -77,8 +79,6 @@ def _notification_log() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-
-def _push_subscriptions() -> None:
     op.create_table(
         "push_subscriptions",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -90,8 +90,6 @@ def _push_subscriptions() -> None:
         sa.UniqueConstraint("endpoint"),
     )
 
-
-def _sync_jobs() -> None:
     op.create_table(
         "sync_jobs",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -106,22 +104,19 @@ def _sync_jobs() -> None:
         sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("ix_sync_jobs_profile_id", "sync_jobs", ["profile_id"])
 
-
-def _manual_flags() -> None:
     op.create_table(
         "manual_flags",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("profile_id", sa.Integer(), nullable=True),
+        sa.Column("profile_id", sa.Integer(), nullable=False),
         sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("file_path"),
+        sa.UniqueConstraint("profile_id", "file_path", name="uq_manual_flags_profile_path"),
+        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
     )
 
-
-def _backup_targets() -> None:
     op.create_table(
         "backup_targets",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -138,13 +133,14 @@ def _backup_targets() -> None:
         sa.Column("last_liveness_error", sa.String(length=2048), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
+        sa.Column("keep_last", sa.Integer(), nullable=False, server_default=sa.text("3")),
+        sa.Column("encryption_password", sa.String(length=2048), nullable=True),
+        sa.Column("verify_after_backup", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
     )
     op.create_index("ix_backup_targets_profile_id", "backup_targets", ["profile_id"])
 
-
-def _file_changes() -> None:
     op.create_table(
         "file_changes",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -152,29 +148,31 @@ def _file_changes() -> None:
         sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("action", sa.String(length=20), nullable=False),
         sa.Column("size_bytes", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"]),
+        sa.Column("side", sa.String(length=10), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"], ondelete="CASCADE"),
     )
+    op.create_index("ix_file_changes_job_id", "file_changes", ["job_id"])
 
-
-def _conflicts() -> None:
     op.create_table(
         "conflicts",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("profile_id", sa.Integer(), nullable=True),
-        sa.Column("job_id", sa.Integer(), nullable=False),
+        sa.Column("job_id", sa.Integer(), nullable=True),
         sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("local_modified", sa.DateTime(), nullable=True),
         sa.Column("remote_modified", sa.DateTime(), nullable=True),
         sa.Column("resolved", sa.Boolean(), nullable=False),
         sa.Column("resolution", sa.String(length=20), nullable=True),
-        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"]),
+        sa.Column("local_kept_as", sa.String(length=1024), nullable=True),
+        sa.Column("remote_kept_as", sa.String(length=1024), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["profile_id"], ["sync_profiles.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"], ondelete="CASCADE"),
     )
+    op.create_index("ix_conflicts_job_id", "conflicts", ["job_id"])
+    op.create_index("ix_conflicts_profile_id", "conflicts", ["profile_id"])
 
-
-def _sync_errors() -> None:
     op.create_table(
         "sync_errors",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -183,12 +181,11 @@ def _sync_errors() -> None:
         sa.Column("stderr_output", sa.String(length=4096), nullable=True),
         sa.Column("retry_count", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"]),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["job_id"], ["sync_jobs.id"], ondelete="CASCADE"),
     )
+    op.create_index("ix_sync_errors_job_id", "sync_errors", ["job_id"])
 
-
-def _backup_jobs() -> None:
     op.create_table(
         "backup_jobs",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -200,55 +197,15 @@ def _backup_jobs() -> None:
         sa.Column("size_bytes", sa.Integer(), nullable=True),
         sa.Column("snapshot_id", sa.String(length=255), nullable=True),
         sa.Column("error_message", sa.String(length=4096), nullable=True),
-        sa.ForeignKeyConstraint(["target_id"], ["backup_targets.id"], ondelete="CASCADE"),
+        sa.Column("verify_status", sa.String(length=20), nullable=True),
+        sa.Column("verify_message", sa.String(length=4096), nullable=True),
+        sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["target_id"], ["backup_targets.id"], ondelete="CASCADE"),
     )
     op.create_index("ix_backup_jobs_target_id", "backup_jobs", ["target_id"])
 
 
-# In dependency order: a table comes after the tables it references.
-TABLES = (
-    ("sync_profiles", _sync_profiles),
-    ("remotes", _remotes),
-    ("notification_log", _notification_log),
-    ("push_subscriptions", _push_subscriptions),
-    ("sync_jobs", _sync_jobs),
-    ("manual_flags", _manual_flags),
-    ("backup_targets", _backup_targets),
-    ("file_changes", _file_changes),
-    ("conflicts", _conflicts),
-    ("sync_errors", _sync_errors),
-    ("backup_jobs", _backup_jobs),
-)
-
-# Columns the pre-Alembic startup code added to tables created by earlier
-# releases, with the exact statements it used.
-LEGACY_COLUMNS = (
-    ("sync_jobs", "profile_id", "ALTER TABLE sync_jobs ADD COLUMN profile_id INTEGER REFERENCES sync_profiles(id)"),
-    ("conflicts", "profile_id", "ALTER TABLE conflicts ADD COLUMN profile_id INTEGER REFERENCES sync_profiles(id)"),
-    ("manual_flags", "profile_id", "ALTER TABLE manual_flags ADD COLUMN profile_id INTEGER REFERENCES sync_profiles(id)"),
-    ("notification_log", "profile_slug", "ALTER TABLE notification_log ADD COLUMN profile_slug VARCHAR(255)"),
-)
-
-
-def upgrade() -> None:
-    if context.is_offline_mode():
-        existing: set[str] = set()
-    else:
-        existing = set(sa.inspect(op.get_bind()).get_table_names())
-
-    for name, create in TABLES:
-        if name not in existing:
-            create()
-
-    if context.is_offline_mode():
-        return
-    inspector = sa.inspect(op.get_bind())
-    for table, column, ddl in LEGACY_COLUMNS:
-        if table in existing and column not in {c["name"] for c in inspector.get_columns(table)}:
-            op.execute(ddl)
-
-
 def downgrade() -> None:
-    for name, _ in reversed(TABLES):
+    for name in reversed(TABLES):
         op.drop_table(name)
