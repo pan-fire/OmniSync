@@ -44,10 +44,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     TZ=UTC
 
-# Debian's security fixes released since the base image was built (as the
-# backend image does), so the image scan does not wait for a new base digest.
-# The server needs only node: drop the bundled npm and corepack, which
-# carry their own (unused) dependencies and advisories.
+# Debian's security fixes released since the base image was built (the
+# digest is pinned), and the server needs only node: drop the bundled npm
+# and corepack, which carry their own (unused) dependencies and advisories.
+# hadolint ignore=DL3005,DL3008
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
