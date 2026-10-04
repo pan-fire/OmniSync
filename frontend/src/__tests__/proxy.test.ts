@@ -276,3 +276,26 @@ describe('proxy guard', () => {
     });
   });
 });
+
+describe('refusal log', () => {
+  it('logs each refused request with its reason, without the query string', async () => {
+    const { resetServerLog } = await import('@/lib/server-log');
+    resetServerLog();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const res = await proxy(new NextRequest('http://evil.example/api/remotes?token=SECRETQUERY', {
+        headers: { host: 'evil.example', 'x-forwarded-for': '192.0.2.9' },
+      }));
+      expect(res.status).toBe(403);
+      const [line] = log.mock.calls.map(([l]) => JSON.parse(String(l)));
+      expect(line).toMatchObject({
+        level:  'WARNING',
+        logger: 'web.proxy',
+        fields: { event: 'proxy.refused', reason: 'host', method: 'GET', path: '/api/remotes', host: 'evil.example', client: '192.0.2.9' },
+      });
+      expect(String(log.mock.calls[0][0])).not.toContain('SECRETQUERY');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

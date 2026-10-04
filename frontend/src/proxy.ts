@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { HEALTHZ_PATH, SECURE_SESSION_COOKIE, SESSION_COOKIE, authSettings } from '@/lib/auth/config';
-import { gate, handleAuthEndpoint, isAuthEndpoint } from '@/lib/auth/gate';
+import { clientAddress, gate, handleAuthEndpoint, isAuthEndpoint } from '@/lib/auth/gate';
 import { errorBody } from '@/lib/api-error';
+import { logServerEvent } from '@/lib/server-log';
 
 // Forwards every /api request to the backend with the API token added:
 // /api/profiles?x=1 -> ${BACKEND_URL}/profiles?x=1.
@@ -79,13 +80,23 @@ function isSameOrigin (origin: string, host: string): boolean {
   }
 }
 
+/** The refusals of guard(), with the reason the log gives for each. */
+export const REFUSED_HOST = 'Host not allowed. Add it to OMNISYNC_UI_ALLOWED_HOSTS if this is intended.';
+export const REFUSED_ORIGIN = 'Cross-origin request refused.';
+export const REFUSED_CONTENT_TYPE = 'Request bodies must be sent as application/json.';
+const REFUSAL_REASONS: Record<string, string> = {
+  [REFUSED_HOST]:         'host',
+  [REFUSED_ORIGIN]:       'origin',
+  [REFUSED_CONTENT_TYPE]: 'content_type',
+};
+
 /** Why the request must not reach the backend, or null when it may. */
 export function guard (request: NextRequest): string | null {
   // The Host header the browser sent. X-Forwarded-Host is not used here:
   // any client can set it.
   const host = request.headers.get('host') ?? request.nextUrl.host;
   if (!isAllowedHost(host)) {
-    return 'Host not allowed. Add it to OMNISYNC_UI_ALLOWED_HOSTS if this is intended.';
+    return REFUSED_HOST;
   }
   if (SAFE_METHODS.has(request.method)) return null;
 
@@ -93,10 +104,10 @@ export function guard (request: NextRequest): string | null {
   // for a request without one.
   const origin = request.headers.get('origin');
   if (origin !== null) {
-    if (!isSameOrigin(origin, host)) return 'Cross-origin request refused.';
+    if (!isSameOrigin(origin, host)) return REFUSED_ORIGIN;
   } else {
     const site = request.headers.get('sec-fetch-site');
-    if (site !== 'same-origin' && site !== 'none') return 'Cross-origin request refused.';
+    if (site !== 'same-origin' && site !== 'none') return REFUSED_ORIGIN;
   }
 
   // HTML forms can only send urlencoded, multipart or text/plain bodies.
@@ -104,9 +115,21 @@ export function guard (request: NextRequest): string | null {
   const hasBody = request.headers.has('transfer-encoding') || (length !== null && length.trim() !== '0');
   const mediaType = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
   if (hasBody && mediaType !== 'application/json') {
-    return 'Request bodies must be sent as application/json.';
+    return REFUSED_CONTENT_TYPE;
   }
   return null;
+}
+
+/** Log a refused request: the reason and where it came from, no query string, no cookies. */
+function logRefusal (request: NextRequest, refused: string): void {
+  logServerEvent('WARNING', 'proxy.refused', refused, {
+    reason: REFUSAL_REASONS[refused] ?? 'other',
+    method: request.method,
+    path:   request.nextUrl.pathname,
+    host:   request.headers.get('host') ?? undefined,
+    origin: request.headers.get('origin') ?? undefined,
+    client: clientAddress(request),
+  });
 }
 
 /** Drop the UI's session cookies from a Cookie header bound for the backend. */
@@ -129,13 +152,16 @@ export async function proxy (request: NextRequest): Promise<NextResponse> {
   }
   const settings = authSettings();
   if (isAuthEndpoint(pathname)) {
-    return handleAuthEndpoint(request, settings, guard(request), isAllowedHost);
+    const refused = guard(request);
+    if (refused) logRefusal(request, refused);
+    return handleAuthEndpoint(request, settings, refused, isAllowedHost);
   }
 
   const isApi = pathname === '/api' || pathname.startsWith('/api/');
   if (isApi) {
     const refused = guard(request);
     if (refused) {
+      logRefusal(request, refused);
       return NextResponse.json(errorBody('request_refused', refused), { status: 403 });
     }
   }

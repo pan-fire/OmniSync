@@ -6,6 +6,7 @@ import { createSessionToken } from '@/lib/auth/session';
 import { authSettings } from '@/lib/auth/config';
 import { resetAuthState, sessionKey } from '@/lib/auth/gate';
 import { FREE_FAILURES } from '@/lib/auth/throttle';
+import { resetServerLog } from '@/lib/server-log';
 
 const PASSWORD = 'correct horse battery staple';
 let HASH = '';
@@ -14,8 +15,14 @@ beforeAll(async () => {
   HASH = await hashPassword(PASSWORD, { logN: 10, r: 8, p: 1 });
 });
 
+/** The structured lines the server logged (src/lib/server-log.ts). */
+function logged (): Array<{ level: string; logger: string; msg: string; fields: Record<string, unknown> }> {
+  return vi.mocked(console.log).mock.calls.map(([line]) => JSON.parse(String(line)));
+}
+
 beforeEach(() => {
   resetAuthState();
+  resetServerLog();
   vi.stubEnv('OMNISYNC_API_TOKEN', 'server-token');
   vi.stubEnv('BACKEND_URL', 'http://backend:8000');
   vi.stubEnv('OMNISYNC_UI_ALLOWED_HOSTS', '');
@@ -23,6 +30,7 @@ beforeEach(() => {
   vi.stubEnv('OMNISYNC_UI_PASSWORD', '');
   vi.stubEnv('OMNISYNC_UI_SESSION_SECRET', '');
   vi.stubEnv('OMNISYNC_UI_SESSION_DAYS', '');
+  vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -161,6 +169,13 @@ describe('login on', () => {
 
     // The old cookie no longer works.
     expect((await proxy(req('/api/profiles', { headers: { cookie } }))).status).toBe(401);
+
+    // Login and logout are logged as structured lines, without the session.
+    const events = logged().map((l) => [l.level, l.fields.event]);
+    expect(events).toEqual([['INFO', 'auth.login'], ['INFO', 'auth.logout']]);
+    const all = vi.mocked(console.log).mock.calls.flat().join(' ');
+    expect(all).not.toContain(cookie.split('=')[1]);
+    expect(all).not.toContain(PASSWORD);
   });
 
   it('sets an HttpOnly, SameSite=Strict cookie with the configured lifetime', async () => {
@@ -198,9 +213,9 @@ describe('login on', () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ detail: 'Wrong password.', code: 'invalid_password' });
     expect(sessionCookie(res)).toBeNull();
-    const logged = vi.mocked(console.warn).mock.calls.flat().join(' ');
-    expect(logged).toContain('Failed login');
-    expect(logged).not.toContain('wrong password');
+    const [line] = logged().filter((l) => l.fields.event === 'auth.login_failed');
+    expect(line).toMatchObject({ level: 'WARNING', logger: 'web.auth', msg: 'Failed login', fields: { client: 'unknown' } });
+    expect(vi.mocked(console.log).mock.calls.flat().join(' ')).not.toContain('wrong password');
   });
 
   it('throttles repeated failures with 429 and Retry-After', async () => {
@@ -217,6 +232,9 @@ describe('login on', () => {
     expect(await res.json()).toMatchObject({ code: 'login_throttled', details: { retry_after: 1 } });
     // Another client is not affected.
     expect((await proxy(loginRequest(PASSWORD, { 'x-forwarded-for': '192.0.2.8' }))).status).toBe(200);
+    expect(logged().find((l) => l.fields.event === 'auth.login_throttled')).toMatchObject({
+      level: 'WARNING', fields: { client: '192.0.2.7', retry_after: 1 },
+    });
   });
 
   it('runs the Origin, Host and JSON checks on the login too', async () => {
@@ -231,6 +249,9 @@ describe('login on', () => {
       headers: { origin: ORIGIN, 'content-type': 'application/x-www-form-urlencoded', 'content-length': '40' },
       body:    `password=${encodeURIComponent(PASSWORD)}`,
     }))).status).toBe(403);
+    expect(logged().filter((l) => l.fields.event === 'proxy.refused').map((l) => l.fields.reason))
+      .toEqual(['origin', 'host', 'content_type']);
+    expect(vi.mocked(console.log).mock.calls.flat().join(' ')).not.toContain(PASSWORD);
   });
 
   it('refuses a bad login body and other methods', async () => {
@@ -286,7 +307,9 @@ describe('login on', () => {
     vi.stubEnv('OMNISYNC_UI_PASSWORD_HASH', 'not-a-hash');
     expect((await proxy(req('/api/profiles'))).status).toBe(401);
     expect((await proxy(loginRequest(PASSWORD))).status).toBe(503);
-    expect(vi.mocked(console.error)).toHaveBeenCalledWith(expect.stringContaining('OMNISYNC_UI_PASSWORD_HASH'));
+    expect(logged()).toContainEqual(expect.objectContaining({
+      level: 'ERROR', msg: expect.stringContaining('OMNISYNC_UI_PASSWORD_HASH'),
+    }));
   });
 });
 
@@ -295,7 +318,9 @@ describe('plain OMNISYNC_UI_PASSWORD', () => {
     vi.stubEnv('OMNISYNC_UI_PASSWORD', PASSWORD);
     const res = await proxy(loginRequest(PASSWORD));
     expect(res.status).toBe(200);
-    expect(vi.mocked(console.warn)).toHaveBeenCalledWith(expect.stringContaining('OMNISYNC_UI_PASSWORD_HASH'));
+    expect(logged()).toContainEqual(expect.objectContaining({
+      level: 'WARNING', msg: expect.stringContaining('OMNISYNC_UI_PASSWORD_HASH'),
+    }));
     const { name, value } = sessionCookie(res)!;
     expect((await proxy(req('/api/profiles', { headers: { cookie: `${name}=${value}` } }))).status).toBe(200);
     // A restart (new per-start key) ends it.
