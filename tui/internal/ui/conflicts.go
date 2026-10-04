@@ -340,6 +340,9 @@ func (m ConflictsModel) View() tea.View {
 	}
 
 	if len(m.conflicts) == 0 && m.pending == nil {
+		if m.err != nil {
+			return tea.NewView(b.String()) // no answer: nothing to call clear
+		}
 		successStyle := lipgloss.NewStyle().Foreground(theme.Current.Success)
 		b.WriteString("\n")
 		if m.filter != "" {
