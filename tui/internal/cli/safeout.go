@@ -28,9 +28,6 @@ type terminalSafeWriter struct {
 }
 
 func newTerminalSafeWriter(w io.Writer) *terminalSafeWriter {
-	if s, ok := w.(*terminalSafeWriter); ok {
-		return s
-	}
 	return &terminalSafeWriter{w: w}
 }
 
