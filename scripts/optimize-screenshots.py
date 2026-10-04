@@ -16,7 +16,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PIL import Image, features
+from PIL import Image, features  # pyright: ignore[reportMissingImports]  # dev-only tool, not a backend dependency
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "frontend" / "test-results" / "screenshots"
