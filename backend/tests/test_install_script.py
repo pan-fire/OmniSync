@@ -292,8 +292,9 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def install(sb: Env, *extra: str) -> subprocess.CompletedProcess[str]:
-    return sb.run("--yes", "--api-port", str(free_port()), "--web-port", str(free_port()), *extra)
+def install(sb: Env, *extra: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return sb.run("--yes", "--api-port", str(free_port()), "--web-port", str(free_port()), *extra,
+                  extra_env=extra_env)
 
 
 def mode(path: Path) -> int:
@@ -817,3 +818,59 @@ def test_osync_checksum_mismatch_is_refused(installed):
     assert result.returncode == 1
     assert "checksum mismatch for osync-linux-amd64" in result.stderr
     assert not (sb.home / ".local" / "bin" / "osync").exists()
+
+
+# ---------------------------------------------------------------- CI test release
+
+
+def make_test_release(sb: Env, version: str = "9999.0.0-ci", tamper: bool = False) -> Path:
+    """A folder standing in for a GitHub release (OMNISYNC_INSTALL_TEST_RELEASE_DIR)."""
+    folder = sb.tmp / "test-release"
+    folder.mkdir(exist_ok=True)
+    text = COMPOSE.read_text()
+    (folder / "VERSION").write_text(version + "\n")
+    (folder / "compose.yml").write_text(text + ("# tampered\n" if tamper else ""))
+    (folder / "SHA256SUMS").write_text(f"{hashlib.sha256(text.encode()).hexdigest()}  compose.yml\n")
+    return folder
+
+
+def test_ci_test_release_installs_without_downloading_or_pulling(sandbox):
+    folder = make_test_release(sandbox)
+    env = {"OMNISYNC_INSTALL_TEST_RELEASE_DIR": str(folder)}
+    result = install(sandbox, extra_env=env)
+    assert result.returncode == 0, result.stderr
+    assert "for CI tests only" in result.stderr
+    assert sandbox.env_values()["OMNISYNC_VERSION"] == "9999.0.0-ci"
+    assert (sandbox.dir / "compose.yml").read_text() == COMPOSE.read_text()
+    assert sandbox.curl_log.read_text() == ""  # nothing fetched from GitHub
+    calls = sandbox.docker_calls()
+    assert not any("pull" in call for call in calls)
+    assert any(call[:1] == ["compose"] and "up" in call for call in calls)
+
+    again = sandbox.run("--yes", extra_env=env)
+    assert again.returncode == 0, again.stderr
+    assert "up to date" in again.stdout
+    assert sandbox.curl_log.read_text() == ""
+
+
+def test_ci_test_release_is_still_checked(sandbox):
+    folder = make_test_release(sandbox, tamper=True)
+    result = install(sandbox, extra_env={"OMNISYNC_INSTALL_TEST_RELEASE_DIR": str(folder)})
+    assert result.returncode == 1
+    assert "checksum mismatch for compose.yml" in result.stderr
+    assert not (sandbox.dir / ".env").exists()
+
+    (folder / "SHA256SUMS").unlink()
+    result = install(sandbox, extra_env={"OMNISYNC_INSTALL_TEST_RELEASE_DIR": str(folder)})
+    assert result.returncode == 1
+    assert "has no SHA256SUMS" in result.stderr
+    assert sandbox.curl_log.read_text() == ""
+
+
+def test_without_the_test_release_downloads_as_before(sandbox):
+    sandbox.publish("0.12.0")
+    result = install(sandbox, extra_env={"OMNISYNC_INSTALL_TEST_RELEASE_DIR": ""})
+    assert result.returncode == 0, result.stderr
+    assert "for CI tests only" not in result.stderr
+    assert "releases/latest" in sandbox.curl_log.read_text()
+    assert any(call[:1] == ["compose"] and "pull" in call for call in sandbox.docker_calls())

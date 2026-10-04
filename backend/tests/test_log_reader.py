@@ -212,3 +212,126 @@ async def test_logs_route_filters_by_category(test_client, tmp_path: Path, monke
         "message 1",
     ]
     assert (await test_client.get("/logs", params={"category": "secrets"})).status_code == 422
+
+
+# --- rotated files (omnisync.log.1, .2, ...) ----------------------------------------
+
+
+def _rotated(tmp_path: Path, per_file: int = 100, files: int = 4) -> Path:
+    """omnisync.log and .1 .. .{files-1}: entry 0 is the oldest (in the last file)."""
+    path = tmp_path / "omnisync.log"
+    i = 0
+    for n in reversed(range(files)):
+        target = path if n == 0 else tmp_path / f"omnisync.log.{n}"
+        with target.open("w") as fh:
+            for _ in range(per_file):
+                fh.write(line(i, "ERROR" if i % 50 == 0 else "INFO"))
+                if i % 9 == 0:
+                    fh.write("  continuation\n")
+                i += 1
+    return path
+
+
+def test_paging_continues_into_the_rotated_files_in_order(tmp_path: Path) -> None:
+    path = _rotated(tmp_path)
+    reader = LogReader(path)
+    assert reader.files() == [path, *(tmp_path / f"omnisync.log.{n}" for n in (1, 2, 3))]
+    seen: list[str] = []
+    for page in range(9):
+        seen += [e.message for e in reader.read(skip=page * 50, limit=50)]
+    assert seen == [f"message {i}" for i in reversed(range(400))]
+    # A page across the boundary between omnisync.log and omnisync.log.1.
+    assert [e.message for e in reader.read(skip=98, limit=4)] == [
+        "message 301", "message 300", "message 299", "message 298",
+    ]
+
+
+def test_filters_work_across_the_rotated_files(tmp_path: Path) -> None:
+    path = _rotated(tmp_path)
+    (tmp_path / "omnisync.log.2").write_text(
+        (tmp_path / "omnisync.log.2").read_text()
+        + "2026-09-27 11:00:00,000 - INFO - backend.audit - [req:abc12345] profile.delete outcome=ok\n"
+    )
+    reader = LogReader(path)
+    errors = reader.read(limit=50, category="errors")
+    assert [e.message for e in errors] == [f"message {i}" for i in (350, 300, 250, 200, 150, 100, 50, 0)]
+    assert [e.message for e in reader.read(skip=5, limit=2, level="ERROR")] == ["message 100", "message 50"]
+    assert [e.message for e in reader.read(category="audit")] == ["profile.delete outcome=ok"]
+
+
+def test_a_gap_ends_the_rotated_files_and_only_numbered_names_count(tmp_path: Path) -> None:
+    path = _rotated(tmp_path, per_file=3)
+    (tmp_path / "omnisync.log.2").unlink()  # .3 is not reached past the gap
+    (tmp_path / "omnisync.log.old").write_text(line(999))
+    reader = LogReader(path)
+    assert reader.files() == [path, tmp_path / "omnisync.log.1"]
+    assert [e.message for e in reader.read(limit=50)] == [f"message {i}" for i in (11, 10, 9, 8, 7, 6)]
+
+
+def test_rotated_files_without_the_current_one(tmp_path: Path) -> None:
+    path = _rotated(tmp_path, per_file=2, files=2)
+    path.unlink()
+    assert [e.message for e in LogReader(path).read()] == ["message 1", "message 0"]
+
+
+def test_reads_no_more_of_the_rotated_files_than_the_page_needs(tmp_path: Path, monkeypatch) -> None:
+    path = _rotated(tmp_path, per_file=2000, files=3)
+    read_bytes = 0
+    real_open = open
+
+    class CountingFile:
+        def __init__(self, fh):
+            self._fh = fh
+
+        def read(self, n=-1):
+            nonlocal read_bytes
+            data = self._fh.read(n)
+            read_bytes += len(data)
+            return data
+
+        def __getattr__(self, name):
+            return getattr(self._fh, name)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self._fh.close()
+
+    monkeypatch.setattr(log_reader_module, "open", lambda *a, **k: CountingFile(real_open(*a, **k)), raising=False)
+    monkeypatch.setattr(log_reader_module, "TAIL_CHUNK", 4096)
+    # Entries 3990..4009: the end of omnisync.log.1 and the start of omnisync.log.
+    entries = LogReader(path).read(skip=1990, limit=20)
+    assert [e.message for e in entries] == [f"message {i}" for i in reversed(range(3990, 4010))]
+    file_size = path.stat().st_size
+    assert read_bytes < file_size + file_size / 10  # all of omnisync.log, a bit of .1, none of .2
+
+
+def test_a_rotation_while_reading_neither_repeats_nor_skips(tmp_path: Path, monkeypatch) -> None:
+    path = _rotated(tmp_path, per_file=5, files=2)
+    reader = LogReader(path)
+    real_entries = LogReader._entries_from_end
+    rotated = False
+
+    def rotate_then_read(self, fh):
+        nonlocal rotated
+        if not rotated:  # the handler rotates after the files were opened
+            rotated = True
+            (tmp_path / "omnisync.log.1").rename(tmp_path / "omnisync.log.2")
+            path.rename(tmp_path / "omnisync.log.1")
+            path.write_text(line(100))
+        return real_entries(self, fh)
+
+    monkeypatch.setattr(LogReader, "_entries_from_end", rotate_then_read)
+    assert [e.message for e in reader.read(limit=50)] == [f"message {i}" for i in reversed(range(10))]
+
+
+async def test_logs_route_pages_into_the_rotated_files(test_client, tmp_path: Path, monkeypatch) -> None:
+    from backend.api.routes import logs
+
+    path = _rotated(tmp_path, per_file=3, files=3)
+    monkeypatch.setattr(logs, "_log_reader", LogReader(path))
+    res = await test_client.get("/logs", params={"skip": 4, "limit": 3})
+    assert [e["message"] for e in res.json()] == ["message 4", "message 3", "message 2"]
+    res = await test_client.get("/logs", params={"level": "ERROR"})
+    assert [e["message"] for e in res.json()] == ["message 0"]

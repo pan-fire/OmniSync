@@ -45,6 +45,7 @@ from backend.services.rclone_import import (
     ImportParseError,
     ImportSection,
     SectionLookup,
+    local_access_problems,
     local_reference_problems,
     parse_rclone_config,
     rewrite_references,
@@ -148,7 +149,7 @@ def _parse_import(content: str) -> list[ImportSection]:
         raise api_error(422, "invalid_rclone_config", str(e))
 
 
-def _section_lookup(rclone: RcloneService, first: Mapping[str, Mapping[str, str]]) -> SectionLookup:
+def section_lookup(rclone: RcloneService, first: Mapping[str, Mapping[str, str]]) -> SectionLookup:
     """A remote's settings by name: from ``first`` (the remotes of the
     upload), else from the current rclone.conf. Values stay in memory."""
 
@@ -176,7 +177,7 @@ async def preview_import(request: ImportConfigRequest) -> ImportPreviewResponse:
     except ImportParseError as e:
         return ImportPreviewResponse(errors=[str(e)])
     existing = await _existing_names(rclone)
-    lookup = _section_lookup(rclone, {sec.name: sec.options for sec in sections})
+    lookup = section_lookup(rclone, {sec.name: sec.options for sec in sections})
     for sec in sections:
         sec.problems += await local_reference_problems(sec.options, lookup)
     return ImportPreviewResponse(remotes=[
@@ -230,7 +231,7 @@ async def import_remotes(request: ImportRemotesRequest) -> ImportRemotesResponse
 
     moved = {src: dst for src, dst in renames.items() if src != dst}
     new = {dst: rewrite_references(sections[src].options, moved) for src, dst in renames.items()}
-    lookup = _section_lookup(rclone, new)
+    lookup = section_lookup(rclone, new)
     for src, dst in renames.items():
         problems = await local_reference_problems(new[dst], lookup)
         if problems:
@@ -339,6 +340,13 @@ async def update_remote(name: str, request: UpdateRemoteRequest) -> dict[str, st
                and not (set_values.get(f.name) or (section.get(f.name) and f.name not in remove))]
     if missing:
         raise api_error(422, "invalid_params", "; ".join(missing), errors=missing)
+
+    # The remote as it would be stored: the import's checks on files and wrapped remotes.
+    updated = {k: v for k, v in {**section, **set_values}.items() if k not in remove}
+    problems = await local_access_problems(updated, section_lookup(rclone, {name: updated}))
+    if problems:
+        errors = [p[:1].upper() + p[1:] for p in problems]
+        raise api_error(422, "invalid_params", "; ".join(errors), errors=errors)
 
     set_values = await obscure_secrets(rclone, provider, set_values, name)
     try:
