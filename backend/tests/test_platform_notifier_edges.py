@@ -139,14 +139,20 @@ async def test_hung_notifier_is_killed(fake_exec, monkeypatch: pytest.MonkeyPatc
     assert fake.proc.killed
 
 
-@pytest.mark.xfail(strict=True, reason="stderr is decoded as strict UTF-8; PowerShell on a non-English "
-                   "Windows writes it in the OEM code page, so the error becomes a UnicodeDecodeError")
-async def test_non_utf8_stderr_still_gives_the_failure(fake_exec) -> None:
-    """German Windows: PowerShell's error text in cp850 ('Ä' is 0x8e) must not hide the failure."""
-    fake_exec(FakeProcess(returncode=1, stderr="Modul 'BurntToast' nicht gefunden: Ä".encode("cp850")))
+ALL_NOTIFIERS = [*NOTIFIERS, pytest.param(LinuxNotifier, "notify-send", "notify-send failed",
+                                           "notify-send binary not found", id="linux")]
 
-    with pytest.raises(RuntimeError, match=r"rc=1"):
-        await WindowsNotifier().send("Title", "Body", NotificationSeverity.ERROR)
+
+@pytest.mark.parametrize("cls, exe, failed, not_found", ALL_NOTIFIERS)
+async def test_non_utf8_stderr_still_gives_the_failure(fake_exec, cls, exe, failed, not_found) -> None:
+    """German Windows: PowerShell's error text in cp850 ('\u00c4' is 0x8e) must not hide the
+    failure behind a UnicodeDecodeError; the same holds for every notifier."""
+    fake_exec(FakeProcess(returncode=1, stderr="Modul 'BurntToast' nicht gefunden: \u00c4".encode("cp850")))
+
+    with pytest.raises(RuntimeError) as raised:
+        await cls().send("Title", "Body", NotificationSeverity.ERROR)
+
+    assert str(raised.value) == f"{failed} (rc=1): Modul 'BurntToast' nicht gefunden: \ufffd"
 
 
 # --- odd titles and bodies ----------------------------------------------------

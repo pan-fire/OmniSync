@@ -39,7 +39,10 @@ class TermuxNotifier:
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
             if proc.returncode != 0:
-                msg = f"termux-notification failed (rc={proc.returncode}): {stderr.decode().strip()}"
+                # errors="replace": a non-UTF-8 message (e.g. a Windows OEM code page)
+                # must not turn the failure into a UnicodeDecodeError.
+                detail = stderr.decode(errors="replace").strip()
+                msg = f"termux-notification failed (rc={proc.returncode}): {detail}"
                 logger.warning(msg)
                 raise RuntimeError(msg)
         except asyncio.TimeoutError:

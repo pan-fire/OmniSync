@@ -12,6 +12,14 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A failed desktop notification shows its real error.** The notifiers
+  read the tool's error output as strict UTF-8, so on a Windows host in a
+  language other than English (PowerShell writes in the console code page)
+  the error became a text-decoding error instead of the reason. Undecodable
+  bytes are now replaced, on every platform.
+
 ### Security
 
 - **Windows toasts no longer build PowerShell code from file names.** The
