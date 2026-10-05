@@ -12,6 +12,16 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The web UI asks before Stop and before enabling or disabling a
+  profile,** as the terminal UI does. The Dashboard's **Stop** names every
+  profile whose sync is running and stops only those once you confirm; the
+  profile page's **Stop** names its profile. The on/off switch on a profile
+  card says what changes: disabling stops the profile's automatic syncs
+  (and a running sync), enabling starts them again (or notes that a pause of
+  yours still holds). **Cancel** or Escape sends nothing.
+
 ### Fixed
 
 - **Snapshot browser: "Next page" no longer jumps back to page 1.** The

@@ -205,7 +205,43 @@ describe('Profile detail sync controls', () => {
     renderPage();
     expect(screen.getByRole('button', { name: 'Push' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Stop the sync of "Docs"?' });
+    expect(m.stop.mutate).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Stop sync' }));
     expect(m.stop.mutate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('asks in Persian, with the profile name in the title', async () => {
+    // Paused by the user, so the page has no Pause button: in Persian it
+    // shares its label (توقف) with Stop.
+    withProfile({ state: 'syncing', user_paused: true, intervals_paused: true });
+    const user = userEvent.setup();
+    renderPage('fa');
+
+    await user.click(screen.getByRole('button', { name: 'توقف' }));
+    // The name is wrapped in Unicode isolates so it reads right in RTL text.
+    const dialog = await screen.findByRole('dialog', { name: 'همگام‌سازی «\u2068Docs\u2069» متوقف شود؟' });
+    await user.click(within(dialog).getByRole('button', { name: 'توقف همگام‌سازی' }));
+    expect(m.stop.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  // Like Delete, Stop asks first; cancel and Escape send nothing.
+  it('cancel or Escape in the stop confirmation stops nothing', async () => {
+    withProfile({ state: 'pulling' });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Stop the sync of "Docs"?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(m.stop.mutate).not.toHaveBeenCalled();
   });
 
   it('pauses an enabled profile; a paused one has no Pause', async () => {

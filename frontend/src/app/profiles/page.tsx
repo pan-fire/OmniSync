@@ -9,6 +9,7 @@ import { useProfiles, useCreateProfile, useDeleteProfile, useToggleProfile } fro
 import { ProfileCard } from '@/components/profiles/profile-card';
 import { ProfileForm, type ProfileFormSubmission } from '@/components/profiles/profile-form';
 import { ProfileDeleteDialog } from '@/components/profiles/profile-delete-dialog';
+import { ProfileToggleDialog, type ProfileToggleRequest } from '@/components/profiles/profile-toggle-dialog';
 import { PageHelp } from '@/components/layout/page-help';
 import { PageHeader } from '@/components/layout/page-header';
 import { useConfirmedSync } from '@/components/sync/sync-confirm-dialog';
@@ -26,6 +27,8 @@ export default function ProfilesPage () {
   const [showCreate, setShowCreate] = useState(false);
   const [creatingInitialBackup, setCreatingInitialBackup] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
+  // The switch only asks; the profile changes once the dialog is confirmed.
+  const [toggling, setToggling] = useState<ProfileToggleRequest | null>(null);
 
   // The dashboard's "Create your first profile" links to ?create=1.
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function ProfilesPage () {
           <ProfileCard
             key={profile.slug}
             profile={profile}
-            onToggle={(slug, enabled) => toggleProfile.mutate({ slug, enabled })}
+            onToggle={(_slug, enabled) => setToggling({ profile, enabled })}
             onDelete={(slug) => setDeletingSlug(slug)}
             onSync={(p, direction) => confirmedSync.request(direction, [{ slug: p.slug, name: p.name }])}
             onSyncNow={(p) => confirmedSync.syncNow({ slug: p.slug, name: p.name }, p.intervals_paused)}
@@ -129,6 +132,16 @@ export default function ProfilesPage () {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProfileToggleDialog
+        request={toggling}
+        onCancel={() => setToggling(null)}
+        isPending={toggleProfile.isPending}
+        onConfirm={({ profile, enabled }) => {
+          toggleProfile.mutate({ slug: profile.slug, enabled });
+          setToggling(null);
+        }}
+      />
 
       <ProfileDeleteDialog
         profile={profiles.data?.find((p) => p.slug === deletingSlug) ?? null}
