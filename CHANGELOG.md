@@ -24,6 +24,10 @@ release notes.
 
 ### Fixed
 
+- **Persian: Pause and Stop have different names.** Both buttons read
+  "توقف", so on a profile page with a running sync two buttons with the
+  same name did different things. Pause (and every paused or resumed
+  message, banner and help text) now says "مکث"; Stop keeps "توقف".
 - **Snapshot browser: "Next page" no longer jumps back to page 1.** The
   search debounce also fired 300 ms after the dialog opened and reset the
   page, so paging right after opening a snapshot was undone. Only a changed

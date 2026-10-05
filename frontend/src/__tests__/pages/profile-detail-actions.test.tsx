@@ -212,10 +212,21 @@ describe('Profile detail sync controls', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  // Pause holds automatic syncing; Stop ends the running sync. Both show
+  // while a sync runs, so in Persian they need different names (they were
+  // both "توقف").
+  it('names Pause and Stop differently in Persian', () => {
+    withProfile({ state: 'syncing' });
+    renderPage('fa');
+
+    const stop = screen.getByRole('button', { name: 'توقف' });
+    const pause = screen.getByRole('button', { name: /مکث/ });
+    expect(pause).not.toBe(stop);
+    expect(pause).toHaveAccessibleName('مکث');
+  });
+
   it('asks in Persian, with the profile name in the title', async () => {
-    // Paused by the user, so the page has no Pause button: in Persian it
-    // shares its label (توقف) with Stop.
-    withProfile({ state: 'syncing', user_paused: true, intervals_paused: true });
+    withProfile({ state: 'syncing' });
     const user = userEvent.setup();
     renderPage('fa');
 
