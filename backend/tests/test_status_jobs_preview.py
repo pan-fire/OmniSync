@@ -45,6 +45,7 @@ env = test_profiles.env
     (["--max-delete", "lots"], None),
     (["--max-delete"], None),
     (["5", "--max-delete"], None),  # the value follows the flag, never precedes it
+    (["--max-delete", "7", "--transfers"], 7),
     (["--max-delete=5=6"], None),  # not a number rclone would accept
 ])
 def test_effective_max_delete(monkeypatch, args, expected):
