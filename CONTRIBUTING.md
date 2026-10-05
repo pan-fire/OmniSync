@@ -200,6 +200,22 @@ switch: a folder with `VERSION`, `compose.yml` and `SHA256SUMS` stands in
 for the GitHub release, and the images are not pulled. It is for CI and
 this script only, never for an install.
 
+The same job then runs two more scripts against these images:
+
+```bash
+# A sync, a conflict, the delete limit, backup and restore and the audit
+# trail through the API, checked on disk. E2E_BROWSER=1 adds the
+# real-browser smoke (frontend/playwright.stack.config.ts; run
+# `pnpm install` and `pnpm exec playwright install chromium` in frontend/).
+E2E_BROWSER=1 scripts/test-fullstack-e2e.sh 9999.0.0-ci
+# Release 0.12.0 from GitHub and ghcr.io, updated to these images; then
+# an update that never becomes healthy, rolled back.
+scripts/test-upgrade-e2e.sh 9999.0.0-ci 0.12.0
+```
+
+They need `jq`, use their own ports (`API_PORT`, `WEB_PORT`) and compose
+project (`PROJECT_NAME`), and remove what they create.
+
 ## Pull requests
 
 - **Changelog.** Add each user-visible change under `## [Unreleased]` in
