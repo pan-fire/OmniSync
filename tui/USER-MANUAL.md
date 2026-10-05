@@ -218,7 +218,7 @@ At-a-glance overview: aggregate state, backend health, network diagnostics, remo
 |-----|--------|
 | `p` | Push all enabled profiles (one confirmation listing them) |
 | `l` | Pull all enabled profiles (one confirmation listing them) |
-| `s` | Stop all running syncs |
+| `s` | Stop all running syncs (one confirmation listing them) |
 | `w` | Switch all mirror profiles to two-way (one confirmation listing them) |
 | `z` | Pause automatic syncing of all enabled profiles (`POST /profiles/pause-all`) |
 | `u` | Resume all profiles you paused (`POST /profiles/resume-all`) |
@@ -230,6 +230,8 @@ At-a-glance overview: aggregate state, backend health, network diagnostics, remo
 "Push/Pull all" first previews every enabled profile (`POST /profiles/{slug}/sync/preview`, "Counting... n of N done", `Esc` cancels), then lists them in one prompt with the files each would delete and replace, its delete limit, and whether it would stop at that limit ("counts unavailable" when a preview failed). Two-way profiles are marked, since for them this is a one-way override. After `y` it starts `POST /profiles/{slug}/sync/start` with `force=true` for each of them.
 
 "Switch all to two-way" lists every mirror profile (with hidden notes too, and disabled ones marked) and explains that the first two-way sync of each is a resync that deletes nothing. After `y` it sends `PUT /profiles/{slug}` with `{"sync_mode": "two_way"}` for each of them, one after the other, and a flash reports how many were switched and which failed; `n`/`Esc` sends nothing.
+
+"Stop all" lists every profile that is syncing. After `y` it sends `POST /profiles/{slug}/sync/stop` for exactly those (a profile that started syncing while the prompt was open is not stopped); `n`/`Esc` sends nothing and the syncs keep running. Automatic syncing continues either way.
 
 While a profile syncs, the Sync Status panel shows its progress: a bar, the percentage, sizes, files, speed and time left (rclone's stats, refreshed with the 2s polling). A profile you paused reads *paused by you*. `z` pauses automatic syncing (watcher and interval) of every enabled profile until you resume; syncs you start still run. `u` lifts only those pauses: a profile OmniSync paused itself (differences to review, a restore, a needed resync) stays paused, the flash names it, and you resume it with `i` on its page after a look.
 
@@ -244,11 +246,13 @@ The network check (DNS, internet, rclone network) is slow, so it runs when the d
 | `c` | Create a profile (form: name, local dir, remote dir, filters, mode, pull interval, debounce, max retries, rclone args, bandwidth limit, sync window) |
 | `e` | Edit the selected profile (including its mode) |
 | `d` | Delete the selected profile (asks first; files are not touched) |
-| `t` | Enable/disable the selected profile |
+| `t` | Enable/disable the selected profile (asks first) |
 | `Up`/`Down`, `k`/`j` | Move |
 | `n`/`N` | Next/previous page |
 | `Enter` | Open the profile detail view |
 | `r` | Refresh |
+
+`t` says what it will do before it does it: disabling stops OmniSync watching the profile and syncing it automatically (and stops a sync it is running); enabling starts that again. `y` sends `POST /profiles/{slug}/disable` or `/enable` for the profile the prompt named; `n`/`Esc` sends nothing. Files are not touched either way.
 
 Local dir must be an absolute path, remote dir `<remote>:<path>`, and filters a comma-separated list of rclone filter rules (e.g. `- *.tmp, - .cache/**`). The Mode field is a choice (`Left`/`Right` or `Space` change it): **Two-way (recommended)**, the default for new profiles, or **Mirror (one-way push/pull only)**; its help line (shown while the field is focused) explains both (see [Sync Modes](#sync-modes)). The edit form sends the mode only when you changed it. Switching a profile to two-way makes its next sync a resync (the union of both folders, nothing deleted); switching to mirror forgets the two-way state.
 

@@ -17,7 +17,7 @@ const (
 	profileModeList profileMode = iota
 	profileModeCreate
 	profileModeEdit
-	profileModeConfirmDelete
+	profileModeConfirm
 )
 
 const (
@@ -33,9 +33,14 @@ type ProfilesModel struct {
 	form     components.Form
 	confirm  components.Confirm
 	mode     profileMode
-	// pendingSlug is the profile an open edit form or delete prompt acts
-	// on, captured when it opened. Polls may reorder the table meanwhile.
+	// pendingSlug is the profile an open edit form, delete or enable/disable
+	// prompt acts on, captured when it opened. Polls may reorder the table
+	// meanwhile.
 	pendingSlug string
+	// pendingEnable is what an open enable/disable prompt does: true
+	// enables the profile, false disables it. Captured with pendingSlug, so
+	// the answer does what the prompt said even if a poll changed the row.
+	pendingEnable bool
 	// pendingMode is the sync mode of that profile when the edit form
 	// opened; the update sends sync_mode only when the user changed it.
 	pendingMode api.SyncMode
@@ -89,10 +94,10 @@ func (m ProfilesModel) KeyHints() string {
 			return "Saving..."
 		}
 		return formHints + "  Ctrl+O:browse folders"
-	case profileModeConfirmDelete:
+	case profileModeConfirm:
 		return confirmHints
 	}
-	return "c:create  e:edit  d:delete  t:toggle  Enter:detail  r:refresh"
+	return "c:create  e:edit  d:delete  t:enable/disable  Enter:detail  r:refresh"
 }
 
 func (m ProfilesModel) KeyBindings() []components.KeyBinding {
@@ -101,7 +106,7 @@ func (m ProfilesModel) KeyBindings() []components.KeyBinding {
 		{Key: "Ctrl+O", Desc: "(form, on Local Dir / Remote Dir) Browse folders, pick a remote"},
 		{Key: "e", Desc: "Edit profile"},
 		{Key: "d", Desc: "Delete profile (asks first)"},
-		{Key: "t", Desc: "Toggle enable/disable"},
+		{Key: "t", Desc: "Enable/disable profile (asks first)"},
 		{Key: "Up/Down, j/k", Desc: "Move"},
 		{Key: "n/N", Desc: "Next/previous page"},
 		{Key: "Enter", Desc: "View detail"},
@@ -228,7 +233,13 @@ func (m ProfilesModel) handleActionResult(msg ActionResultMsg) (tea.Model, tea.C
 			text += "; it now mirrors (one-way push/pull)"
 		}
 		return m, tea.Batch(m.fetchProfiles(), flash(text, false))
-	case "create_profile", "delete_profile", "toggle_profile":
+	case "toggle_profile":
+		text := "Profile disabled"
+		if enable, _ := msg.Data.(bool); enable {
+			text = "Profile enabled"
+		}
+		return m, tea.Batch(m.fetchProfiles(), flash(text, false))
+	case "create_profile", "delete_profile":
 		return m, tea.Batch(m.fetchProfiles(), flash(actionLabel(msg.Action), false))
 	}
 	return m, nil
@@ -243,7 +254,7 @@ func actionLabel(action string) string {
 	case "delete_profile":
 		return "Profile deleted"
 	case "toggle_profile":
-		return "Profile toggled"
+		return "Enable/disable"
 	}
 	return action
 }
@@ -271,8 +282,14 @@ func (m ProfilesModel) handleConfirmResult(msg components.ConfirmResultMsg) (tea
 	slug := m.pendingSlug
 	m.mode = profileModeList
 	m.pendingSlug = ""
-	if msg.Tag == "delete" && msg.Confirmed && slug != "" {
+	if !msg.Confirmed || slug == "" {
+		return m, nil
+	}
+	switch msg.Tag {
+	case "delete":
 		return m, m.deleteProfile(slug)
+	case "toggle":
+		return m, m.setEnabled(slug, m.pendingEnable)
 	}
 	return m, nil
 }
@@ -281,7 +298,7 @@ func (m ProfilesModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case profileModeCreate, profileModeEdit:
 		return m.handleFormKey(msg)
-	case profileModeConfirmDelete:
+	case profileModeConfirm:
 		_, cmd := m.confirm.Update(msg)
 		return m, cmd
 	}
@@ -309,7 +326,7 @@ func (m ProfilesModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if row := m.table.SelectedRow(); row != nil {
 			if p := m.findProfile(row.Key); p != nil {
-				m.mode = profileModeConfirmDelete
+				m.mode = profileModeConfirm
 				m.pendingSlug = p.Slug
 				m.confirm = components.NewConfirm(
 					fmt.Sprintf("Delete profile %q (%s)?\n\nThe profile and its sync history are removed.\nFiles in %s and %s are not touched.",
@@ -321,7 +338,13 @@ func (m ProfilesModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "t":
 		if row := m.table.SelectedRow(); row != nil {
-			return m, m.toggleProfile(row.Key)
+			if p := m.findProfile(row.Key); p != nil {
+				m.mode = profileModeConfirm
+				m.pendingSlug = p.Slug
+				m.pendingEnable = !p.Enabled
+				m.confirm = components.NewConfirm(togglePrompt(p.ProfileResponse), "toggle")
+				return m, nil
+			}
 		}
 	case "enter":
 		if row := m.table.SelectedRow(); row != nil {
@@ -392,7 +415,7 @@ func (m ProfilesModel) View() tea.View {
 			b.WriteString(m.form.View())
 		}
 		return tea.NewView(b.String())
-	case profileModeConfirmDelete:
+	case profileModeConfirm:
 		b.WriteString(m.confirm.View())
 		return tea.NewView(b.String())
 	}
@@ -683,12 +706,21 @@ func (m ProfilesModel) deleteProfile(slug string) tea.Cmd {
 	}
 }
 
-func (m ProfilesModel) toggleProfile(slug string) tea.Cmd {
-	client := m.client
-	enable := true
-	if p := m.findProfile(slug); p != nil && p.Enabled {
-		enable = false
+// togglePrompt asks before enabling or disabling a profile and says what
+// that does.
+func togglePrompt(p api.ProfileResponse) string {
+	if p.Enabled {
+		return fmt.Sprintf("Disable profile %q (%s)?\n\nOmniSync stops watching %s and syncing it automatically;\n"+
+			"a sync it is running now is stopped. No file is changed, and t enables it again.",
+			p.Name, safeLine(p.Slug), safeLine(p.LocalDir))
 	}
+	return fmt.Sprintf("Enable profile %q (%s)?\n\nOmniSync starts watching %s and syncing it with %s\nautomatically again.",
+		p.Name, safeLine(p.Slug), safeLine(p.LocalDir), safeLine(p.RemoteDir))
+}
+
+// setEnabled enables or disables a profile, as the user confirmed.
+func (m ProfilesModel) setEnabled(slug string, enable bool) tea.Cmd {
+	client := m.client
 	return func() tea.Msg {
 		var err error
 		if enable {
@@ -696,6 +728,6 @@ func (m ProfilesModel) toggleProfile(slug string) tea.Cmd {
 		} else {
 			_, err = client.DisableProfile(context.Background(), slug)
 		}
-		return ActionResultMsg{ViewID: ViewProfiles, Action: "toggle_profile", Err: err}
+		return ActionResultMsg{ViewID: ViewProfiles, Action: "toggle_profile", Err: err, Data: enable}
 	}
 }

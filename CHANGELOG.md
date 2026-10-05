@@ -30,6 +30,15 @@ release notes.
   screen lets only the views' own colours through. A multi-line log
   message shows its first line and "(+N lines)" in the Logs view.
 
+### Changed
+
+- **The terminal UI asks before "Stop all" and before enabling or
+  disabling a profile.** On the Dashboard, `s` lists the running syncs and
+  stops exactly those after `y`; in Profiles, `t` says whether it will
+  enable or disable the profile and what that does. `n` or `Esc` sends
+  nothing, as in the other prompts. The flash now says "Profile enabled"
+  or "Profile disabled" instead of "Profile toggled".
+
 ### Fixed
 
 - **The terminal UI's Dashboard shows when the sync status cannot be

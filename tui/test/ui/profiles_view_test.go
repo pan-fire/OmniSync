@@ -8,9 +8,10 @@ import (
 	"github.com/pan-fire/OmniSync/tui/internal/ui"
 )
 
-// t disables an enabled profile and enables a disabled one; each sends one
-// request for the highlighted profile and reloads the list.
-func TestProfilesView_ToggleFollowsTheEnabledFlag(t *testing.T) {
+// t asks before it disables an enabled profile or enables a disabled
+// one; y sends one request for the profile the prompt named and reloads the
+// list, n and Esc send nothing.
+func TestProfilesView_ToggleAsksThenFollowsTheEnabledFlag(t *testing.T) {
 	b := profilesBackend(t)
 	pics := profileJSON("pics", "Bilder", "idle")
 	pics["enabled"] = false
@@ -19,21 +20,59 @@ func TestProfilesView_ToggleFollowsTheEnabledFlag(t *testing.T) {
 	b.json("POST", "/profiles/pics/enable", 200, profileJSON("pics", "Bilder", "idle"))
 	m := open(t, ui.NewProfilesModel(b.client()))
 	b.reset()
-	m, flashes := listsFlashes(t, m, press("t"))
+
+	m = drive(t, m, press("t"))
+	if !m.CapturesInput() || m.KeyHints() != "y:yes  n/Esc:no" {
+		t.Fatalf("t did not ask: hints %q", m.KeyHints())
+	}
+	if v := content(m); !strings.Contains(v, `Disable profile "Dokumente" (docs)?`) || !strings.Contains(v, "No file is changed") {
+		t.Errorf("disable prompt:\n%s", v)
+	}
+	if got := b.matching("POST"); len(got) != 0 {
+		t.Fatalf("t sent %v before the answer", got)
+	}
+	m, flashes := listsFlashes(t, m, press("y"))
 	if got := b.matching("POST"); len(got) != 1 || got[0] != "POST /profiles/docs/disable" {
 		t.Errorf("toggle docs = %v", got)
 	}
-	if strings.Join(flashes, "|") != "Profile toggled" {
+	if strings.Join(flashes, "|") != "Profile disabled" {
 		t.Errorf("flashes = %v", flashes)
 	}
 	if len(b.matching("GET /profiles")) == 0 {
 		t.Error("list not reloaded after the toggle")
 	}
+
 	m = drive(t, m, press("down"))
 	b.reset()
-	_, _ = listsFlashes(t, m, press("t"))
+	m = drive(t, m, press("t"))
+	if v := content(m); !strings.Contains(v, `Enable profile "Bilder" (pics)?`) {
+		t.Errorf("enable prompt:\n%s", v)
+	}
+	_, flashes = listsFlashes(t, m, press("y"))
 	if got := b.matching("POST"); len(got) != 1 || got[0] != "POST /profiles/pics/enable" {
 		t.Errorf("toggle pics = %v", got)
+	}
+	if strings.Join(flashes, "|") != "Profile enabled" {
+		t.Errorf("flashes = %v", flashes)
+	}
+}
+
+// n and Esc cancel the enable/disable prompt without a request and return
+// to the list.
+func TestProfilesView_ToggleCancelSendsNothing(t *testing.T) {
+	for _, key := range []string{"n", "esc"} {
+		t.Run(key, func(t *testing.T) {
+			b := profilesBackend(t)
+			m := open(t, ui.NewProfilesModel(b.client()))
+			b.reset()
+			m = drive(t, m, press("t"), press(key))
+			if got := b.matching("POST"); len(got) != 0 {
+				t.Errorf("%s sent %v", key, got)
+			}
+			if m.CapturesInput() || !strings.Contains(m.KeyHints(), "t:enable/disable") {
+				t.Errorf("%s left the prompt open: hints %q", key, m.KeyHints())
+			}
+		})
 	}
 }
 
@@ -43,7 +82,8 @@ func TestProfilesView_RefusedToggleShowsTheDetail(t *testing.T) {
 	b.json("POST", "/profiles/docs/disable", 409, map[string]any{
 		"detail": "A sync of docs is running; stop it first", "code": "sync_running", "details": map[string]any{"slug": "docs"}})
 	m := open(t, ui.NewProfilesModel(b.client()))
-	_, flashes := listsFlashes(t, m, press("t"))
+	m = drive(t, m, press("t"))
+	_, flashes := listsFlashes(t, m, press("y"))
 	if len(flashes) != 1 || !strings.Contains(flashes[0], "API error 409: A sync of docs is running; stop it first") {
 		t.Errorf("flashes = %v", flashes)
 	}
@@ -157,7 +197,7 @@ func TestProfilesView_CtrlOOnNameExplains(t *testing.T) {
 		t.Errorf("flashes = %v", flashes)
 	}
 	m = drive(t, m, press("esc"))
-	if m.CapturesInput() || !strings.Contains(m.KeyHints(), "t:toggle") {
+	if m.CapturesInput() || !strings.Contains(m.KeyHints(), "t:enable/disable") {
 		t.Errorf("Esc did not return to the list: %q", m.KeyHints())
 	}
 }
@@ -177,7 +217,7 @@ func TestProfilesView_PollSpecAndBindings(t *testing.T) {
 	}
 	found := false
 	for _, kb := range m.KeyBindings() {
-		if kb.Key == "t" && kb.Desc == "Toggle enable/disable" {
+		if kb.Key == "t" && kb.Desc == "Enable/disable profile (asks first)" {
 			found = true
 		}
 	}

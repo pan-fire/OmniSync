@@ -81,6 +81,9 @@ type DashboardModel struct {
 	// Switch all mirror profiles to two-way: the profiles captured when the
 	// prompt opened.
 	pendingSwitchAll []api.ProfileStatusResponse
+	// Stop all: the busy profiles captured when the prompt opened; the
+	// answer stops exactly these.
+	pendingStopAll []api.ProfileStatusResponse
 
 	width  int
 	height int
@@ -133,7 +136,7 @@ func (m DashboardModel) KeyBindings() []components.KeyBinding {
 	return []components.KeyBinding{
 		{Key: "p", Desc: "Push all enabled profiles (counts files, then asks)"},
 		{Key: "l", Desc: "Pull all enabled profiles (counts files, then asks)"},
-		{Key: "s", Desc: "Stop all running syncs"},
+		{Key: "s", Desc: "Stop all running syncs (lists them, then asks)"},
 		{Key: "w", Desc: "Switch all mirror profiles to two-way sync (lists them, then asks)"},
 		{Key: "z", Desc: "Pause automatic syncing of all profiles (kept until you resume; syncs you start still run)"},
 		{Key: "u", Desc: "Resume all profiles you paused (pauses OmniSync set to protect files stay)"},
@@ -264,6 +267,14 @@ func (m DashboardModel) handleActionResult(msg ActionResultMsg) (tea.Model, tea.
 }
 
 func (m DashboardModel) handleConfirmResult(msg components.ConfirmResultMsg) (tea.Model, tea.Cmd) {
+	if msg.Tag == "stop_all" {
+		targets := m.pendingStopAll
+		m.pendingStopAll = nil
+		if !msg.Confirmed || len(targets) == 0 {
+			return m, flash("Stop all cancelled; the syncs keep running", false)
+		}
+		return m, stopAllCmd(m.client, targets)
+	}
 	if msg.Tag == "switch_all_two_way" {
 		targets := m.pendingSwitchAll
 		m.pendingSwitchAll = nil
@@ -341,7 +352,7 @@ func (m DashboardModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "l":
 		return m.askSyncAll(api.SyncDirectionPull)
 	case "s":
-		return m, m.stopAll()
+		return m.askStopAll()
 	case "w":
 		return m.askSwitchAll()
 	case "z":
@@ -501,19 +512,39 @@ func syncAllPrompt(check *syncAllCheck) string {
 	return b.String()
 }
 
-func (m DashboardModel) stopAll() tea.Cmd {
-	var busy []string
+// askStopAll lists the profiles that are syncing and asks before stopping
+// them; the answer acts on exactly the listed profiles.
+func (m DashboardModel) askStopAll() (tea.Model, tea.Cmd) {
+	var busy []api.ProfileStatusResponse
 	for _, p := range m.profiles {
 		if p.State.Busy() {
-			busy = append(busy, p.Slug)
+			busy = append(busy, p)
 		}
 	}
 	if len(busy) == 0 {
-		return flash("No sync is running", false)
+		return m, flash("No sync is running", false)
 	}
-	client := m.client
-	var cmds []tea.Cmd
-	for _, slug := range busy {
+	m.pendingStopAll = busy
+	m.confirm = components.NewConfirm(stopAllPrompt(busy), "stop_all")
+	return m, nil
+}
+
+// stopAllPrompt names each sync that "Stop all" stops.
+func stopAllPrompt(targets []api.ProfileStatusResponse) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Stop %d running sync(s)?\n\n", len(targets))
+	for _, p := range targets {
+		fmt.Fprintf(&b, "  %s (%s): %s\n", safeLine(p.Name), safeLine(p.Slug), stateLabel(p.State, nil, false))
+	}
+	b.WriteString("\nEach sync stops where it is. Automatic syncing continues.")
+	return b.String()
+}
+
+// stopAllCmd stops the sync of each profile, one request each.
+func stopAllCmd(client *api.Client, targets []api.ProfileStatusResponse) tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(targets))
+	for _, p := range targets {
+		slug := p.Slug
 		cmds = append(cmds, func() tea.Msg {
 			_, err := client.StopProfileSync(context.Background(), slug)
 			return ActionResultMsg{ViewID: ViewDashboard, Action: "stop_all", Err: err}
