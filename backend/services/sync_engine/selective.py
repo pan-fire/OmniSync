@@ -31,6 +31,14 @@ SELECTIVE_RESULTS_KEPT = 32
 # What a file's error says when its copy failed; rclone's text goes to the log.
 COPY_FAILED = f"Copying the file failed. {SEE_LOG}"
 KEEP_BOTH_FAILED = f"Keeping both versions failed. {SEE_LOG}"
+# A per-file action on a name that is not valid UTF-8: rclone lists it with
+# U+FFFD in place of the bad bytes, so the diff's path names no file.
+NAME_NOT_UTF8 = ("The file name is not valid UTF-8 (shown with \ufffd in place of the bad bytes), so it "
+                 "cannot be copied on its own. A push, pull or two-way sync of the whole folder carries it; "
+                 "or rename the file.")
+# A pull onto a local symbolic link would replace the link.
+LOCAL_SYMLINK = ("A symbolic link of that name is in the local folder; OmniSync does not replace it. "
+                 "Rename or remove the link to pull the file.")
 # The job's error when launch_selective()'s run raised unexpectedly.
 SELECTIVE_CRASHED = f"The per-file actions failed unexpectedly. {SEE_LOG}"
 
@@ -357,7 +365,9 @@ class SelectiveMixin(ReportingMixin):
         The diff may be hours old. A push/pull needs the source file to
         still exist and the destination to be as the diff saw it (absent,
         or the same size and modification time), so nothing is overwritten
-        that the user has not seen. Keep-both needs both files to exist.
+        that the user has not seen. Keep-both needs both files to exist. A
+        pull never replaces a local symbolic link, and a name rclone could
+        not read (not UTF-8) is named as the reason.
         """
         if not paths:
             return {}
@@ -386,7 +396,11 @@ class SelectiveMixin(ReportingMixin):
                 expected = f is None or f.category != ChangeCategory.REMOTE_ONLY
                 size = f.local_size if f else None
                 mod = f.local_mod_time if f else None
-            if src is None:
+            if action == FileAction.PULL and os.path.islink(os.path.join(self._profile.local_dir, key)):
+                stale[p] = LOCAL_SYMLINK
+            elif src is None and "\ufffd" in p:
+                stale[p] = NAME_NOT_UTF8
+            elif src is None:
                 stale[p] = f"The {src_side} file does not exist (any more). {rerun}"
             elif not self._as_diffed(dst, expected, size, mod):
                 stale[p] = (f"The {dst_side} file changed since the diff; not overwriting it unseen. {rerun}")

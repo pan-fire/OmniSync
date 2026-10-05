@@ -28,6 +28,17 @@ release notes.
   under a profile nor acted on. Any such leftover rows are removed (with
   their file changes and errors; the count is logged), and the copy of the
   database taken before migrating still has them.
+- **Jobs, the sync preview and the diff report names a sync cannot carry
+  as they are.** A new `warnings` list (`code`, `count`, up to 20 `paths`)
+  on `SyncJobResponse`, `SyncPreviewResponse` and `DiffResponse` names
+  local files whose names exist in two spellings equal after Unicode
+  normalisation (rclone syncs only one of them), names that are not valid
+  UTF-8, and symbolic links that share a name with a remote file or
+  folder. A job with warnings shows as "Completed with warnings" in the
+  web UI, its detail lists them, the sync confirmation and the diff show
+  them before anything runs, the log has one line per kind, and the
+  completed notification becomes a warning. See
+  [File names and links](docs/gem/how-syncing-works.md#file-names-and-links).
 
 ### Fixed
 
@@ -74,6 +85,22 @@ release notes.
   but left the process running; each check could add one. Desktop
   notifiers that hang were killed but not reaped. All of them are now
   killed and reaped when their time is up or the request is cancelled.
+- **A pull or two-way sync no longer replaces a local symbolic link.** A
+  remote file with the name of a local link was copied over the link (its
+  target was untouched), and a remote folder with that name was written
+  through the link into the folder it points to, outside the synced
+  folder. Both paths are now left out of the run, and the job says so; a
+  per-file pull onto a link is refused. A push still moves such a remote
+  item to the remote trash, as for any file missing locally, and now
+  reports it.
+- **Two spellings of one name no longer sync silently as one.** rclone
+  matches names after Unicode normalisation, so of `café.txt` written
+  composed and decomposed (as macOS writes it) only one was synced, with a
+  folder's whole content, while the job said "completed". The job, the
+  preview and the diff now name them.
+- **Per-file actions on a name that is not valid UTF-8 say why they
+  fail** ("The file name is not valid UTF-8 ...") instead of claiming the
+  file does not exist.
 - **Large files show up in the job history.** rclone copies a large file
   (256 MiB and up, to or from most cloud storage) in several streams and
   reports it differently; such files were left out of a sync's changed

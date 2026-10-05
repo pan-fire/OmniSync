@@ -117,20 +117,27 @@ def classify_failure_text(error: str) -> str | None:
 
 
 def sync_completed_event(
-    direction: str, files: int, *, conflicts: int = 0,
+    direction: str, files: int, *, conflicts: int = 0, warnings: list[str] | None = None,
     profile_name: str | None = None, profile_slug: str | None = None,
 ) -> NotificationEvent:
+    """``warnings``: one line per kind of file the sync left alone or treated
+    specially (names.describe); they make the event a warning."""
     if direction in ("two-way", "two_way", "resync"):
         body = f"Synced {files} change(s) in both directions."
         if conflicts:
             body += f" {conflicts} file(s) changed on both sides were kept in two versions."
     else:
         body = f"Successfully synced {files} file(s)."
+    title = f"{_direction_title(direction)} completed"
+    if warnings:
+        title += " with warnings"
+        body += " Not everything was synced as it is; see the job's warnings: " + " ".join(
+            f"{line}." for line in warnings)
     return NotificationEvent(
-        severity=NotificationSeverity.INFO,
+        severity=NotificationSeverity.WARNING if warnings else NotificationSeverity.INFO,
         event_type=NotificationEventType.SYNC_COMPLETED,
-        title=_titled(f"{_direction_title(direction)} completed", profile_name),
-        body=body,
+        title=_titled(title, profile_name),
+        body=body[:2000],
         timestamp=datetime.now(timezone.utc),
         profile_slug=profile_slug,
         profile_name=profile_name,

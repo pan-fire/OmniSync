@@ -26,5 +26,14 @@
     "total": 21,
     "has_more": true
   },
-  "error": "rclone warning"
+  "error": "rclone warning",
+  "warnings": [
+    {
+      "code": "name_collision",
+      "count": 2,
+      "paths": [
+        "docs/café.txt"
+      ]
+    }
+  ]
 }

@@ -5870,6 +5870,14 @@
               }
             ],
             "title": "Error"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/SyncWarning"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
           }
         },
         "type": "object",
@@ -8698,6 +8706,14 @@
               }
             ],
             "title": "Profile Name"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/SyncWarning"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
           }
         },
         "type": "object",
@@ -8805,6 +8821,14 @@
                 "type": "null"
               }
             ]
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/SyncWarning"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
           }
         },
         "type": "object",
@@ -9076,6 +9100,44 @@
           "message"
         ],
         "title": "SyncStopResponse"
+      },
+      "SyncWarning": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/SyncWarningCode"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paths",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "count"
+        ],
+        "title": "SyncWarning",
+        "description": "One kind of name problem: how many local names have it, and some of them.\n\n``paths`` holds at most 20 of the ``count`` paths, escaped for display:\nbytes that are not UTF-8 as ``\\xNN``, control and bidi characters as\n``\\xNN`` or ``\\uNNNN``; a folder ends with ``/``."
+      },
+      "SyncWarningCode": {
+        "type": "string",
+        "enum": [
+          "name_collision",
+          "name_not_utf8",
+          "symlink_shadow",
+          "symlink_kept",
+          "symlink_trashed"
+        ],
+        "title": "SyncWarningCode",
+        "description": "Why a sync left a file alone, or did something the user should know about.\n\nname_collision: names in one local folder equal after Unicode\nnormalisation (e.g. ``café`` composed and decomposed); rclone treats\nthem as one file and syncs only one. name_not_utf8: a local name that\nis not valid UTF-8; whole-folder syncs carry it, per-file actions\ncannot. symlink_shadow (preview, diff): a local symbolic link has the\nname of a remote file or folder. symlink_kept (pull, two-way): that\nremote item was left alone so the link is not replaced. symlink_trashed\n(push): that remote item was moved to the remote trash."
       },
       "SyncWindow": {
         "properties": {

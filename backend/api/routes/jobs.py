@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -16,6 +17,7 @@ from backend.api.schemas import (
     JobDirection,
     JobStatus,
     SyncJobResponse,
+    SyncWarning,
 )
 from backend.db.database import get_session
 from backend.db.models import FileChange, SyncJob, SyncProfile
@@ -23,6 +25,22 @@ from backend.db.models import FileChange, SyncJob, SyncProfile
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs")
+
+
+def job_warnings(job: SyncJob) -> list[SyncWarning]:
+    """The warnings stored with a job; an unreadable entry is logged and left out."""
+    try:
+        stored = json.loads(job.warnings or "[]")
+    except ValueError:
+        logger.warning("Job %d: its stored warnings are not valid JSON", job.id)
+        return []
+    out: list[SyncWarning] = []
+    for item in stored if isinstance(stored, list) else []:
+        try:
+            out.append(SyncWarning.model_validate(item))
+        except ValueError:
+            logger.warning("Job %d: left out a stored warning that is not valid", job.id)
+    return out
 
 
 def job_to_response(job: SyncJob, profile: SyncProfile | None) -> SyncJobResponse:
@@ -38,6 +56,7 @@ def job_to_response(job: SyncJob, profile: SyncProfile | None) -> SyncJobRespons
         errors=job.errors,
         profile_slug=profile.slug if profile is not None else None,
         profile_name=profile.name if profile is not None else None,
+        warnings=job_warnings(job),
     )
 
 

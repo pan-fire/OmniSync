@@ -8,7 +8,9 @@ per-file actions) must carry every such file over byte for byte, keep the
 replaced versions in the trash under the same names, and leave no rclone
 .partial file behind. Then the cases with a defined behaviour of their
 own: names equal after Unicode normalisation, case-only renames, symbolic
-links, empty files and folders, and files that change during a sync.
+links, empty files and folders, and files that change during a sync. Where
+rclone cannot carry a name as it is, OmniSync says so: a warning in the
+preview, the diff and the job (see backend/services/sync_engine/names.py).
 """
 
 from __future__ import annotations
@@ -26,10 +28,12 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from backend.api.schemas import ChangeCategory, FileAction, SelectiveSyncItem
+from backend.api.routes.jobs import job_warnings
+from backend.api.schemas import ChangeCategory, FileAction, SelectiveSyncItem, SyncWarning, SyncWarningCode
 from backend.services.rclone import PARTIAL_NAME, SENTINEL_FILE, TRASH_DIR
 from backend.services.rclone.bisync_names import LONGEST_SUFFIX, NAME_MAX, bisync_names_fit, bisync_session_name
 from backend.services.sync_engine import SyncEngine, bisync_workdir
+from backend.services.sync_engine.selective import LOCAL_SYMLINK, NAME_NOT_UTF8
 from backend.tests.real_rclone import Env, empty_dirs, make_env, needs_rclone, partials, tree, write
 
 pytestmark = needs_rclone
@@ -138,6 +142,7 @@ async def test_hostile_names_arrive_byte_for_byte(env: Env, mode: str):
 
     job = await env.completed(await sync(env, engine, mode))
     assert job.files_changed == len(HOSTILE)
+    assert job_warnings(job) == []  # odd, but valid names: nothing to warn about
     assert tree(env.local) == tree(env.remote)
     assert set(tree(side)) == set(HOSTILE.values())
     assert partials(env.local, env.remote) == []
@@ -166,7 +171,7 @@ name_bytes = st.one_of(
 ).filter(lambda b: b"/" not in b and b"\0" not in b and b not in (b".", b"..") and len(b) <= NAME_MAX)
 names = st.lists(name_bytes.map(os.fsdecode), min_size=1, max_size=6).map(
     # rclone treats names equal after NFC normalisation as one file: see
-    # test_names_equal_after_normalisation_are_one_file_to_rclone.
+    # test_names_equal_after_normalisation_are_reported_and_lose_nothing.
     lambda ns: list({NFC(n): n for n in ns}.values())
 ).filter(lambda ns: not {SENTINEL_FILE, TRASH_DIR} & set(ns) and not any(PARTIAL_NAME.fullmatch(n) for n in ns))
 
@@ -199,36 +204,46 @@ def test_generated_names_arrive_byte_for_byte(mode: str, files: list[str]):
 # --- Names equal after Unicode normalisation ---
 
 
+def warning(code: SyncWarningCode, *paths: str) -> SyncWarning:
+    return SyncWarning(code=code, count=len(paths), paths=list(paths))
+
+
 @pytest.mark.parametrize("mode", ["push", "two_way"])
-async def test_names_equal_after_normalisation_are_one_file_to_rclone(env: Env, mode: str):
+async def test_names_equal_after_normalisation_are_reported_and_lose_nothing(env: Env, mode: str):
     """``café.txt`` composed (NFC) and decomposed (NFD), side by side in one folder.
 
     rclone compares names after Unicode normalisation, so it carries only
-    one of the two to the other side, and the run still completes; the
-    other follows once it is alone. Nothing may be lost on the way: both
-    local files keep their content through every run, and each version a
-    run replaces on the remote is in the remote's trash.
+    one of the two to the other side ("Duplicate object found in source").
+    The preview, the diff and every job say so, naming the file; the run
+    is "completed" only together with that warning. Nothing may be lost on
+    the way: both local files keep their content through every run, each
+    version a run replaces on the remote is in the remote's trash, and the
+    other spelling follows once it is alone.
     """
     nfc, nfd = NFC("café.txt"), NFD("café.txt")
     write(env.local, nfc, "composed")
     write(env.local, nfd, "decomposed")
     write(env.local, "other.txt", "other")
     engine = engine_for(env, mode)
+    collision = [warning(SyncWarningCode.NAME_COLLISION, nfc)]
 
-    async def run_keeps_local(expected: dict[str, str]) -> str:
+    assert (await engine.preview_sync()).warnings == collision
+    assert (await engine.enhanced_diff()).warnings == collision
+
+    async def run_keeps_local(expected: dict[str, str]) -> tuple[str, list[SyncWarning]]:
         job = await env.job(await sync(env, engine, mode))
         for name, text in expected.items():
             assert (env.local / name).read_text() == text, name
-        return job.status
+        return job.status, job_warnings(job)
 
-    assert await run_keeps_local({nfc: "composed", nfd: "decomposed"}) == "completed"
+    assert await run_keeps_local({nfc: "composed", nfd: "decomposed"}) == ("completed", collision)
     remote = {os.fsencode(n): (env.remote / n).read_text() for n in os.listdir(env.remote) if n.startswith("caf")}
     assert len(remote) == 1 and set(remote.values()) <= {"composed", "decomposed"}
 
     (env.local / nfd).write_text("decomposed, edited")
-    await run_keeps_local({nfc: "composed", nfd: "decomposed, edited"})
+    assert (await run_keeps_local({nfc: "composed", nfd: "decomposed, edited"}))[1] == collision
 
-    # Alone, the decomposed name syncs: no version of either file is gone.
+    # Alone, the decomposed name syncs, without a warning: no version of either file is gone.
     (env.local / nfc).unlink()
     if mode == "two_way" and engine._state.resync_required:
         await env.completed(await engine.resync())
@@ -240,6 +255,33 @@ async def test_names_equal_after_normalisation_are_one_file_to_rclone(env: Env, 
     assert on_remote == {nfd: "decomposed, edited"}
     # The composed file the user deleted is still in the remote's trash.
     assert hashlib.blake2b(b"composed", digest_size=16).hexdigest() in trash(env.remote).values()
+    assert (await engine.preview_sync()).warnings == []
+
+
+async def test_folders_equal_after_normalisation_are_reported(env: Env):
+    """Two folders ``dé`` (NFC and NFD): rclone syncs one folder and drops
+    the other with everything in it, so the warning names the folder."""
+    write(env.local, NFC("dé") + "/a.txt", "a")
+    write(env.local, NFD("dé") + "/b.txt", "b")
+    engine = env.engine()
+
+    job = await env.completed(await engine.push())
+
+    assert job_warnings(job) == [warning(SyncWarningCode.NAME_COLLISION, NFC("dé") + "/")]
+    assert len(tree(env.remote)) == 1
+    assert len(tree(env.local)) == 2
+
+
+async def test_a_collision_the_profile_filters_out_is_not_reported(env: Env):
+    """Only what the sync sees counts: an excluded folder's names are no concern."""
+    write(env.local, "skip/" + NFC("é.txt"), "1")
+    write(env.local, "skip/" + NFD("é.txt"), "2")
+    write(env.local, "keep.txt", "k")
+    engine = env.engine(rclone_filter=["- /skip/**"])
+
+    assert (await engine.preview_sync()).warnings == []
+    job = await env.completed(await engine.push())
+    assert job_warnings(job) == []
 
 
 # --- Case-only renames ---
@@ -277,32 +319,43 @@ async def test_case_only_rename(env: Env, mode: str):
 BAD = os.fsdecode(b"bad\xff\xfe.txt")
 
 
+# How the warnings show it: each bad byte escaped.
+BAD_SHOWN = "bad\\xff\\xfe.txt"
+
+
 @pytest.mark.parametrize("mode", ["push", "pull"])
 async def test_name_that_is_not_utf8_mirrors_byte_for_byte(env: Env, mode: str):
+    """Whole-folder syncs carry it; once it is in the local folder (a run
+    checks the folder as it starts), every run reports it all the same, as
+    the per-file actions cannot act on it."""
     side = source(env, mode)
     write(side, BAD, "v1", mtime=time.time() - 3600)
     engine = engine_for(env, mode)
     for version in ("v1", "v2"):
+        was_local = (env.local / BAD).exists()
         write(side, BAD, version)
-        await env.completed(await sync(env, engine, mode))
+        job = await env.completed(await sync(env, engine, mode))
         assert tree(env.local) == tree(env.remote)
         assert (env.local / BAD).read_text() == (env.remote / BAD).read_text() == version
+        assert job_warnings(job) == ([warning(SyncWarningCode.NAME_NOT_UTF8, BAD_SHOWN)] if was_local else [])
 
 
 async def test_per_file_action_on_a_name_that_is_not_utf8_fails_cleanly(env: Env):
     """rclone reports such a name with U+FFFD in place of the bad bytes, so
-    the diff's path names no file: the action fails for that file, saying
-    so, and changes nothing."""
+    the diff's path names no file: the diff warns about it, and the action
+    fails for that file, saying why, and changes nothing."""
     write(env.local, BAD, "v1")
     write(env.local, "ok.txt", "ok")
     engine = env.engine()
     diff = await engine.enhanced_diff()
     assert diff.error is None and len(diff.files) == 2
+    assert diff.warnings == [warning(SyncWarningCode.NAME_NOT_UTF8, BAD_SHOWN)]
 
     result = await engine.selective_sync([SelectiveSyncItem(path=f.path, action=FileAction.PUSH) for f in diff.files])
 
     assert (result.succeeded, result.failed) == (1, 1)
-    assert "does not exist" in result.errors[0].error
+    assert result.errors[0].error == NAME_NOT_UTF8
+    assert "not valid UTF-8" in NAME_NOT_UTF8
     assert set(os.listdir(env.remote)) == {"ok.txt"}
     assert (env.local / BAD).read_text() == "v1"
 
@@ -311,16 +364,16 @@ async def test_two_way_never_loses_a_version_of_a_name_that_is_not_utf8(env: Env
     """bisync (rclone 1.75.1) lists such a name with U+FFFD, so it cannot
     match it with the file on its next runs: an edit is carried over a run
     late, as a conflict whose loser is kept as ``*.remote-conflict1.txt``.
-    Every version the user wrote stays on both sides or in a conflict copy."""
+    Every job warns about the name, and every version the user wrote stays
+    on both sides or in a conflict copy."""
     write(env.local, BAD, "v1", mtime=time.time() - 3600)
     write(env.local, "ok.txt", "ok")
     engine = env.engine(sync_mode="two_way")
-    await env.completed(await engine.two_way_sync())
-    written = ["v1"]
+    bad = [warning(SyncWarningCode.NAME_NOT_UTF8, BAD_SHOWN)]
+    assert job_warnings(await env.completed(await engine.two_way_sync())) == bad
     for version in ("v2", "v3"):
         write(env.local, BAD, version)
-        written.append(version)
-        await env.completed(await engine.two_way_sync())
+        assert job_warnings(await env.completed(await engine.two_way_sync())) == bad
         assert (env.local / BAD).read_text() == version
     await env.completed(await engine.two_way_sync())
 
@@ -340,7 +393,8 @@ async def test_symlinks_are_neither_followed_nor_copied(env: Env, mode: str, tmp
 
     Neither the link nor what it points to reaches the other side, and the
     link and its target are left alone, whatever they point at: a file or a
-    folder outside the synced folder, or nothing.
+    folder outside the synced folder, or nothing. With no remote item of
+    the same name, that is no warning.
     """
     outside = tmp_path / "outside"
     write(outside, "secret.txt", "outside the profile")
@@ -352,8 +406,9 @@ async def test_symlinks_are_neither_followed_nor_copied(env: Env, mode: str, tmp
     engine = engine_for(env, mode)
 
     await env.completed(await sync(env, engine, mode))
-    await env.completed(await sync(env, engine, mode))
+    job = await env.completed(await sync(env, engine, mode))
 
+    assert job_warnings(job) == []
     assert [p for p in env.remote.rglob("*") if p.is_symlink()] == []
     assert "secret.txt" not in {p.name for p in env.remote.rglob("*")}
     for link in ("link-to-file.txt", "link-to-folder", "dangling"):
@@ -361,20 +416,109 @@ async def test_symlinks_are_neither_followed_nor_copied(env: Env, mode: str, tmp
     assert (outside / "secret.txt").read_text() == "outside the profile"
 
 
-async def test_push_moves_a_remote_file_shadowed_by_a_local_symlink_to_the_trash(env: Env, tmp_path: Path):
-    """A push treats a local link as no file: the remote file of that name is deleted, recoverably."""
-    write(tmp_path / "outside", "t.txt", "target")
-    os.symlink(tmp_path / "outside" / "t.txt", env.local / "clash.txt")
+def shadowed(env: Env, outside: Path) -> None:
+    """Local links named like a remote file and a remote folder; the targets are outside the profile."""
+    write(outside, "t.txt", "target")
+    os.symlink(outside / "t.txt", env.local / "clash.txt")
+    os.symlink(outside, env.local / "clash-folder")
     write(env.local, "a.txt", "a")
     write(env.remote, "a.txt", "a")
     write(env.remote, "clash.txt", "remote file")
+    write(env.remote, "clash-folder/inside.txt", "remote folder")
+
+
+def links_intact(env: Env, outside: Path) -> None:
+    assert (env.local / "clash.txt").is_symlink() and (env.local / "clash-folder").is_symlink()
+    # Nothing was written through the link into the folder it points to.
+    assert sorted(os.listdir(outside)) == ["t.txt"] and (outside / "t.txt").read_text() == "target"
+
+
+async def test_push_moves_a_remote_item_shadowed_by_a_local_symlink_to_the_trash_and_says_so(
+        env: Env, tmp_path: Path):
+    """A push treats a local link as no file: the remote file or folder of that
+    name is deleted, recoverably, and the job warns about each."""
+    outside = tmp_path / "outside"
+    shadowed(env, outside)
     engine = env.engine()
+    expected = [warning(SyncWarningCode.SYMLINK_SHADOW, "clash-folder", "clash.txt")]
+    assert (await engine.preview_sync()).warnings == expected
 
-    await env.completed(await engine.push())
+    job = await env.completed(await engine.push())
 
-    assert not (env.remote / "clash.txt").exists()
-    assert trash(env.remote) == {"clash.txt": hashlib.blake2b(b"remote file", digest_size=16).hexdigest()}
-    assert (env.local / "clash.txt").is_symlink() and (tmp_path / "outside" / "t.txt").read_text() == "target"
+    assert job_warnings(job) == [warning(SyncWarningCode.SYMLINK_TRASHED, "clash-folder", "clash.txt")]
+    assert not (env.remote / "clash.txt").exists() and not (env.remote / "clash-folder").exists()
+    assert trash(env.remote) == {
+        "clash.txt": hashlib.blake2b(b"remote file", digest_size=16).hexdigest(),
+        os.path.join("clash-folder", "inside.txt"): hashlib.blake2b(b"remote folder", digest_size=16).hexdigest(),
+    }
+    links_intact(env, outside)
+
+
+@pytest.mark.parametrize("mode", ["pull", "two_way"])
+async def test_pull_and_two_way_keep_a_local_symlink_and_the_remote_item_it_shadows(
+        env: Env, mode: str, tmp_path: Path):
+    """rclone alone would copy the remote file over the link (replacing it) and
+    write the remote folder's files through the link into the folder it
+    points to, outside the profile. OmniSync leaves both paths out of the
+    run: the link, its target and the remote items stay as they are, every
+    run warns, and once the link is gone the remote items arrive."""
+    outside = tmp_path / "outside"
+    shadowed(env, outside)
+    engine = engine_for(env, mode)
+    assert (await engine.enhanced_diff()).warnings == [
+        warning(SyncWarningCode.SYMLINK_SHADOW, "clash-folder", "clash.txt")]
+    kept = [warning(SyncWarningCode.SYMLINK_KEPT, "clash-folder", "clash.txt")]
+
+    for _ in range(2):
+        job = await env.completed(await sync(env, engine, mode))
+        assert job_warnings(job) == kept
+        links_intact(env, outside)
+        assert (env.remote / "clash.txt").read_text() == "remote file"
+        assert (env.remote / "clash-folder" / "inside.txt").read_text() == "remote folder"
+        assert trash(env.local) == {} and trash(env.remote) == {}
+
+    (env.local / "clash.txt").unlink()
+    (env.local / "clash-folder").unlink()
+    job = await env.completed(await sync(env, engine, mode))
+    assert job_warnings(job) == []
+    assert (env.local / "clash.txt").read_text() == "remote file"
+    assert (env.local / "clash-folder" / "inside.txt").read_text() == "remote folder"
+
+
+async def test_two_way_keeps_the_remote_file_when_a_synced_file_becomes_a_symlink(env: Env, tmp_path: Path):
+    """A file both sides had, replaced locally by a link: bisync would see it
+    deleted locally and delete it remotely. Left out of the run, it is gone
+    from both of bisync's listings at once, which bisync takes as deleted on
+    both sides: nothing changes, the remote file stays."""
+    write(tmp_path / "outside", "t.txt", "target")
+    write(env.local, "a.txt", "a")
+    write(env.local, "clash.txt", "synced")
+    engine = env.engine(sync_mode="two_way")
+    await env.completed(await engine.two_way_sync())
+
+    (env.local / "clash.txt").unlink()
+    os.symlink(tmp_path / "outside" / "t.txt", env.local / "clash.txt")
+    job = await env.completed(await engine.two_way_sync())
+
+    assert job_warnings(job) == [warning(SyncWarningCode.SYMLINK_KEPT, "clash.txt")]
+    assert (env.remote / "clash.txt").read_text() == "synced"
+    assert (env.local / "clash.txt").is_symlink()
+    assert trash(env.remote) == {}
+
+
+async def test_per_file_pull_never_replaces_a_local_symlink(env: Env, tmp_path: Path):
+    write(tmp_path / "outside", "t.txt", "target")
+    os.symlink(tmp_path / "outside" / "t.txt", env.local / "clash.txt")
+    write(env.remote, "clash.txt", "remote file")
+    engine = env.engine()
+    diff = await engine.enhanced_diff()
+    assert [f.path for f in diff.files] == ["clash.txt"]
+
+    result = await engine.selective_sync([SelectiveSyncItem(path="clash.txt", action=FileAction.PULL)])
+
+    assert (result.failed, result.errors[0].error) == (1, LOCAL_SYMLINK)
+    assert (env.local / "clash.txt").is_symlink()
+    assert (tmp_path / "outside" / "t.txt").read_text() == "target"
 
 
 # --- Empty files and folders ---

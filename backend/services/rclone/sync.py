@@ -89,9 +89,15 @@ class SyncMixin(RcloneBase):
         rclone_args: list[str] | None = None,
         backup_dirs: tuple[str, str] | None = None,
         resync: bool = False, dry_run: bool = False, check_access: bool = True,
-        short_names: int | None = None,
+        short_names: int | None = None, exclude_rules: list[str] | None = None,
     ) -> RcloneResult:
         """Run ``rclone bisync local remote`` (Path1 is always the local folder).
+
+        ``exclude_rules``: filter rules for this run only (``--filter``, which
+        rclone applies before the filters file), outside the filters file
+        and so its hash: OmniSync leaves local symbolic links alone this way.
+        bisync sees a path that disappears from both listings at once as
+        deleted on both sides and changes nothing.
 
         ``short_names`` (a profile id): run on that profile's short-name
         remotes instead of the real paths (see bisync_names.py), for paths
@@ -163,6 +169,7 @@ class SyncMixin(RcloneBase):
             args += ["--resync", "--resync-mode", "newer"]
         if dry_run:
             args.append("--dry-run")
+        args += [f"--filter={rule}" for rule in exclude_rules or []]
         cmd = self._build_command([*args, *json_log_args(profile_args)], rclone_args=profile_args,
                                   positional=list(paths))
         logger.info("Starting two-way sync%s: %s <-> %s%s", " (resync)" if resync else "", local, remote,

@@ -32,15 +32,18 @@ class ListingMixin(RcloneBase):
             raise classify_failure(proc.returncode, stderr.decode("utf-8", errors="replace"))
         return stdout
 
-    async def lsjson(self, path: str, rclone_filter: list[str] | None = None) -> list[dict]:
+    async def lsjson(self, path: str, rclone_filter: list[str] | None = None,
+                     rclone_args: list[str] | None = None) -> list[dict]:
         """List files with metadata using rclone lsjson --recursive.
 
         Returns list of {Path, Size, ModTime, IsDir} dicts. The trash folder
-        is never listed; ``rclone_filter`` adds the profile's own rules.
+        is never listed; ``rclone_filter`` adds the profile's own rules,
+        ``rclone_args`` flags (only ones that filter belong here).
         """
         result = await self._run(
             ["lsjson", "--recursive"],
             rclone_filter=[TRASH_FILTER, *(rclone_filter or [])],
+            rclone_args=rclone_args,
             positional=[path],
         )
         try:
@@ -115,6 +118,33 @@ class ListingMixin(RcloneBase):
         finally:
             os.unlink(list_file.name)
         # split("\n"), not splitlines(): \r and other separators are legal in names
+        return {line for line in result.stdout.split("\n") if line}
+
+    async def existing_items(self, root: str, rules: list[str]) -> set[str]:
+        """The files and folders under root that these include rules match.
+
+        ``rules``: ``+ /<escaped path>`` for a file, ``+ /<escaped path>/``
+        for a folder; everything else is excluded, so rclone descends only
+        into the folders on the way. Returns the listed paths, folders with
+        a trailing ``/`` (their parents too); a missing root gives none.
+        """
+        if not rules:
+            return set()
+        filter_file = tempfile.NamedTemporaryFile(mode="w", suffix=".filter", delete=False, encoding="utf-8")
+        try:
+            filter_file.write("".join(f"{rule}\n" for rule in [*rules, "- **"]))
+            filter_file.close()
+            try:
+                result = await self._run(["lsf", "-R", "--filter-from", filter_file.name],
+                                         use_config_args=False, positional=[root])
+            except RcloneAuthError:
+                raise
+            except RcloneError as exc:
+                if "directory not found" in str(exc).lower():
+                    return set()
+                raise
+        finally:
+            os.unlink(filter_file.name)
         return {line for line in result.stdout.split("\n") if line}
 
     async def list_top_level(self, path: str) -> list[str]:

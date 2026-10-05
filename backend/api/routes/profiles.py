@@ -49,6 +49,7 @@ from backend.api.schemas import (
     two_way_rclone_args_error,
 )
 from backend.api.routes.conflicts import CONFLICT_PAGE_DEFAULT, CONFLICT_PAGE_MAX, page_of_conflicts
+from backend.api.routes.jobs import job_warnings
 from backend.db.database import get_session
 from backend.db.models import SyncJob
 from backend.exceptions import (
@@ -538,7 +539,7 @@ async def get_profile_diff(
     )
     return DiffResponse(
         files=page_files, summary=diff.summary,
-        pagination=pagination, error=diff.error,
+        pagination=pagination, error=diff.error, warnings=diff.warnings,
     )
 
 
@@ -673,6 +674,7 @@ async def list_profile_jobs(
             errors=j.errors,
             profile_slug=slug,
             profile_name=profile.name,
+            warnings=job_warnings(j),
         )
         for j in jobs
     ]

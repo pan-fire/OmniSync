@@ -296,6 +296,27 @@ async def test_0012_with_nothing_to_remove_logs_nothing(tmp_path, caplog):
     assert "Removed history rows" not in caplog.text
 
 
+async def test_0013_jobs_upgrade_with_no_warnings(tmp_path):
+    """0013 adds sync_jobs.warnings: jobs recorded before have none ("[]")."""
+    db = tmp_path / "from-0012.db"
+    url = f"sqlite+aiosqlite:///{db}"
+    await migrate_database(url, runner=_alembic("upgrade", "0012"))
+    conn = sqlite3.connect(db)
+    _insert_profile(conn, 1, "one")
+    _insert_job(conn, 1, 1)
+    conn.commit()
+    conn.close()
+
+    await init_database(str(db))
+
+    assert_current_schema(db)
+    assert count(db, "SELECT COUNT(*) FROM sync_jobs WHERE warnings = '[]' AND files_changed = 1") == 1
+    await migrate_database(url, runner=_alembic("downgrade", "0012"))
+    assert version(db) == ["0012"]
+    await migrate_database(url)
+    assert_current_schema(db)
+
+
 async def test_foreign_keys_enforced_on_every_connection(tmp_path):
     await init_database(str(tmp_path / "fk.db"))
     factory = database._async_session_factory

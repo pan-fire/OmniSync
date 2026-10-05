@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 
 from sqlalchemy import insert
 
+from backend.api.schemas import SyncWarning, SyncWarningCode
 from backend.db.models import FileChange, SyncError, SyncJob
-from backend.services.rclone import ChangeRecorder, FileChangeRecord
+from backend.services.rclone import ChangeRecorder, FileChangeRecord, redact_secrets
 from backend.services.sync_engine.base import EngineBase
-from backend.services.sync_engine.common import logger
+from backend.services.sync_engine.common import filter_escape, logger
+from backend.services.sync_engine.names import (
+    LocalNames,
+    describe,
+    is_utf8,
+    name_warnings,
+    only_listed,
+    scan_local,
+)
 
 
 class ReportingMixin(EngineBase):
@@ -30,6 +40,76 @@ class ReportingMixin(EngineBase):
             session.add(error)
             await session.commit()
 
+    # --- Local names rclone cannot sync as they are (see names.py) ---
+
+    async def _local_names(self, listed: set[str] | None = None) -> LocalNames:
+        """The profile's local folder scanned for such names.
+
+        Narrowed to what the profile's filters let a sync see: ``listed``
+        (the paths rclone listed with them), else, only when the profile
+        filters and a name was found, a listing made here. If that listing
+        fails, everything found is kept (a warning too many, never one too
+        few).
+        """
+        from backend.services.sync_engine.two_way import filter_flags  # two_way imports this module
+
+        config = self._profile
+        found = await asyncio.to_thread(scan_local, config.local_dir)
+        if not (found.collisions or found.not_utf8):
+            return found
+        if listed is None:
+            flags = filter_flags(config.rclone_args)
+            if not (config.rclone_filter or flags):
+                return found
+            try:
+                entries = await self._rclone.lsjson(config.local_dir, rclone_filter=config.rclone_filter,
+                                                    rclone_args=flags)
+            except Exception as exc:
+                logger.warning("Profile '%s': could not list the local folder with the profile's filters "
+                               "to check its file names: %s", config.slug, redact_secrets(str(exc)))
+                return found
+            listed = {e["Path"] for e in entries if isinstance(e, dict) and "Path" in e}
+        return only_listed(found, listed)
+
+    async def _shadowing_links(self, links: list[str]) -> list[str]:
+        """The local links whose path names a file or folder in the remote folder.
+
+        One listing of exactly those paths. A link whose name cannot be put
+        in a filter rule (not UTF-8, a line break) is left out; if the
+        listing fails, every link is reported (better a warning too many).
+        """
+        nameable = [p for p in links if is_utf8(p) and "\n" not in p and "\r" not in p]
+        if not nameable:
+            return []
+        rules = [rule for p in nameable for rule in (f"+ /{filter_escape(p)}", f"+ /{filter_escape(p)}/")]
+        try:
+            items = await self._rclone.existing_items(self._profile.remote_dir, rules)
+        except Exception as exc:
+            logger.warning("Profile '%s': could not check the remote folder for names of local symbolic "
+                           "links: %s", self._profile.slug, redact_secrets(str(exc)))
+            return nameable
+        return [p for p in nameable if p in items or f"{p}/" in items]
+
+    async def _name_warnings(self, link_code: SyncWarningCode,
+                             listed: set[str] | None = None) -> tuple[list[SyncWarning], list[str]]:
+        """The warnings about local names for a preview, diff or run, and the local links.
+
+        ``link_code``: how links named like a remote item are reported (what
+        the run does with that item). Never raises: a failed check is
+        logged and gives no warnings, as the sync itself does not depend on it.
+        """
+        try:
+            found = await self._local_names(listed)
+            shadowing = await self._shadowing_links(found.symlinks)
+        except Exception:
+            logger.warning("Profile '%s': could not check the local file names", self._profile.slug, exc_info=True)
+            return [], []
+        return name_warnings(found, shadowing, link_code), found.symlinks
+
+    def _log_warnings(self, job_id: int, warnings: list[SyncWarning]) -> None:
+        for line in describe(warnings):
+            logger.warning("Profile '%s' (job %d): %s", self._profile.slug, job_id, line)
+
     async def _fail_job(self, job_id: int, recorder: ChangeRecorder | None = None) -> None:
         """Mark a job as failed in the database, with what it changed before failing."""
         await self._finish_job(job_id, "failed", recorder=recorder)
@@ -40,12 +120,16 @@ class ReportingMixin(EngineBase):
         extra: list[FileChangeRecord] | None = None,
         errors: int | None = None,
         conflicts: int | None = None,
+        warnings: list[SyncWarning] | None = None,
     ) -> None:
         """Close a job: status, finish time, and (when known) what it changed.
 
         ``files_changed`` counts every change rclone reported; FileChange
         rows are written for the first MAX_RECORDED_CHANGES of them.
+        ``warnings`` are stored with the job (and logged).
         """
+        if warnings:
+            self._log_warnings(job_id, warnings)
         rows = [*(recorder.rows if recorder is not None else []), *(extra or [])]
         async with self._db_session_factory() as session:
             job = await session.get(SyncJob, job_id)
@@ -58,6 +142,8 @@ class ReportingMixin(EngineBase):
                     job.errors = errors
                 if conflicts is not None:
                     job.conflicts = conflicts
+                if warnings:
+                    job.warnings = json.dumps([w.model_dump(mode="json") for w in warnings])
                 if rows:
                     await session.execute(insert(FileChange), [
                         {"job_id": job_id, "file_path": r.path, "action": r.action,
@@ -114,7 +200,9 @@ class ReportingMixin(EngineBase):
             factory_map = {
                 "sync_completed": lambda: ne.sync_completed_event(
                     str(kwargs.get("direction", "")), int(str(kwargs.get("files", 0))),
-                    conflicts=int(str(kwargs.get("conflicts", 0))), **profile,
+                    conflicts=int(str(kwargs.get("conflicts", 0))),
+                    warnings=describe(found) if isinstance(found := kwargs.get("warnings"), list) else None,
+                    **profile,
                 ),
                 "sync_failed": lambda: ne.sync_failed_event(
                     str(kwargs.get("direction", "")), error,

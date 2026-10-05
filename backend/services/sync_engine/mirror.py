@@ -6,12 +6,13 @@ import asyncio
 import os
 from datetime import datetime, timezone
 
-from backend.api.schemas import DiffResponse, SyncDirection, SyncState
+from backend.api.schemas import DiffResponse, SyncDirection, SyncState, SyncWarningCode
 from backend.db.models import SyncJob
 from backend.exceptions import RcloneAuthError, RcloneError, RcloneRateLimitError
 from backend.services.rclone import TRASH_DIR, ChangeRecorder, without_flag
 from backend.services.sync_engine import common
 from backend.services.sync_engine.common import ENGINE_STOPPED, RATE_LIMIT_BASE_DELAY, filter_escape, logger
+from backend.services.sync_engine.names import link_filter_rules
 from backend.services.sync_engine.partials import PartialsMixin
 
 
@@ -95,6 +96,18 @@ class MirrorMixin(PartialsMixin):
         else:
             source, dest = config.remote_dir, config.local_dir
 
+        # --- Local names rclone cannot sync as they are (names.py) ---
+        # A pull leaves every local symbolic link alone: without these rules
+        # a remote file of the same name would replace the link. (They go
+        # before the profile's rules, which would otherwise win; rclone
+        # applies a profile's --include flags before any rule, though.) A
+        # push deletes such a remote file into the remote trash, as for any
+        # file missing locally, and says so.
+        pull = direction == SyncDirection.PULL
+        warnings, links = await self._name_warnings(
+            SyncWarningCode.SYMLINK_KEPT if pull else SyncWarningCode.SYMLINK_TRASHED)
+        link_rules = link_filter_rules(links) if pull else []
+
         # --- Build exclude filter for manual flags & unresolved conflicts ---
         exclude_paths: set[str] = set()
 
@@ -146,7 +159,7 @@ class MirrorMixin(PartialsMixin):
                     await self._rclone.sync(
                         source, dest, direction,
                         exclude_filter_path=filter_path,
-                        rclone_filter=config.rclone_filter,
+                        rclone_filter=[*link_rules, *config.rclone_filter],
                         rclone_args=rclone_args,
                         backup_dir=self._backup_dir(dest),
                         max_delete=max_delete,
@@ -156,7 +169,7 @@ class MirrorMixin(PartialsMixin):
                         await self._write_sentinels()
                     await self._remove_partial_leftovers(job_id)
                     # Success — record the job with what rclone changed
-                    await self._finish_job(job_id, "completed", recorder=recorder)
+                    await self._finish_job(job_id, "completed", recorder=recorder, warnings=warnings)
                     if self._paused_edits == paused_edits:
                         self._paused_edits = 0  # this sync covered them
                     self._after_successful_sync(recorder.total)
@@ -164,7 +177,7 @@ class MirrorMixin(PartialsMixin):
                     logger.info("Sync %s completed (job %d, %d file(s) changed)",
                                 direction.value, job_id, recorder.total)
                     await self._emit_notification(
-                        "sync_completed", direction=direction.value, files=recorder.total
+                        "sync_completed", direction=direction.value, files=recorder.total, warnings=warnings,
                     )
                     await self._maybe_prune_trash("local" if direction == SyncDirection.PULL else "remote")
                     return job_id

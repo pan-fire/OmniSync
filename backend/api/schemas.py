@@ -169,6 +169,37 @@ class JobDirection(str, Enum):
     RESYNC = "resync"  # a two-way resync: the union of both sides, nothing deleted
 
 
+class SyncWarningCode(str, Enum):
+    """Why a sync left a file alone, or did something the user should know about.
+
+    name_collision: names in one local folder equal after Unicode
+    normalisation (e.g. ``café`` composed and decomposed); rclone treats
+    them as one file and syncs only one. name_not_utf8: a local name that
+    is not valid UTF-8; whole-folder syncs carry it, per-file actions
+    cannot. symlink_shadow (preview, diff): a local symbolic link has the
+    name of a remote file or folder. symlink_kept (pull, two-way): that
+    remote item was left alone so the link is not replaced. symlink_trashed
+    (push): that remote item was moved to the remote trash.
+    """
+    NAME_COLLISION = "name_collision"
+    NAME_NOT_UTF8 = "name_not_utf8"
+    SYMLINK_SHADOW = "symlink_shadow"
+    SYMLINK_KEPT = "symlink_kept"
+    SYMLINK_TRASHED = "symlink_trashed"
+
+
+class SyncWarning(BaseModel):
+    """One kind of name problem: how many local names have it, and some of them.
+
+    ``paths`` holds at most 20 of the ``count`` paths, escaped for display:
+    bytes that are not UTF-8 as ``\\xNN``, control and bidi characters as
+    ``\\xNN`` or ``\\uNNNN``; a folder ends with ``/``.
+    """
+    code: SyncWarningCode
+    count: int
+    paths: list[str] = []
+
+
 class SyncJobResponse(BaseModel):
     id: int
     direction: JobDirection
@@ -180,6 +211,9 @@ class SyncJobResponse(BaseModel):
     errors: int = 0
     profile_slug: str | None = None
     profile_name: str | None = None
+    # Files the job left alone or had to treat specially (see SyncWarningCode);
+    # a "completed" job with warnings did not sync everything.
+    warnings: list[SyncWarning] = []
 
 
 class FileChangeAction(str, Enum):
@@ -621,6 +655,8 @@ class SyncPreviewResponse(BaseModel):
     error: str | None = None
     sync_mode: SyncMode = SyncMode.MIRROR
     two_way: TwoWayPreview | None = None
+    # Local names a sync cannot carry as they are (see SyncWarning).
+    warnings: list[SyncWarning] = []
 
 
 # --- Granular sync control schemas ---
@@ -679,6 +715,8 @@ class DiffResponse(BaseModel):
     summary: DiffSummary = DiffSummary()
     pagination: DiffPagination | None = None
     error: str | None = None
+    # Local names a sync cannot carry as they are (see SyncWarning).
+    warnings: list[SyncWarning] = []
 
 
 class SelectiveSyncItem(BaseModel):

@@ -113,6 +113,9 @@ class SyncJob(Base):
     files_changed: Mapped[int] = mapped_column(Integer, default=0)
     conflicts: Mapped[int] = mapped_column(Integer, default=0)
     errors: Mapped[int] = mapped_column(Integer, default=0)
+    # JSON array of SyncWarning objects (api.schemas): files the job left
+    # alone or treated specially. A list per kind, so it stays small.
+    warnings: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
 
     profile: Mapped["SyncProfile"] = relationship(back_populates="jobs")
     file_changes: Mapped[list["FileChange"]] = relationship(
