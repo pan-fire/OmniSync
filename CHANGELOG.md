@@ -30,6 +30,12 @@ release notes.
   create folders that were never meant to exist. The rclone test now uses
   the path exactly as the sync does. The Google Drive, Dropbox and OneDrive
   tests also ignore a trailing or doubled `/` now.
+- **A sync test that leaves its test file behind fails.** When rclone could
+  not delete the `.omnisync-test-…` file from the remote, the test still
+  passed and the file stayed there; the Google Drive, Dropbox and OneDrive
+  tests already failed in that case. Both now fail at the cleanup step
+  ("The test file could not be removed from the remote."), and the log
+  names the file.
 
 ### Security
 

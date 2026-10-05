@@ -10,6 +10,7 @@ the rclone fallback runs the real binary against a `local`-type remote.
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from backend.api.errors import public_test_sync_result
 from backend.exceptions import RcloneError
 from backend.services.rclone import RcloneService
 from backend.tests.test_rclone_service import (
@@ -243,17 +245,25 @@ async def test_rclone_verify_failure_fails_the_test_and_still_cleans_up(
 
 
 @needs_rclone
-async def test_rclone_cleanup_failure_is_best_effort(
+async def test_rclone_cleanup_failure_is_reported(
     local_remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failing `rclone deletefile` does not fail the test (current behaviour: the probe stays on the remote)."""
+    """A failing `rclone deletefile` fails the test, as a failed delete on a provider API does:
+    the probe is still on the remote, and the user must hear about it, with the step named."""
     service, remote = local_remote
     spy_rclone(service, monkeypatch, fail="deletefile")
     local = tmp_path / "local"
     result = await service.test_sync(str(local), "disk:remote")
-    assert result["success"] is True
-    assert [p.name.startswith(".omnisync-test-") for p in remote.iterdir()] == [True]
+    assert result["success"] is False and result["error"] == "One or more steps failed"
+    assert steps(result) == {s: s != "remote_cleanup" for s in STEPS}
+    left = [p.name for p in remote.iterdir()]
+    assert len(left) == 1 and left[0].startswith(".omnisync-test-")
+    cleanup = next(s for s in result["steps"] if s["step"] == "remote_cleanup")
+    assert cleanup["error"].startswith(f"disk:remote/{left[0]} could not be removed")
     assert list(local.iterdir()) == []
+
+    public = public_test_sync_result(result, logging.getLogger("test"))
+    assert public.error is not None and public.error.startswith("The test file could not be removed from the remote.")
 
 
 @needs_rclone

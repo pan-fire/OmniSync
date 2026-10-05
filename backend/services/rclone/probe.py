@@ -91,7 +91,9 @@ class ProbeMixin(RcloneBase):
             await self._test_delete_remote(remote_name, remote_file, rclone_target)
             steps.append({"step": "remote_cleanup", "ok": True})
         except Exception as e:
-            steps.append({"step": "remote_cleanup", "ok": False, "error": str(e)})
+            # Logged with the file's place, so the operator can remove it.
+            steps.append({"step": "remote_cleanup", "ok": False,
+                          "error": f"{rclone_target} could not be removed: {e}"})
 
         self._cleanup_local(local_path)
         steps.append({"step": "local_cleanup", "ok": True})
@@ -179,13 +181,13 @@ class ProbeMixin(RcloneBase):
         elif access_token and remote_type == "onedrive":
             await self._onedrive_delete(access_token, remote_file)
         else:
-            try:
-                await self._run(
-                    ["deletefile"], use_config_args=False, timeout=15,
-                    positional=[rclone_target],
-                )
-            except RcloneError:
-                pass
+            # A failure raises, as on the provider APIs: test_sync then
+            # reports remote_cleanup as failed (the probe file is left on
+            # the remote) instead of a success.
+            await self._run(
+                ["deletefile"], use_config_args=False, timeout=15,
+                positional=[rclone_target],
+            )
 
     # --- Google Drive helpers ---
 
