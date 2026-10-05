@@ -1021,6 +1021,7 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 		if preview.Excluded > 0 {
 			fmt.Fprintf(&b, "Leaves out %d differing file(s) flagged for manual handling or in an\nunresolved conflict.\n", preview.Excluded)
 		}
+		b.WriteString(previewWarnings(preview))
 	}
 	side := "remote"
 	if req.dir == api.SyncDirectionPull {
@@ -1067,6 +1068,7 @@ func twoWayPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr
 		if tw.Conflicts > 0 {
 			fmt.Fprintf(&b, "%d file(s) changed on both sides: both versions will be kept and listed\nunder Conflicts.\n", tw.Conflicts)
 		}
+		b.WriteString(previewWarnings(preview))
 	}
 
 	b.WriteString("\nFiles it deletes or replaces are kept in .omnisync-trash on the side that\nchanges.\n")

@@ -37,7 +37,10 @@ release notes.
   folder. A job with warnings shows as "Completed with warnings" in the
   web UI, its detail lists them, the sync confirmation and the diff show
   them before anything runs, the log has one line per kind, and the
-  completed notification becomes a warning. See
+  completed notification becomes a warning. The terminal UI shows them
+  too: "warnings" in the job lists, "completed with warnings" and the
+  warnings in a job's detail, and the warnings in the sync confirmation
+  and the diff tab. See
   [File names and links](docs/gem/how-syncing-works.md#file-names-and-links).
 
 ### Fixed
