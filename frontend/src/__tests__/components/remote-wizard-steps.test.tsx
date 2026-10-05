@@ -84,8 +84,8 @@ describe('wizard state', () => {
 });
 
 describe('RemoteWizard, key-based provider', () => {
-  it('shows the setup guide on request and the server\'s refusal to create the remote', async () => {
-    const { requests } = stubBackend(BASE);
+  it('shows the setup guide on request', async () => {
+    stubBackend(BASE);
     const user = userEvent.setup();
     renderWizard();
     await choose(user, 'Amazon S3');
@@ -95,6 +95,13 @@ describe('RemoteWizard, key-based provider', () => {
     expect(screen.getByText('Create an IAM user with S3 access.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Where do I find these?' }));
     expect(screen.queryByText('Create an IAM user with S3 access.')).not.toBeInTheDocument();
+  });
+
+  it('needs the required fields, then shows the server\'s refusal to create the remote', async () => {
+    const { requests } = stubBackend(BASE);
+    const user = userEvent.setup();
+    renderWizard();
+    await choose(user, 'Amazon S3');
 
     const next = screen.getByRole('button', { name: 'Next' });
     expect(next).toBeDisabled();
