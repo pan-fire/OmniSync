@@ -3,7 +3,7 @@
 Which side a differing file counts as changed on decides what a selective
 sync may overwrite, so the cases where a modification time is missing or
 unreadable must fall back to something that never hides a change: a file
-whose times are both unknown is a conflict, not a one-sided change.
+whose time is unknown on either side is a conflict, not a one-sided change.
 """
 
 from __future__ import annotations
@@ -61,19 +61,26 @@ async def test_unreadable_times_never_hide_a_change(tmp_path, test_db_factory):
     assert both.is_conflict and both.local_mod_time is None and both.remote_mod_time is None
 
 
-@pytest.mark.parametrize("local_time, remote_time, expected", [
-    (T1, None, ChangeCategory.MODIFIED_LOCAL),
-    (None, T1, ChangeCategory.MODIFIED_REMOTE),
+@pytest.mark.parametrize("local_time, remote_time", [
+    (T1, None),
+    (None, T1),
+    (T1, "not a time"),
+    ("garbled", T2),
 ])
-async def test_a_time_on_one_side_only(tmp_path, test_db_factory, local_time, remote_time, expected):
-    """Documents today's rule: with one time missing, the side that has one counts as changed."""
+@pytest.mark.parametrize("last_sync", [None, datetime(2026, 1, 1, tzinfo=timezone.utc)])
+async def test_a_time_on_one_side_only(tmp_path, test_db_factory, local_time, remote_time, last_sync):
+    """With a time missing or unreadable on one side, nothing shows that side is unchanged:
+    the file is a conflict to review, never a one-sided change a push or pull would apply."""
     def entry(t):
         return {"Path": "f.txt", "Size": 1, **({"ModTime": t} if t else {})}
 
     engine = engine_with(tmp_path, test_db_factory, {"local_only": [], "remote_only": [], "differ": ["f.txt"]},
                          [entry(local_time)], [entry(remote_time)])
+    engine._state.last_sync = last_sync
 
-    assert by_path(await engine.enhanced_diff()) == {"f.txt": expected}
+    diff = await engine.enhanced_diff()
+    assert by_path(diff) == {"f.txt": ChangeCategory.MODIFIED_BOTH}
+    assert diff.files[0].is_conflict and diff.summary.modified_both == 1
 
 
 async def test_directories_in_the_listing_are_not_files(tmp_path, test_db_factory):

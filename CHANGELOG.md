@@ -12,6 +12,16 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **A differing file with a modification time on one side only is a
+  conflict.** When rclone gave a readable modification time for only one
+  copy of a file that differs, the diff counted it as changed on that side
+  ("modified local" or "modified remote"), although nothing showed that the
+  other copy was unchanged, so a push or pull could overwrite a change. It
+  is now listed as a conflict, for you to review, like a file with no
+  readable time on either side.
+
 ### Fixed
 
 - **A failed desktop notification shows its real error.** The notifiers

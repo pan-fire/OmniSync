@@ -263,13 +263,13 @@ class DiffMixin(ReportingMixin):
                 except (ValueError, TypeError):
                     pass
 
-            # Classify based on timestamps
+            # Classify based on timestamps. A one-sided category is only
+            # given on evidence from both sides: with a time missing or
+            # unreadable on either side, nothing shows that the other side
+            # is unchanged, and a one-sided label would let a push or pull
+            # overwrite it. Such a file is a conflict, for the user to review.
             if local_mod is not None and remote_mod is not None:
                 category = self._classify_differ(local_mod, remote_mod, last_sync)
-            elif local_mod is not None:
-                category = ChangeCategory.MODIFIED_LOCAL
-            elif remote_mod is not None:
-                category = ChangeCategory.MODIFIED_REMOTE
             else:
                 category = ChangeCategory.MODIFIED_BOTH
 
