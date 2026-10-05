@@ -23,6 +23,13 @@ release notes.
   `notify-send` read a title or body starting with `-` (a file named
   `-draft.txt`) as an option and refused it, so the notification was lost.
   The text now follows `--`.
+- **The sync test probes the folder the profile syncs.** For remotes tested
+  through rclone (SFTP, SMB, local and the like), the leading `/` of the
+  remote path was dropped, so `server:/srv/data` was tested as
+  `server:srv/data` under the remote's home folder, where the test could
+  create folders that were never meant to exist. The rclone test now uses
+  the path exactly as the sync does. The Google Drive, Dropbox and OneDrive
+  tests also ignore a trailing or doubled `/` now.
 
 ### Security
 

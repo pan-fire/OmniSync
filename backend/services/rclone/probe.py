@@ -12,6 +12,13 @@ from backend.services.rclone.common import _is_remote_name, logger
 from backend.services.rclone.process import RcloneBase
 
 
+def _join(remote_path: str, name: str) -> str:
+    """``name`` inside ``remote_path`` as rclone reads it: a leading "/" is kept."""
+    if not remote_path or remote_path.endswith("/"):
+        return remote_path + name
+    return f"{remote_path}/{name}"
+
+
 class ProbeMixin(RcloneBase):
     """test_sync() and its Google Drive, Dropbox and OneDrive helpers."""
 
@@ -42,7 +49,13 @@ class ProbeMixin(RcloneBase):
         remote_name, remote_path = remote_dir.split(":", 1)
         if not _is_remote_name(remote_name):
             return {"success": False, "steps": steps, "error": "Invalid remote_dir format — expected 'name:path'"}
-        remote_file = f"{remote_path}/{test_filename}".lstrip("/")
+        # Two spellings of the probe's place. The provider APIs (Drive,
+        # Dropbox, OneDrive) take a path from the drive root with no leading
+        # or doubled "/"; rclone takes the profile's path exactly as written,
+        # where "disk:/abs/dir" (sftp, local, smb) is absolute and
+        # "disk:abs/dir" is relative to the remote's home folder.
+        remote_file = "/".join([*(part for part in remote_path.split("/") if part), test_filename])
+        rclone_target = f"{remote_name}:{_join(remote_path, test_filename)}"
 
         # Step 1: Check local dir
         try:
@@ -55,7 +68,7 @@ class ProbeMixin(RcloneBase):
 
         # Step 2: Upload to remote
         try:
-            uploaded = await self._test_upload(remote_name, remote_file, local_path)
+            uploaded = await self._test_upload(remote_name, remote_file, local_path, rclone_target)
             steps.append({"step": "remote_upload", "ok": uploaded})
             if not uploaded:
                 self._cleanup_local(local_path)
@@ -67,7 +80,7 @@ class ProbeMixin(RcloneBase):
 
         # Step 3: Verify on remote
         try:
-            verified = await self._test_verify(remote_name, remote_file)
+            verified = await self._test_verify(remote_name, remote_file, rclone_target)
             steps.append({"step": "remote_verify", "ok": verified})
         except Exception as e:
             steps.append({"step": "remote_verify", "ok": False, "error": str(e)})
@@ -75,7 +88,7 @@ class ProbeMixin(RcloneBase):
 
         # Step 4: Cleanup
         try:
-            await self._test_delete_remote(remote_name, remote_file)
+            await self._test_delete_remote(remote_name, remote_file, rclone_target)
             steps.append({"step": "remote_cleanup", "ok": True})
         except Exception as e:
             steps.append({"step": "remote_cleanup", "ok": False, "error": str(e)})
@@ -110,7 +123,7 @@ class ProbeMixin(RcloneBase):
                 pass
         return remote_type, access_token, token_str
 
-    async def _test_upload(self, remote_name: str, remote_file: str, local_path: object) -> bool:
+    async def _test_upload(self, remote_name: str, remote_file: str, local_path: object, rclone_target: str) -> bool:
         """Upload a test file to the remote via provider API or rclone."""
         from pathlib import Path
 
@@ -128,14 +141,14 @@ class ProbeMixin(RcloneBase):
             try:
                 await self._run(
                     ["copyto"], use_config_args=False, timeout=30,
-                    positional=[str(local_path), f"{remote_name}:{remote_file}"],
+                    positional=[str(local_path), rclone_target],
                 )
                 return True
             except RcloneError as e:
                 logger.warning("test_sync rclone upload failed: %s", e)
                 return False
 
-    async def _test_verify(self, remote_name: str, remote_file: str) -> bool:
+    async def _test_verify(self, remote_name: str, remote_file: str, rclone_target: str) -> bool:
         """Verify a file exists on the remote."""
         remote_type, access_token, _ = await self._get_remote_token(remote_name)
 
@@ -149,13 +162,13 @@ class ProbeMixin(RcloneBase):
             try:
                 await self._run(
                     ["lsf"], use_config_args=False, timeout=15,
-                    positional=[f"{remote_name}:{remote_file}"],
+                    positional=[rclone_target],
                 )
                 return True
             except RcloneError:
                 return False
 
-    async def _test_delete_remote(self, remote_name: str, remote_file: str) -> None:
+    async def _test_delete_remote(self, remote_name: str, remote_file: str, rclone_target: str) -> None:
         """Delete a test file from the remote."""
         remote_type, access_token, _ = await self._get_remote_token(remote_name)
 
@@ -169,7 +182,7 @@ class ProbeMixin(RcloneBase):
             try:
                 await self._run(
                     ["deletefile"], use_config_args=False, timeout=15,
-                    positional=[f"{remote_name}:{remote_file}"],
+                    positional=[rclone_target],
                 )
             except RcloneError:
                 pass

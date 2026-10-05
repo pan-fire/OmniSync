@@ -257,8 +257,6 @@ async def test_rclone_cleanup_failure_is_best_effort(
 
 
 @needs_rclone
-@pytest.mark.xfail(strict=True, reason="probe.py strips the leading '/' of the remote path: "
-                   "'disk:/abs/dir' is probed as 'disk:abs/dir' (relative to the remote's home or cwd)")
 async def test_rclone_probe_goes_to_an_absolute_remote_folder(
     local_remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -272,3 +270,29 @@ async def test_rclone_probe_goes_to_an_absolute_remote_folder(
     assert result["success"] is True
     assert calls[0][0] == "copyto" and calls[0][2].startswith(f"disk:{remote}/.omnisync-test-")
     assert list(cwd.iterdir()) == []  # nothing made outside the remote folder
+    assert list(remote.iterdir()) == []  # and the probe is gone again
+
+
+@pytest.mark.parametrize(("remote_dir", "rclone_dir", "api_dir"), [
+    ("disk:/abs/dir", "disk:/abs/dir/", "abs/dir/"),  # absolute stays absolute for rclone
+    ("disk:/", "disk:/", ""),
+    ("disk:rel/dir/", "disk:rel/dir/", "rel/dir/"),
+    ("disk:", "disk:", ""),  # the remote's root (or home folder)
+])
+async def test_rclone_and_api_paths_each_keep_their_form(
+    fake, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remote_dir: str, rclone_dir: str, api_dir: str,
+) -> None:
+    """rclone gets the profile's path as written; the provider APIs get it from the drive root."""
+    seen: dict[str, tuple[str, str]] = {}
+
+    async def upload(remote_name, remote_file, local_path, rclone_target):
+        seen["upload"] = (remote_file, rclone_target)
+        return False
+
+    service = fake.service()
+    monkeypatch.setattr(service, "_test_upload", upload)
+    await service.test_sync(str(tmp_path / "local"), remote_dir)
+    remote_file, rclone_target = seen["upload"]
+    name = remote_file.rsplit("/", 1)[-1]
+    assert name.startswith(".omnisync-test-")
+    assert (remote_file, rclone_target) == (api_dir + name, rclone_dir + name)
