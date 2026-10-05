@@ -8,6 +8,7 @@ import os
 import shutil
 
 from backend.services.notification_events import NotificationSeverity
+from backend.services.subprocesses import communicate_or_kill
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,6 @@ class LinuxNotifier:
         if dbus_addr:
             env["DBUS_SESSION_BUS_ADDRESS"] = dbus_addr
 
-        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -41,7 +41,7 @@ class LinuxNotifier:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            _, stderr = await communicate_or_kill(proc, timeout=5.0)
             if proc.returncode != 0:
                 # errors="replace": a non-UTF-8 message (e.g. a Windows OEM code page)
                 # must not turn the failure into a UnicodeDecodeError.
@@ -49,9 +49,7 @@ class LinuxNotifier:
                 msg = f"notify-send failed (rc={proc.returncode}): {detail}"
                 logger.warning(msg)
                 raise RuntimeError(msg)
-        except asyncio.TimeoutError:
-            if proc is not None:
-                proc.kill()
+        except asyncio.TimeoutError:  # the process is killed and reaped by then
             raise RuntimeError("notify-send timed out after 5s")
         except FileNotFoundError:
             raise RuntimeError("notify-send binary not found")

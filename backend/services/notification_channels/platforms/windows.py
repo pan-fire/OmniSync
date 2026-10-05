@@ -8,6 +8,7 @@ import os
 import shutil
 
 from backend.services.notification_events import NotificationSeverity
+from backend.services.subprocesses import communicate_or_kill
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,6 @@ class WindowsNotifier:
         cmd = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", toast_script(severity)]
         env = {**os.environ, TITLE_VAR: _env_value(title), BODY_VAR: _env_value(body)}
 
-        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -56,7 +56,7 @@ class WindowsNotifier:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            _, stderr = await communicate_or_kill(proc, timeout=5.0)
             if proc.returncode != 0:
                 # errors="replace": a non-UTF-8 message (e.g. a Windows OEM code page)
                 # must not turn the failure into a UnicodeDecodeError.
@@ -64,9 +64,7 @@ class WindowsNotifier:
                 msg = f"PowerShell toast failed (rc={proc.returncode}): {detail}"
                 logger.warning(msg)
                 raise RuntimeError(msg)
-        except asyncio.TimeoutError:
-            if proc is not None:
-                proc.kill()
+        except asyncio.TimeoutError:  # the process is killed and reaped by then
             raise RuntimeError("PowerShell timed out after 5s")
         except FileNotFoundError:
             raise RuntimeError("powershell.exe not found")

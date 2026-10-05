@@ -57,12 +57,17 @@ class FakeProcess:
         self.returncode = returncode
         self._stderr = stderr
         self.killed = False
+        self.reaped = False
 
     async def communicate(self) -> tuple[bytes, bytes]:
         return b"", self._stderr
 
     def kill(self) -> None:
         self.killed = True
+
+    async def wait(self) -> int:
+        self.reaped = True
+        return self.returncode
 
 
 class Exec:
@@ -129,14 +134,14 @@ async def test_non_zero_exit_reports_code_and_stderr(
 
 @pytest.mark.parametrize("cls, exe, failed, not_found", NOTIFIERS)
 async def test_hung_notifier_is_killed(fake_exec, monkeypatch: pytest.MonkeyPatch, cls, exe, failed, not_found) -> None:
-    """A notifier that never returns is killed, so no process is left behind per event."""
+    """A notifier that never returns is killed and reaped, so no process is left behind per event."""
     fake = fake_exec()
     monkeypatch.setattr(asyncio, "wait_for", _time_out)
 
     with pytest.raises(RuntimeError, match="timed out after 5s"):
         await cls().send("Title", "Body", NotificationSeverity.INFO)
 
-    assert fake.proc.killed
+    assert fake.proc.killed and fake.proc.reaped
 
 
 ALL_NOTIFIERS = [*NOTIFIERS, pytest.param(LinuxNotifier, "notify-send", "notify-send failed",

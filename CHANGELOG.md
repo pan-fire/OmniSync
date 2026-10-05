@@ -47,6 +47,12 @@ release notes.
   internal error that ended the whole batch with a 500. That file is now
   reported as failed (nothing moved, with a message that says why) and the
   other selected files are still restored.
+- **A hung helper process no longer stays behind.** When `rclone` did not
+  answer within its time limit in the network check (GET
+  /health/network) or while storing a password, OmniSync gave up waiting
+  but left the process running; each check could add one. Desktop
+  notifiers that hang were killed but not reaped. All of them are now
+  killed and reaped when their time is up or the request is cancelled.
 
 ### Security
 

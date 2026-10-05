@@ -15,6 +15,7 @@ from backend.exceptions import RcloneError
 from backend.services import remote_auth
 from backend.services.rclone.common import _require_remote_name, logger
 from backend.services.rclone.process import RcloneBase
+from backend.services.subprocesses import communicate_or_kill
 
 # OmniSync's read-modify-write cycles of an rclone.conf (token refresh,
 # creating and deleting a remote) hold the lock of that file, so two of them
@@ -144,7 +145,7 @@ class ConfigMixin(RcloneBase):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(value.encode()), timeout=10)
+        stdout, stderr = await communicate_or_kill(proc, timeout=10, input=value.encode())
         if proc.returncode != 0:
             raise RcloneError(f"rclone obscure failed (exit {proc.returncode})")
         return stdout.decode().strip()
