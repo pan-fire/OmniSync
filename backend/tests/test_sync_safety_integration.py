@@ -130,6 +130,52 @@ async def test_pull_from_empty_remote_is_refused(env):
     assert (await last_job(factory)).status == "failed"
 
 
+@pytest.mark.parametrize(("direction", "empty_side"), [("push", "local folder"), ("pull", "remote folder")])
+async def test_empty_side_refusal_names_the_empty_folder(env, direction, empty_side):
+    make_engine, local, remote, factory = env
+    write(remote if direction == "push" else local, "keep.txt", "keep me")
+    engine = make_engine()
+
+    await getattr(engine, direction)()
+
+    assert f"the {empty_side} is empty" in (engine._state.last_error or "")
+    assert files_under(remote if direction == "push" else local) == {"keep.txt": "keep me"}
+
+
+async def test_push_from_a_missing_local_folder_is_refused(env, tmp_path):
+    make_engine, local, remote, factory = env
+    write(remote, "keep.txt", "keep me")
+    missing = tmp_path / "unmounted"
+    engine = make_engine(local_dir=missing)
+
+    job_id = await engine.push()
+
+    assert not missing.exists()
+    assert files_under(remote) == {"keep.txt": "keep me"}
+    assert (await last_job(factory)).status == "failed"
+    assert any("missing or not mounted" in m for m in await job_errors(factory, job_id))
+
+
+@pytest.mark.parametrize("direction", ["push", "pull"])
+async def test_sync_of_an_unreadable_local_folder_is_refused(env, direction):
+    make_engine, local, remote, factory = env
+    mark_both(local, remote)
+    write(local, "mine.txt", "local")
+    write(remote, "theirs.txt", "remote")
+    engine = make_engine()
+    local.chmod(0)
+    try:
+        if os.access(local, os.R_OK):
+            pytest.skip("running as root: permissions do not apply")
+        job_id = await getattr(engine, direction)()
+    finally:
+        local.chmod(0o755)
+
+    assert files_under(remote) == {SENTINEL_FILE: "marker", "theirs.txt": "remote"}
+    assert files_under(local) == {SENTINEL_FILE: "marker", "mine.txt": "local"}
+    assert any("cannot be read" in m for m in await job_errors(factory, job_id))
+
+
 @pytest.mark.parametrize("marked_side", ["local", "remote"])
 async def test_marker_on_one_side_only_blocks_both_directions(env, marked_side):
     make_engine, local, remote, factory = env
@@ -197,6 +243,43 @@ async def test_max_delete_stops_a_mass_deletion(env, monkeypatch):
     # the ones rclone did delete are recoverable
     trashed = [f for f in files_under(remote) if f.startswith(TRASH_DIR)]
     assert len(trashed) == 6 - len(remaining)
+
+
+@pytest.mark.parametrize("own", [["--max-delete", "10"], ["--max-delete=10"]])
+async def test_a_profiles_own_max_delete_replaces_the_default(env, monkeypatch, own):
+    """The profile's --max-delete is the limit, in either spelling: OmniSync
+    must not add its default after it (rclone would take the last one)."""
+    make_engine, local, remote, factory = env
+    mark_both(local, remote)
+    write(local, "kept.txt", "x")
+    for i in range(5):
+        write(remote, f"old{i}.txt", "gone on purpose")
+    monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 2)
+    engine = make_engine()
+    engine._profile = replace(engine._profile, rclone_args=own)
+
+    job_id = await engine.push()
+
+    assert (await last_job(factory)).status == "completed", await job_errors(factory, job_id)
+    assert not [f for f in files_under(remote) if f.startswith("old")]
+    assert len([f for f in files_under(remote) if f.startswith(TRASH_DIR)]) == 5
+
+
+async def test_other_profile_flags_keep_the_default_delete_limit(env, monkeypatch):
+    make_engine, local, remote, factory = env
+    mark_both(local, remote)
+    write(local, "kept.txt", "x")
+    for i in range(6):
+        write(remote, f"old{i}.txt", "precious")
+    monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 2)
+    engine = make_engine()
+    engine._profile = replace(engine._profile, rclone_args=["--transfers", "2"])
+
+    job_id = await engine.push()
+
+    assert (await last_job(factory)).status == "failed"
+    assert any("would delete more than" in m for m in await job_errors(factory, job_id))
+    assert len([f for f in files_under(remote) if f.startswith("old")]) >= 4
 
 
 async def test_retry_counts_deletions_of_the_failed_attempt(env, monkeypatch, tmp_path):

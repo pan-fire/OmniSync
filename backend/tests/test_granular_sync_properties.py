@@ -802,6 +802,24 @@ class TestTimestampBasedClassificationCorrectness:
         )
 
 
+    @pytest.mark.parametrize(("local_after", "remote_after", "expected"), [
+        (False, True, ChangeCategory.MODIFIED_REMOTE),
+        (True, False, ChangeCategory.MODIFIED_LOCAL),
+    ])
+    def test_a_time_equal_to_last_sync_is_unchanged(self, local_after, remote_after, expected) -> None:
+        """A side last modified exactly at last_sync did not change after it:
+        the other side's change is one-sided, not a conflict."""
+        last_sync = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+        later = last_sync + timedelta(seconds=1)
+        local_mod = later if local_after else last_sync
+        remote_mod = later if remote_after else last_sync
+        assert SyncEngine._classify_differ(local_mod, remote_mod, last_sync) == expected
+
+    def test_modification_times_without_a_zone_are_utc(self) -> None:
+        """Compared with the aware last_sync, a naive time would raise."""
+        parsed = SyncEngine._parse_rclone_modtime("2026-05-01T12:00:00.123456789")
+        assert parsed == datetime(2026, 5, 1, 12, 0, 0, 123456, tzinfo=timezone.utc)
+
 # --- Skip removes files from cached diff: imports ---
 
 from contextlib import asynccontextmanager

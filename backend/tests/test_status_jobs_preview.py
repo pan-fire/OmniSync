@@ -44,10 +44,18 @@ env = test_profiles.env
     (["--max-delete=-1"], None),  # rclone: no limit
     (["--max-delete", "lots"], None),
     (["--max-delete"], None),
+    (["5", "--max-delete"], None),  # the value follows the flag, never precedes it
+    (["--max-delete=5=6"], None),  # not a number rclone would accept
 ])
 def test_effective_max_delete(monkeypatch, args, expected):
     monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 50)
     assert effective_max_delete(args) == expected
+
+
+def test_a_default_of_zero_allows_no_deletion(monkeypatch):
+    """OMNISYNC_MAX_DELETE=0 is a limit of nothing, not "no limit"."""
+    monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 0)
+    assert effective_max_delete([]) == 0
 
 
 def test_negative_default_means_no_limit(monkeypatch):
