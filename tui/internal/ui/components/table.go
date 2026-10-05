@@ -277,16 +277,18 @@ func (t *Table) View() string {
 
 // Truncate shortens s to at most max terminal columns, ending in an
 // ellipsis when cut. It never splits a character, and a wide one (CJK, most
-// emoji) counts as the two columns it takes.
+// emoji) counts as the two columns it takes. Widths are counted per rune
+// (Columns), never fewer than the cell renderer counts, so a truncated cell
+// is never wrapped onto a second line.
 func Truncate(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	if lipgloss.Width(s) <= max {
+	if Columns(s) <= max {
 		return s
 	}
 	ell := theme.Glyphs().Ellipsis
-	room := max - lipgloss.Width(ell)
+	room := max - Columns(ell)
 	if room <= 0 {
 		room, ell = max, ""
 	}
@@ -301,4 +303,17 @@ func Truncate(s string, max int) string {
 		used += w
 	}
 	return b.String() + ell
+}
+
+// Columns is the width of s with each rune measured on its own. Grapheme
+// measuring can count less: "0" followed by a skin-tone modifier is one
+// 1-column grapheme, yet lipgloss wraps the modifier as 2 columns of its
+// own. Counting per rune overstates some emoji sequences (a cell then ends
+// a little early) but never understates what the renderer needs.
+func Columns(s string) int {
+	n := 0
+	for _, r := range s {
+		n += lipgloss.Width(string(r))
+	}
+	return n
 }

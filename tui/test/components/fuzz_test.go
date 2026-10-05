@@ -25,7 +25,7 @@ func FuzzTruncate(f *testing.F) {
 		if n := lipgloss.Width(got); n > max {
 			t.Errorf("Truncate(%q, %d) = %q: %d columns", s, max, got, n)
 		}
-		if lipgloss.Width(s) <= max && got != s {
+		if components.Columns(s) <= max && got != s {
 			t.Errorf("Truncate(%q, %d) = %q, want it unchanged", s, max, got)
 		}
 		if utf8.ValidString(s) && !utf8.ValidString(got) {
