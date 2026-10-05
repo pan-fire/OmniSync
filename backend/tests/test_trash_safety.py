@@ -291,18 +291,48 @@ async def test_older_file_in_the_way_is_replaced_and_kept(local: Path) -> None:
     assert trash_files(local) == {f"{NOW}/a.txt": "older"}
 
 
-async def test_no_free_trash_folder_name_refuses_without_moving(local: Path) -> None:
-    """When every later stamp is taken, the restore stops before touching either file."""
+async def test_no_free_trash_folder_name_fails_that_entry_only(local: Path) -> None:
+    """When every later stamp is taken, that restore fails before touching either file,
+    and the rest of the batch still runs (one failure never stops the rest)."""
     entry = trashed(local, "a.txt", "old")
+    other = trashed(local, "b.txt", "b old")
     write(local, "a.txt", "current")
     start = datetime.strptime(NOW, TRASH_STAMP_FORMAT)
     for seconds in range(3600):
         stamp = (start + timedelta(seconds=seconds)).strftime(TRASH_STAMP_FORMAT)
         write(local, f"{TRASH_DIR}/{stamp}/a.txt", "taken")
-    with pytest.raises(RuntimeError, match="no free trash folder"):
-        await act("restore", TrashSide.LOCAL, [entry], local, overwrite=True)
+    done, failed = await apply_to_trash("restore", TrashSide.LOCAL, [entry, other], True, str(local), "",
+                                        RcloneService(rclone_config_path="/nonexistent"))
+    assert done == [other] and [f.id for f in failed] == [entry]
+    assert failed[0].code == "failed" and "every second of the next hour" in failed[0].message
     assert (local / "a.txt").read_text() == "current"
     assert (local / TRASH_DIR / entry).read_text() == "old"
+    assert (local / "b.txt").read_text() == "b old"
+
+
+async def test_remote_no_free_trash_folder_name_fails_that_entry_only(
+    local: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The remote side refuses the same way: no move is sent, and the next entry is still restored."""
+    moves: list[tuple[str, str]] = []
+    stats = {f"T/{TRASH_DIR}/{NOW}/a.txt", f"T/{TRASH_DIR}/{NOW}/b.txt", "T/a.txt"}
+
+    class Rclone:
+        async def lsjson_paths(self, root: str, paths: list[str]) -> dict:
+            path = f"{root}/{paths[0]}"
+            # every later trash slot of a.txt is taken
+            if path.startswith(f"T/{TRASH_DIR}/") and path.endswith("/a.txt"):
+                return {paths[0]: {"ModTime": "2026-01-01T00:00:00Z"}}
+            return {paths[0]: {"ModTime": "2026-01-01T00:00:00Z"}} if path in stats else {}
+
+        async def move_file(self, src: str, dst: str) -> None:
+            moves.append((src, dst))
+
+    monkeypatch.setattr(trash_module, "TRASH_SLOT_SECONDS", 5)
+    done, failed = await apply_to_trash("restore", TrashSide.REMOTE, [f"{NOW}/a.txt", f"{NOW}/b.txt"], True,
+                                        "", "T", Rclone())  # type: ignore[arg-type]
+    assert done == [f"{NOW}/b.txt"] and [f.id for f in failed] == [f"{NOW}/a.txt"]
+    assert moves == [(f"T/{TRASH_DIR}/{NOW}/b.txt", "T/b.txt")]
 
 
 # --- local partial failures ---

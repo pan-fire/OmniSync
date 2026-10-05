@@ -41,6 +41,12 @@ release notes.
   while the backend's rclone service was not running, for example during
   start-up; it now answers 503 `service_unavailable`, like restoring and
   deleting from the trash.
+- **One trash restore that cannot keep the file in its place no longer
+  stops the others.** If the trash already held a version of a file for
+  every second of the hour after a restore, restoring it raised an
+  internal error that ended the whole batch with a 500. That file is now
+  reported as failed (nothing moved, with a message that says why) and the
+  other selected files are still restored.
 
 ### Security
 
