@@ -850,6 +850,52 @@ async def test_mirror_retention_on_real_folders(tmp_path) -> None:
     assert (root / "versions" / recent / "sub" / "b.txt").exists()
 
 
+@needs_rclone
+@pytest.mark.asyncio
+async def test_mirror_retention_with_exactly_keep_last_backups_still_drops_older_leftovers(tmp_path) -> None:
+    """keep_last=2 and exactly two completed backups: both stay, however old;
+    an expired version folder older than both (a failed run's, no manifest)
+    is no restore point and goes."""
+    now = _now()
+
+    def stamp(days: float) -> str:
+        return (now - timedelta(days=days)).strftime(SNAPSHOT_FORMAT)
+
+    leftover, first, second = stamp(50), stamp(40), stamp(30)
+    root = tmp_path / "target"
+    for snap in (leftover, first, second):
+        (root / "versions" / snap).mkdir(parents=True)
+        (root / "versions" / snap / "a.txt").write_text("x")
+    (root / "manifests").mkdir()
+    for snap in (first, second):
+        (root / "manifests" / f"{snap}.json").write_text("{}")
+    target = _transient_target(str(root), BackupMode.MIRROR.value, 7)
+    target.keep_last = 2
+
+    service = BackupService(_real_rclone(str(tmp_path)), AsyncMock(), None, MagicMock())  # type: ignore[arg-type]
+    assert await service.cleanup_old_snapshots(target) == 1
+    assert sorted(p.name for p in (root / "versions").iterdir()) == sorted([first, second])
+
+
+@needs_rclone
+@pytest.mark.asyncio
+@pytest.mark.parametrize("keep_last", [0, None])
+async def test_archive_retention_without_keep_last_keeps_the_newest(tmp_path, keep_last) -> None:
+    """No keep_last (0 or unset) still keeps the newest archive, and only that one."""
+    now = _now()
+    root = tmp_path / "target"
+    root.mkdir()
+    names = [f"backup-{(now - timedelta(days=d)).strftime(SNAPSHOT_FORMAT)}.tar.gz" for d in (30, 20, 10)]
+    for name in names:
+        (root / name).write_bytes(b"x")
+    target = _transient_target(str(root), BackupMode.ARCHIVE.value, 7)
+    target.keep_last = keep_last
+
+    service = BackupService(_real_rclone(str(tmp_path)), AsyncMock(), None, MagicMock())  # type: ignore[arg-type]
+    assert await service.cleanup_old_snapshots(target) == 2
+    assert os.listdir(root) == [names[-1]]
+
+
 # ── After a restore (6.2) ────────────────────────────────────────────
 # restore() does not call reload_profile(): backup schedules are not
 # touched by a restore. What it does afterwards is pause the profile's
