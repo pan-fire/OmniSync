@@ -194,13 +194,13 @@ jobs:
       # statements of every package, whichever test binary runs them.
       - name: go test (race, coverage)
         run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
-      # Fails below MIN, the total measured when it was set (93.6% on
+      # Fails below MIN, the total measured when it was set (94.6% on
       # 2026-10-05) less 1.5 for runs that take another path through a
       # timing-dependent branch. Raise it with the coverage, never lower it
       # to let a change in. Per file: go tool cover -func=coverage.out.
       - name: Coverage of the whole TUI
         env:
-          MIN: "92.0"
+          MIN: "93.1"
         run: |
           total=$(go tool cover -func=coverage.out | awk '$1 == "total:" { sub("%", "", $NF); print $NF }')
           echo "TUI statement coverage: ${total}% (minimum ${MIN}%)"
