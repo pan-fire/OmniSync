@@ -32,6 +32,7 @@ from backend.services.sync_engine.common import (
     logger,
     remote_join,
 )
+from backend.services.sync_engine.filters import after_last_clear
 from backend.services.sync_engine.names import link_filter_rules
 from backend.services.sync_engine.partials import PartialsMixin
 
@@ -189,7 +190,10 @@ class TwoWayMixin(PartialsMixin):
             BISYNC_PARTIAL_FILTER,
             *(f"- /{filter_escape(p.lstrip('/'))}" for p in sorted(set(manual_flags))),
             *([f"+ /{filter_escape(SENTINEL_FILE)}"] if self._profile.rclone_filter else []),
-            *self._profile.rclone_filter,
+            # A "!" of the profile's would clear every rule above, OmniSync's
+            # excludes included: only what follows the last one is kept,
+            # which is all it leaves of the profile's rules anyway.
+            *after_last_clear(self._profile.rclone_filter),
         ]
         return "\n".join(lines) + "\n"
 

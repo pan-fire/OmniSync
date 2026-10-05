@@ -12,6 +12,7 @@ from backend.exceptions import RcloneAuthError, RcloneError, RcloneRateLimitErro
 from backend.services.rclone import TRASH_DIR, ChangeRecorder, without_flag
 from backend.services.sync_engine import common
 from backend.services.sync_engine.common import ENGINE_STOPPED, RATE_LIMIT_BASE_DELAY, filter_escape, logger
+from backend.services.sync_engine.filters import profile_filters
 from backend.services.sync_engine.names import link_filter_rules
 from backend.services.sync_engine.partials import PartialsMixin
 
@@ -23,9 +24,11 @@ class MirrorMixin(PartialsMixin):
         """Execute a sync operation with retry logic and DB recording.
 
         Before syncing, loads manual flags from the DB and unresolved conflict
-        paths from the cached diff.  If any paths need to be excluded, a
-        temporary filter file is written with ``- <path>`` entries and passed
-        to rclone via ``--filter-from``.
+        paths from the cached diff. They (and, for a pull, local symbolic
+        links) are excluded with ``- /<path>`` rules that come before the
+        profile's own filter rules and filter flags, in one temporary
+        filter file passed with ``--filter-from`` (see filters.py: rclone
+        would otherwise apply the profile's rules first).
 
         rclone's JSON transfer log is recorded as FileChange rows of the job
         (capped, see MAX_RECORDED_CHANGES) and ``files_changed`` counts every
@@ -98,11 +101,9 @@ class MirrorMixin(PartialsMixin):
 
         # --- Local names rclone cannot sync as they are (names.py) ---
         # A pull leaves every local symbolic link alone: without these rules
-        # a remote file of the same name would replace the link. (They go
-        # before the profile's rules, which would otherwise win; rclone
-        # applies a profile's --include flags before any rule, though.) A
-        # push deletes such a remote file into the remote trash, as for any
-        # file missing locally, and says so.
+        # a remote file of the same name would replace the link. A push
+        # deletes such a remote file into the remote trash, as for any file
+        # missing locally, and says so.
         pull = direction == SyncDirection.PULL
         warnings, links = await self._name_warnings(
             SyncWarningCode.SYMLINK_KEPT if pull else SyncWarningCode.SYMLINK_TRASHED)
@@ -121,19 +122,27 @@ class MirrorMixin(PartialsMixin):
                 if f.is_conflict:
                     exclude_paths.add(f.path)
 
-        # Write temp filter file if there are paths to exclude
+        # One filter file: the protective excludes first, then the profile's
+        # own rules and filter flags in rclone's order (filters.py). The
+        # profile's filter flags are not passed on as flags.
+        profile = profile_filters(config.rclone_filter, self._transfer_args)
+        rules = [
+            *link_rules,
+            # Anchored and escaped: exactly this path, nothing else
+            *(f"- /{filter_escape(p.lstrip('/'))}" for p in sorted(exclude_paths)),
+            *profile.rules,
+        ]
         filter_path: str | None = None
         filter_fd: int | None = None
         try:
-            if exclude_paths:
+            if rules:
                 filter_fd, filter_path = tempfile.mkstemp(
                     prefix="omnisync_exclude_", suffix=".filter", text=True,
                 )
-                with os.fdopen(filter_fd, "w") as fh:
+                with os.fdopen(filter_fd, "w", encoding="utf-8") as fh:
                     filter_fd = None  # os.fdopen takes ownership of the fd
-                    for p in sorted(exclude_paths):
-                        # Anchored and escaped: exactly this path, nothing else
-                        fh.write(f"- /{filter_escape(p.lstrip('/'))}\n")
+                    fh.write("".join(f"{rule}\n" for rule in rules))
+            if exclude_paths:
                 logger.info(
                     "Bulk sync excluding %d paths (manual flags + conflicts)",
                     len(exclude_paths),
@@ -148,18 +157,18 @@ class MirrorMixin(PartialsMixin):
             paused_edits = self._paused_edits
             limit = self.max_delete
             for attempt in range(1, max_retries + 1):
-                rclone_args, max_delete = self._transfer_args, self._max_delete()
+                rclone_args, max_delete = profile.other_args, self._max_delete()
                 if limit is not None and recorder.deleted:
                     # The delete limit is per sync, not per attempt: a retry
                     # may only delete what the failed attempts left of it
                     # (0 makes rclone refuse any deletion).
-                    rclone_args = without_flag(self._transfer_args, "--max-delete")
+                    rclone_args = without_flag(profile.other_args, "--max-delete")
                     max_delete = max(limit - recorder.deleted, 0)
                 try:
                     await self._rclone.sync(
                         source, dest, direction,
                         exclude_filter_path=filter_path,
-                        rclone_filter=[*link_rules, *config.rclone_filter],
+                        rclone_filter=[],
                         rclone_args=rclone_args,
                         backup_dir=self._backup_dir(dest),
                         max_delete=max_delete,

@@ -235,6 +235,22 @@ OmniSync checks before every sync, in both modes, and keeps what it replaces:
   check that cannot compare pauses automatic syncing.
 - Runs one sync, per-file action, backup or restore per profile at a time.
 
+## What a sync leaves out, and the profile's filters
+
+A push or pull leaves out manually flagged files, unresolved conflicts of
+the diff and, for a pull, local symbolic links (see
+[File names and links](#file-names-and-links)). These exclusions always
+come first: rclone applies its rules by kind rather than in the order given
+(every `--include` flag, then every `--exclude` flag, then the `--filter`
+rules, then filter files), so OmniSync passes a push or pull one filter
+file that starts with its own exclusions and then holds the profile's
+filter rules and its `--include`, `--exclude` and `--filter` flags as rules
+in rclone's order. What the profile's filters select stays the same. A
+rule `!` in a profile's filters clears the rules before it; OmniSync keeps
+only the profile's rules after the last `!` (all that rclone would keep of
+them), so it never clears OmniSync's exclusions or the trash's. A two-way
+sync puts the same exclusions first in its filters file.
+
 ## File names and links
 
 Most names sync byte for byte, whatever they contain: accents, right-to-left
@@ -265,9 +281,8 @@ like `jpg`) as `\xNN` or `\uNNNN`.
     the remote item is deleted into the remote trash
     (`.omnisync-trash/<timestamp>/`), and the warning says so.
 
-  A profile's filter rules cannot undo this protection for a pull, but a
-  mirror profile's `--include` flags can (rclone applies them before any
-  rule); use filter rules instead.
+  Neither a profile's filter rules nor its `--include`, `--exclude` or
+  `--filter` flags can undo this protection (see below).
 - **Names equal after Unicode normalisation.** An accented letter can be
   stored as one character (composed, NFC: most systems) or as a letter plus
   an accent (decomposed, NFD: files created on macOS). rclone compares names

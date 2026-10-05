@@ -85,6 +85,18 @@ release notes.
   but left the process running; each check could add one. Desktop
   notifiers that hang were killed but not reaped. All of them are now
   killed and reaped when their time is up or the request is cancelled.
+- **A push or pull no longer overwrites a manually flagged or conflicting
+  file when the profile filters with includes.** OmniSync's exclusions
+  were passed to rclone in a filter file, which rclone applies after a
+  profile's filter rules and after its `--include` flags: with an
+  include-style filter such as `+ /Docs/**`, `- **`, a flagged file or an
+  unresolved conflict inside `Docs` was synced anyway, overwriting the
+  other side's version (it went to the trash). The exclusions now always
+  come first, a `!` rule in a profile's filters can no longer clear them
+  (or the trash's exclusion; for a two-way profile it made every sync
+  fail), and a flagged name ending in a space is matched exactly. What the
+  profile's filters select is unchanged. See
+  [What a sync leaves out](docs/gem/how-syncing-works.md#what-a-sync-leaves-out-and-the-profiles-filters).
 - **A pull or two-way sync no longer replaces a local symbolic link.** A
   remote file with the name of a local link was copied over the link (its
   target was untouched), and a remote folder with that name was written
