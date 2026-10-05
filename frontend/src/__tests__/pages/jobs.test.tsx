@@ -65,25 +65,28 @@ afterEach(() => {
 });
 
 describe('Jobs page', () => {
+  // Label and text queries: role queries over a 20-row table took over 5 s
+  // under coverage on a loaded machine.
   it('pages through the history: a full page enables Next, a short one ends it', async () => {
     getJobs.mockImplementation(async (skip = 0) => (skip === 0
       ? Array.from({ length: 20 }, (_, i) => job(100 - i))
       : [job(80)]));
     const user = userEvent.setup();
     wrap(<JobsPage />);
+    const button = (name: string) => screen.getByText(name, { selector: 'button' });
 
-    expect(await screen.findByRole('heading', { name: 'Job History' })).toBeInTheDocument();
-    await screen.findByRole('link', { name: 'Open job 100' });
+    expect(await screen.findByText('Job History', { selector: 'h1' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Open job 100')).toHaveAttribute('href', '/jobs/100');
     expect(getJobs).toHaveBeenLastCalledWith(0, 20, undefined);
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    expect(button('Previous')).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByRole('link', { name: 'Open job 80' });
+    await user.click(button('Next'));
+    expect(await screen.findByLabelText('Open job 80')).toBeInTheDocument();
     expect(getJobs).toHaveBeenLastCalledWith(20, 20, undefined);
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(button('Next')).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: 'Previous' }));
-    await screen.findByRole('link', { name: 'Open job 100' });
+    await user.click(button('Previous'));
+    expect(await screen.findByLabelText('Open job 100')).toBeInTheDocument();
   });
 
   it('offers a retry when the history cannot be loaded', async () => {
