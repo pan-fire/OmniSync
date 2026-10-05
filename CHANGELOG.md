@@ -12,6 +12,13 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The web UI type-checks against Node.js 24.** Its `@types/node` moves
+  from Node 20's types to Node 24's (`^24`), matching the Node 24 LTS the
+  image, CI and the development setup run on, so the compiler knows the
+  APIs the server actually has.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
