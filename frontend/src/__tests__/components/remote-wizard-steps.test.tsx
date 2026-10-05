@@ -6,6 +6,7 @@ import { I18nProvider } from '@/i18n';
 import { INITIAL_STATE, RemoteWizard, canAdvance, wizardReducer } from '@/components/config/wizard/remote-wizard';
 import type { Provider } from '@/types';
 import { stubBackend } from '../helpers/fake-backend';
+import { fill } from '../helpers/fill';
 
 const PROVIDERS: Provider[] = [
   {
@@ -97,7 +98,7 @@ describe('RemoteWizard, key-based provider', () => {
 
     const next = screen.getByRole('button', { name: 'Next' });
     expect(next).toBeDisabled();
-    await user.type(screen.getByLabelText(/Access Key ID/), 'AKIA1');
+    await fill(user, screen.getByLabelText(/Access Key ID/), 'AKIA1');
     await user.click(next);
     expect(await screen.findByText('no route for POST /wizard/create')).toBeInTheDocument();
     expect(requests).toContain('POST /wizard/create');
@@ -122,7 +123,7 @@ describe('RemoteWizard, key-based provider', () => {
     const user = userEvent.setup();
     const onOpenChange = renderWizard();
     await choose(user, 'Amazon S3');
-    await user.type(screen.getByLabelText(/Access Key ID/), 'AKIA1');
+    await fill(user, screen.getByLabelText(/Access Key ID/), 'AKIA1');
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('Remote configured successfully!')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Done' }));
@@ -139,8 +140,8 @@ describe('RemoteWizard, OAuth provider', () => {
 
   async function signIn (user: ReturnType<typeof userEvent.setup>) {
     await choose(user, 'Google Drive');
-    await user.type(screen.getByLabelText(/Client ID/), 'app-id');
-    await user.type(screen.getByLabelText(/Client Secret/), 'app-secret');
+    await fill(user, screen.getByLabelText(/Client ID/), 'app-id');
+    await fill(user, screen.getByLabelText(/Client Secret/), 'app-secret');
     await user.click(screen.getByRole('button', { name: 'Start authorization' }));
   }
 

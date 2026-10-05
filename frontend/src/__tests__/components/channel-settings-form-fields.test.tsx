@@ -6,6 +6,7 @@ import { I18nProvider } from '@/i18n';
 import { ChannelSettingsForm } from '@/components/notifications/channel-settings-form';
 import type { ChannelConfig } from '@/types';
 import { stubBackend } from '../helpers/fake-backend';
+import { fill } from '../helpers/fill';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -50,15 +51,15 @@ describe('webhook headers', () => {
   it('adds, fills and removes header rows', async () => {
     const user = userEvent.setup();
     renderForm('webhook');
-    await user.type(screen.getByLabelText('URL'), 'https://hooks.example.com/x');
+    await fill(user, screen.getByLabelText('URL'), 'https://hooks.example.com/x');
 
     await user.click(screen.getByRole('button', { name: 'Add header' }));
     await user.click(screen.getByRole('button', { name: 'Add header' }));
     const names = screen.getAllByLabelText('Header name');
     const values = screen.getAllByLabelText('Header value (stored as a secret)');
-    await user.type(names[0], 'X-Token');
-    await user.type(values[0], 'abc');
-    await user.type(names[1], 'X-Drop');
+    await fill(user, names[0], 'X-Token');
+    await fill(user, values[0], 'abc');
+    await fill(user, names[1], 'X-Drop');
 
     // The second row has no value: refused before anything is sent.
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -109,10 +110,10 @@ describe('ntfy settings', () => {
     const user = userEvent.setup();
     renderForm('ntfy');
     expect(screen.getByLabelText('Server')).toHaveValue('https://ntfy.sh');
-    await user.type(screen.getByLabelText('Topic'), 'nas-alerts');
-    await user.type(screen.getByLabelText('Access token'), 'tk_1');
-    await user.type(screen.getByLabelText('Username'), ' anna ');
-    await user.type(screen.getByLabelText('Password'), 'pw');
+    await fill(user, screen.getByLabelText('Topic'), 'nas-alerts');
+    await fill(user, screen.getByLabelText('Access token'), 'tk_1');
+    await fill(user, screen.getByLabelText('Username'), ' anna ');
+    await fill(user, screen.getByLabelText('Password'), 'pw');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(lastSent('ntfy')).toEqual({
       ntfy: {
@@ -131,7 +132,7 @@ describe('ntfy settings', () => {
     await user.click(removes[0]);
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText('Access token'), 'new');
+    await fill(user, screen.getByLabelText('Access token'), 'new');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(lastSent('ntfy')).toEqual({
       ntfy: {
@@ -172,7 +173,7 @@ describe('email settings', () => {
     const user = userEvent.setup();
     renderForm('email', { email });
     await user.clear(screen.getByLabelText('Port'));
-    await user.type(screen.getByLabelText('Port'), '2525');
+    await fill(user, screen.getByLabelText('Port'), '2525');
     await user.click(screen.getByRole('combobox', { name: 'Encryption' }));
     await user.click(await screen.findByRole('option', { name: 'TLS (port 465)' }));
     expect(screen.getByLabelText('Port')).toHaveValue('2525');
@@ -181,7 +182,7 @@ describe('email settings', () => {
   it('removes the stored password', async () => {
     const user = userEvent.setup();
     renderForm('email', { email });
-    await user.type(screen.getByLabelText('Username'), '2');
+    await fill(user, screen.getByLabelText('Username'), '2');
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', 'optional');
     await user.click(screen.getByRole('button', { name: 'Save' }));

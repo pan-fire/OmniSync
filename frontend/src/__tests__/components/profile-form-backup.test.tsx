@@ -135,7 +135,6 @@ describe('ProfileForm remotes', () => {
 
 describe('ProfileForm initial backup target', () => {
   it('backs up to a custom remote and browses it for the folder', async () => {
-    const user = userEvent.setup();
     const { onSubmit } = renderForm();
     fillValid();
     fireEvent.click(screen.getByRole('switch', { name: 'Initial Backup Target' }));
@@ -145,10 +144,10 @@ describe('ProfileForm initial backup target', () => {
     fireEvent.click(pickers[1]);
     expect(screen.getByLabelText('Target path')).toHaveValue('nas:');
 
-    await user.click(screen.getByRole('button', { name: 'Browse for the target folder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Browse for the target folder' }));
     const browser = await screen.findByRole('dialog');
     await within(browser).findByText('nas:Backups');
-    await user.click(within(browser).getByRole('button', { name: 'Select this folder' }));
+    fireEvent.click(within(browser).getByRole('button', { name: 'Select this folder' }));
     await waitFor(() => expect(screen.getByLabelText('Target path')).toHaveValue('nas:Backups'));
     fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
 

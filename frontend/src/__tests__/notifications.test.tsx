@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import fc from 'fast-check';
+import en from '@/i18n/locales/en.json';
 import { I18nProvider } from '@/i18n';
 import { ChannelCard } from '@/components/notifications/channel-card';
 import { TestNotificationButton } from '@/components/notifications/test-notification-button';
@@ -136,34 +137,25 @@ describe('ChannelCard', () => {
 
 // --- PBT: severity badge renders for all severity values ---
 
-describe('PBT: severity badge renders for all severities', () => {
-  const allSeverities: NotificationSeverity[] = ['debug', 'info', 'warning', 'error'];
-
-  it('for any NotificationSeverity, ChannelCard renders without error', () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom(...allSeverities),
-        (severity) => {
-          const config: ChannelConfig = { enabled: true, min_severity: severity };
-          const status: ChannelStatusInfo = { available: true };
-
-          const { unmount } = render(
-            <ChannelCard
-              channelName="webpush"
-              config={config}
-              status={status}
-              onToggle={() => {}}
-              onSeverityChange={() => {}}
-            />,
-            { wrapper: createWrapper() }
-          );
-
-          expect(screen.getByRole('switch')).toBeInTheDocument();
-          unmount();
-        }
-      ),
-      { numRuns: 20 }
+describe('ChannelCard shows every minimum severity', () => {
+  // All four values, exhaustively. Mounted once and rerendered: a fresh mount
+  // per value took over 5 s under coverage on a loaded machine.
+  it('the severity selector shows the configured minimum', () => {
+    const Card = ({ severity }: { severity: NotificationSeverity }) => (
+      <ChannelCard
+        channelName="webpush"
+        config={{ enabled: true, min_severity: severity }}
+        status={{ available: true }}
+        onToggle={() => {}}
+        onSeverityChange={() => {}}
+      />
     );
+    const { rerender } = render(<Card severity="debug" />, { wrapper: createWrapper() });
+    for (const severity of ['debug', 'info', 'warning', 'error'] as const) {
+      rerender(<Card severity={severity} />);
+      expect(screen.getByRole('switch')).toBeChecked();
+      expect(screen.getByRole('combobox')).toHaveTextContent(en.notifications.severity[severity]);
+    }
   });
 });
 
