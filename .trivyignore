@@ -5,4 +5,15 @@
 # the latest rclone release (2026-09-04). OmniSync cannot rebuild rclone with
 # a fixed grpc: bump RCLONE_VERSION in the Dockerfile as soon as a release
 # includes grpc 1.82.2 / 1.83.2 or newer.
-CVE-2026-84445 exp:2026-11-15
+#
+# Status 2026-10-05: still no fixed release. rclone's master moved to the
+# patched grpc on 2026-09-09 (commit ef6968730f, "to fix CVE-2026-84445"),
+# but v1.75.1 is still the latest release and the v1.75-stable branch has not
+# taken the fix, so it arrives with the next release (v1.76).
+# Not exploitable here (GHSA-2v4p-qf9q-27wj): the panic is in the routing
+# interceptor of gRPC *servers* built with xds.NewGRPCServer. rclone imports
+# grpc only indirectly, through the cloud SDKs' clients, and never runs a gRPC
+# server; OmniSync runs rclone only as a one-shot command (no rcd or serve),
+# so nothing in the image listens for gRPC. Expiry moved from 2026-11-15 to
+# 2027-01-15 to cover the next rclone release; check again then.
+CVE-2026-84445 exp:2027-01-15
