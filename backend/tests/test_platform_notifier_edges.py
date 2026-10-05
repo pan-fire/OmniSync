@@ -12,11 +12,18 @@ import asyncio
 import logging
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from backend.services.notification_channels.platforms.linux import LinuxNotifier
 from backend.services.notification_channels.platforms.macos import MacNotifier
 from backend.services.notification_channels.platforms.termux import TermuxNotifier
-from backend.services.notification_channels.platforms.windows import WindowsNotifier
+from backend.services.notification_channels.platforms.windows import (
+    BODY_VAR,
+    TITLE_VAR,
+    WindowsNotifier,
+    toast_script,
+)
 from backend.services.notification_events import NotificationSeverity
 
 Notifier = TermuxNotifier | MacNotifier | WindowsNotifier | LinuxNotifier
@@ -65,9 +72,11 @@ class Exec:
         self.proc = proc or FakeProcess()
         self.error = error
         self.argv: list[tuple[str, ...]] = []
+        self.kwargs: list[dict[str, object]] = []
 
-    async def __call__(self, *argv: str, **_kwargs: object) -> FakeProcess:
+    async def __call__(self, *argv: str, **kwargs: object) -> FakeProcess:
         self.argv.append(argv)
+        self.kwargs.append(kwargs)
         if self.error is not None:
             raise self.error
         return self.proc
@@ -219,32 +228,58 @@ def _powershell_verbatim_literals(script: str) -> list[str]:
     return literals
 
 
+def _windows_call(fake: Exec) -> tuple[str, str, str]:
+    """The script PowerShell ran, and the title and body it got through its environment."""
+    argv = fake.argv[0]
+    assert argv[:4] == ("powershell.exe", "-NoProfile", "-NonInteractive", "-Command")
+    assert len(argv) == 5
+    env = fake.kwargs[0]["env"]
+    assert isinstance(env, dict)
+    return argv[4], env[TITLE_VAR], env[BODY_VAR]
+
+
 @pytest.mark.parametrize("text", ODD_TEXTS)
-async def test_windows_command_keeps_text_inside_its_literals(fake_exec, text: str) -> None:
-    """The toast command has exactly the title and body as its literals, plus the sound name."""
+async def test_windows_text_never_becomes_script(fake_exec, text: str) -> None:
+    """The toast command is the same whatever the text: the title and body reach
+    PowerShell as environment variables, so there is no literal for them to end."""
     fake = fake_exec()
 
     await WindowsNotifier().send(text, "body: " + text, NotificationSeverity.ERROR)
 
-    argv = fake.argv[0]
-    assert argv[:3] == ("powershell.exe", "-NoProfile", "-Command")
-    assert _powershell_verbatim_literals(argv[3]) == [text, "body: " + text, "Alarm"]
+    script, title, body = _windows_call(fake)
+    assert script == toast_script(NotificationSeverity.ERROR)
+    assert _powershell_verbatim_literals(script) == ["Alarm"]
+    assert (title, body) == (text, "body: " + text)
 
 
-@pytest.mark.xfail(strict=True, reason="_sanitize_powershell doubles only U+0027; PowerShell also ends a "
-                   "single-quoted string at U+2018..U+201B, so typographic apostrophes break out of it")
 @pytest.mark.parametrize("text", [
     "Bob\u2019s report.docx",
     "\u2019; Start-Process calc; \u2019",
 ])
 async def test_windows_typographic_quotes_stay_inside_the_literal(fake_exec, text: str) -> None:
-    """A file named with a typographic apostrophe (common in documents) must not end the
-    literal early: that breaks the toast, and lets a crafted name run PowerShell code."""
+    """A file named with a typographic apostrophe (common in documents) must not end a
+    literal early: that broke the toast, and let a crafted name run PowerShell code."""
     fake = fake_exec()
 
     await WindowsNotifier().send("Sync conflict", text, NotificationSeverity.ERROR)
 
-    assert _powershell_verbatim_literals(fake.argv[0][3]) == ["Sync conflict", text, "Alarm"]
+    script, title, body = _windows_call(fake)
+    assert _powershell_verbatim_literals(script) == ["Alarm"]
+    assert (title, body) == ("Sync conflict", text)
+
+
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(title=st.text(), body=st.text())
+async def test_windows_any_text_is_carried_verbatim(fake_exec, title: str, body: str) -> None:
+    """Property: for any title and body the script is fixed and the text arrives unchanged
+    (bar NUL, which no environment variable can hold)."""
+    fake = fake_exec()
+
+    await WindowsNotifier().send(title, body, NotificationSeverity.WARNING)
+
+    script, got_title, got_body = _windows_call(fake)
+    assert script == toast_script(NotificationSeverity.WARNING)
+    assert (got_title, got_body) == (title.replace("\0", ""), body.replace("\0", ""))
 
 
 @pytest.mark.xfail(strict=True, reason="notify-send gets the title and body as positional arguments with "

@@ -12,6 +12,16 @@ release notes.
 
 ## [Unreleased]
 
+### Security
+
+- **Windows toasts no longer build PowerShell code from file names.** The
+  title and body used to be pasted into the PowerShell command as quoted
+  text, with only `'` escaped. PowerShell also ends a quoted string at the
+  typographic quotes `‘ ’ ‚ ‛`, so a file named `Bob’s report.docx` broke
+  the toast, and a crafted file name could run PowerShell commands on the
+  Windows host. The command is now fixed text, and the title and body
+  reach it as environment variables, so they are only ever data.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
