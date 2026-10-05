@@ -21,6 +21,13 @@ release notes.
   other copy was unchanged, so a push or pull could overwrite a change. It
   is now listed as a conflict, for you to review, like a file with no
   readable time on either side.
+- **Every sync job and conflict record belongs to a profile.** A database
+  migration (0012) makes the profile required on sync jobs and conflict
+  records. OmniSync has always set it since 0.12.0, and deleting a profile
+  deletes its history, so a row without a profile could be neither shown
+  under a profile nor acted on. Any such leftover rows are removed (with
+  their file changes and errors; the count is logged), and the copy of the
+  database taken before migrating still has them.
 
 ### Fixed
 

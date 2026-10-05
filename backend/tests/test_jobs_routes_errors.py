@@ -18,7 +18,7 @@ from backend.main import app
 async def seed_job(factory) -> int:
     async with factory() as session:
         job = SyncJob(started_at=datetime(2024, 1, 1), direction="push", status="completed",
-                      files_changed=1, conflicts=0, errors=0)
+                      files_changed=1, conflicts=0, errors=0, profile_id=1)
         session.add(job)
         await session.flush()
         session.add(FileChange(job_id=job.id, file_path="private/tax-2024.pdf", action="created", size_bytes=1))
@@ -68,7 +68,7 @@ async def test_bad_paging_parameters_name_the_parameter(test_client, params):
 async def test_a_job_without_changes_has_an_empty_file_list(test_client, test_db_factory):
     async with test_db_factory() as session:
         job = SyncJob(started_at=datetime(2024, 1, 2), direction="pull", status="completed",
-                      files_changed=0, conflicts=0, errors=0)
+                      files_changed=0, conflicts=0, errors=0, profile_id=1)
         session.add(job)
         await session.commit()
         job_id = job.id

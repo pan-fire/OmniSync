@@ -200,6 +200,102 @@ async def test_0_12_0_database_upgrades_without_the_profile_backup_dir(tmp_path)
     assert_current_schema(db)
 
 
+def _insert_job(conn: sqlite3.Connection, jid: int, profile_id: int | None) -> None:
+    conn.execute(
+        "INSERT INTO sync_jobs (id, profile_id, direction, started_at, status, files_changed, conflicts, errors)"
+        " VALUES (?, ?, 'push', ?, 'completed', 1, 0, 1)",
+        (jid, profile_id, NOW),
+    )
+    conn.execute("INSERT INTO file_changes (job_id, file_path, action) VALUES (?, 'a.txt', 'created')", (jid,))
+    conn.execute("INSERT INTO sync_errors (job_id, message, retry_count, created_at) VALUES (?, 'x', 0, ?)",
+                 (jid, NOW))
+
+
+def _insert_conflict(conn: sqlite3.Connection, cid: int, profile_id: int | None, job_id: int | None) -> None:
+    conn.execute(
+        "INSERT INTO conflicts (id, profile_id, job_id, file_path, resolved) VALUES (?, ?, ?, 'a.txt', 0)",
+        (cid, profile_id, job_id),
+    )
+
+
+def _not_null(path: Path, table: str, column: str) -> bool:
+    conn = sqlite3.connect(path)
+    try:
+        return next(bool(row[3]) for row in conn.execute(f"PRAGMA table_info({table})") if row[1] == column)
+    finally:
+        conn.close()
+
+
+async def test_0012_requires_a_profile_on_jobs_and_conflicts(tmp_path, caplog):
+    """0012: history rows without a profile (reachable by no profile, never written since 0.12.0)
+    are removed with their children; every row with a profile, and its children, stays."""
+    db = tmp_path / "from-0011.db"
+    url = f"sqlite+aiosqlite:///{db}"
+    await migrate_database(url, runner=_alembic("upgrade", "0011"))
+    conn = sqlite3.connect(db)
+    _insert_profile(conn, 1, "one")
+    _insert_job(conn, 1, 1)        # kept, with its file change and error
+    _insert_job(conn, 2, None)     # removed, with its file change and error
+    _insert_conflict(conn, 1, 1, 1)     # kept as it is
+    _insert_conflict(conn, 2, None, None)  # removed
+    _insert_conflict(conn, 3, None, 2)     # removed
+    _insert_conflict(conn, 4, 1, 2)     # kept: it has a profile; its job_id is cleared
+    conn.commit()
+    conn.close()
+
+    with caplog.at_level("WARNING", logger="backend.db.migrations"):
+        await init_database(str(db))
+
+    assert_current_schema(db)
+    assert _not_null(db, "sync_jobs", "profile_id") and _not_null(db, "conflicts", "profile_id")
+    assert count(db, "SELECT COUNT(*) FROM sync_jobs") == 1
+    assert count(db, "SELECT COUNT(*) FROM file_changes WHERE job_id = 1") == 1
+    assert count(db, "SELECT COUNT(*) FROM file_changes") == 1
+    assert count(db, "SELECT COUNT(*) FROM sync_errors") == 1
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute("SELECT id, profile_id, job_id FROM conflicts ORDER BY id").fetchall() == [
+            (1, 1, 1), (4, 1, None),
+        ]
+    finally:
+        conn.close()
+    assert "1 sync job(s) (with 1 file change(s) and 1 error(s)) and 2 conflict record(s)" in caplog.text
+    # The rows removed are still in the copy taken before migrating.
+    (copy,) = tmp_path.glob("from-0011.db.pre-*.bak")
+    assert count(copy, "SELECT COUNT(*) FROM sync_jobs WHERE profile_id IS NULL") == 1
+    assert count(copy, "SELECT COUNT(*) FROM conflicts WHERE profile_id IS NULL") == 2
+
+    # NOT NULL holds from now on, and the downgrade lifts it again.
+    conn = sqlite3.connect(db)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO sync_jobs (profile_id, direction, started_at, status, files_changed,"
+                         " conflicts, errors) VALUES (NULL, 'push', ?, 'running', 0, 0, 0)", (NOW,))
+    finally:
+        conn.close()
+    await migrate_database(url, runner=_alembic("downgrade", "0011"))
+    assert version(db) == ["0011"]
+    assert not _not_null(db, "sync_jobs", "profile_id") and not _not_null(db, "conflicts", "profile_id")
+    assert count(db, "SELECT COUNT(*) FROM conflicts") == 2
+    await migrate_database(url)
+    assert_current_schema(db)
+
+
+async def test_0012_with_nothing_to_remove_logs_nothing(tmp_path, caplog):
+    db = tmp_path / "clean.db"
+    await migrate_database(f"sqlite+aiosqlite:///{db}", runner=_alembic("upgrade", "0011"))
+    conn = sqlite3.connect(db)
+    _insert_profile(conn, 1, "one")
+    _insert_job(conn, 1, 1)
+    conn.commit()
+    conn.close()
+    with caplog.at_level("WARNING", logger="backend.db.migrations"):
+        await init_database(str(db))
+    assert_current_schema(db)
+    assert count(db, "SELECT COUNT(*) FROM sync_jobs") == 1
+    assert "Removed history rows" not in caplog.text
+
+
 async def test_foreign_keys_enforced_on_every_connection(tmp_path):
     await init_database(str(tmp_path / "fk.db"))
     factory = database._async_session_factory

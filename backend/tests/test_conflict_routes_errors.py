@@ -84,7 +84,7 @@ async def test_resolving_twice_is_409_already_resolved(test_client, test_db_fact
     engine_of(test_services).resolve_conflict.assert_not_awaited()
 
 
-@pytest.mark.parametrize("profile_id", [None, 7], ids=["no-profile", "not-running"])
+@pytest.mark.parametrize("profile_id", [7], ids=["not-running"])
 async def test_a_file_resolution_without_its_engine_is_409_profile_not_running(test_client, test_db_factory,
                                                                                  profile_id):
     (conflict_id,) = await seed(test_db_factory, Conflict(file_path="a.md", resolved=False, profile_id=profile_id))

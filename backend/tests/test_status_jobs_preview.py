@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -91,18 +91,15 @@ async def test_jobs_carry_the_profile_slug_and_name(env: Env):
     async with env.factory() as session:
         session.add_all([
             SyncJob(profile_id=a["id"], direction="push", started_at=now, status="completed"),
-            SyncJob(profile_id=None, direction="pull", started_at=now - timedelta(minutes=1), status="failed"),
         ])
         await session.commit()
 
     jobs = (await env.client.get("/jobs")).json()
     assert [(j["direction"], j["profile_slug"], j["profile_name"]) for j in jobs] == [
         ("push", "alpha-docs", "Alpha Docs"),
-        ("pull", None, None),  # from before profiles existed
     ]
     one = (await env.client.get(f"/jobs/{jobs[0]['id']}")).json()
     assert (one["profile_slug"], one["profile_name"]) == ("alpha-docs", "Alpha Docs")
-    assert (await env.client.get(f"/jobs/{jobs[1]['id']}")).json()["profile_slug"] is None
     assert (await env.client.get("/jobs/9999")).status_code == 404
 
     filtered = (await env.client.get("/jobs", params={"profile": "alpha-docs"})).json()

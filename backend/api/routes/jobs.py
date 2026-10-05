@@ -26,7 +26,7 @@ router = APIRouter(prefix="/jobs")
 
 
 def job_to_response(job: SyncJob, profile: SyncProfile | None) -> SyncJobResponse:
-    """A job with the slug and name its profile has now (None for jobs from before profiles)."""
+    """A job with the slug and name its profile has now (None only if the profile row is missing)."""
     return SyncJobResponse(
         id=job.id,
         direction=JobDirection(job.direction),
