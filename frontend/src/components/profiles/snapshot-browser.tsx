@@ -54,14 +54,17 @@ export function SnapshotBrowser ({ profileSlug, targetId, snapshot, open, onOpen
   const [browsing, setBrowsing] = useState(false);
   const restore = useRestoreFiles(profileSlug);
 
-  // Search as the user types, a moment after the last key.
+  // Search as the user types, a moment after the last key. Only a changed
+  // search goes back to the first page, so paging is not undone.
   useEffect(() => {
+    const next = searchInput.trim();
+    if (next === search) return;
     const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
+      setSearch(next);
       setOffset(0);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   const files = useSnapshotFiles(
     profileSlug, targetId, snapshot.snapshot_id,
