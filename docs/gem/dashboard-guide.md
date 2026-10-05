@@ -180,7 +180,11 @@ Selective for per-file actions, Two-way, or Resync), start time, status,
 files changed and errors. Click a job for its details and the **File
 Changes** table (each file created, modified or deleted, and for newer jobs
 the **Side**, Local or Remote, it changed on). The error message of a failed sync is
-shown on the profile ("Last error").
+shown on the profile ("Last error"). A sync that completed but left files
+alone or treated them specially reads **Completed with warnings**; its
+details list each kind of warning with the files concerned (see
+[File names and links](how-syncing-works.md#file-names-and-links)). The
+sync confirmation and the diff show the same warnings before you sync.
 
 ## Remotes
 
