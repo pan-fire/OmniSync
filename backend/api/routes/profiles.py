@@ -707,8 +707,10 @@ def _trash_rclone() -> RcloneService:
 async def list_profile_trash(slug: str, side: TrashSide = Query(TrashSide.LOCAL)) -> TrashListResponse:
     """The files in one side's .omnisync-trash, newest sync first (capped; totals count all)."""
     profile = await _get_profile_or_404(slug)
+    # Outside the try: rclone not being wired is 503, not a failed listing.
+    rclone = _trash_rclone()
     try:
-        return await list_trash(side, profile.local_dir, profile.remote_dir, _trash_rclone())
+        return await list_trash(side, profile.local_dir, profile.remote_dir, rclone)
     except Exception:
         logger.exception("Listing the %s trash of '%s' failed", side.value, slug)
         raise api_error(502, "rclone_failed", f"Could not list the trash. {SEE_LOG}")

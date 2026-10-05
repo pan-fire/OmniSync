@@ -36,6 +36,11 @@ release notes.
   tests already failed in that case. Both now fail at the cleanup step
   ("The test file could not be removed from the remote."), and the log
   names the file.
+- **The trash list says when rclone is not available.** GET
+  /profiles/{slug}/trash answered 502 `rclone_failed` (and logged a crash)
+  while the backend's rclone service was not running, for example during
+  start-up; it now answers 503 `service_unavailable`, like restoring and
+  deleting from the trash.
 
 ### Security
 
