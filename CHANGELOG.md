@@ -47,12 +47,16 @@ release notes.
   create folders that were never meant to exist. The rclone test now uses
   the path exactly as the sync does. The Google Drive, Dropbox and OneDrive
   tests also ignore a trailing or doubled `/` now.
-- **A sync test that leaves its test file behind fails.** When rclone could
-  not delete the `.omnisync-test-…` file from the remote, the test still
-  passed and the file stayed there; the Google Drive, Dropbox and OneDrive
-  tests already failed in that case. Both now fail at the cleanup step
-  ("The test file could not be removed from the remote."), and the log
-  names the file.
+- **A sync test that leaves its test file behind fails.** When the
+  `.omnisync-test-…` file could not be deleted from the remote, the test
+  still passed and the file stayed there: rclone's failure was ignored, and
+  the Google Drive, Dropbox and OneDrive deletes only failed when the
+  provider could not be reached at all, not when it refused the delete (or,
+  for Google Drive, when the folder could not be looked up). The test now
+  fails at the cleanup step ("The test file could not be removed from the
+  remote.") unless the file is confirmed gone; "not found" counts as gone.
+  The log names the file. The Google Drive cleanup no longer creates the
+  folder it looks into.
 - **The trash list says when rclone is not available.** GET
   /profiles/{slug}/trash answered 502 `rclone_failed` (and logged a crash)
   while the backend's rclone service was not running, for example during

@@ -19,6 +19,17 @@ def _join(remote_path: str, name: str) -> str:
     return f"{remote_path}/{name}"
 
 
+class ProbeCleanupError(Exception):
+    """The provider did not confirm that the probe file is gone."""
+
+
+def _check_deleted(resp: httpx.Response, what: str) -> None:
+    """A delete answer: 2xx and 404 (already gone) are fine, anything else raises."""
+    if resp.is_success or resp.status_code == 404:
+        return
+    raise ProbeCleanupError(f"{what} answered HTTP {resp.status_code}")
+
+
 class ProbeMixin(RcloneBase):
     """test_sync() and its Google Drive, Dropbox and OneDrive helpers."""
 
@@ -181,9 +192,9 @@ class ProbeMixin(RcloneBase):
         elif access_token and remote_type == "onedrive":
             await self._onedrive_delete(access_token, remote_file)
         else:
-            # A failure raises, as on the provider APIs: test_sync then
-            # reports remote_cleanup as failed (the probe file is left on
-            # the remote) instead of a success.
+            # A failure raises, as the provider-API deletes do: test_sync
+            # then reports remote_cleanup as failed (the probe file is left
+            # on the remote) instead of a success.
             await self._run(
                 ["deletefile"], use_config_args=False, timeout=15,
                 positional=[rclone_target],
@@ -264,23 +275,38 @@ class ProbeMixin(RcloneBase):
             return resp.status_code == 200 and len(resp.json().get("files", [])) > 0
 
     async def _gdrive_delete(self, token: str, remote_path: str) -> None:
-        folder_path = "/".join(remote_path.split("/")[:-1])
-        filename = remote_path.split("/")[-1]
-        folder_id = await self._gdrive_ensure_folder(token, folder_path)
-        if not folder_id:
-            return
-        q = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+        """Delete the probe file; raises ProbeCleanupError unless Drive confirms it is gone.
+
+        The folders are only looked up, never created: a folder that is not
+        there means the file is not either. A failed lookup is not proof of
+        anything, so it fails the cleanup.
+        """
+        headers = {"Authorization": f"Bearer {token}"}
+        parts = [p for p in remote_path.split("/") if p]
+        filename = parts.pop()
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id)",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if resp.status_code == 200:
-                for f in resp.json().get("files", []):
-                    await client.delete(
-                        f"https://www.googleapis.com/drive/v3/files/{f['id']}",
-                        headers={"Authorization": f"Bearer {token}"},
-                    )
+            parent_id = "root"
+            for part in parts:
+                q = (f"name='{part}' and '{parent_id}' in parents"
+                     " and mimeType='application/vnd.google-apps.folder' and trashed=false")
+                resp = await client.get(f"https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id)",
+                                        headers=headers)
+                if resp.status_code != 200:
+                    raise ProbeCleanupError(f"Drive folder lookup answered HTTP {resp.status_code}")
+                folders = resp.json().get("files", [])
+                if not folders:
+                    return  # no folder, so no file in it
+                parent_id = folders[0]["id"]
+            q = f"name='{filename}' and '{parent_id}' in parents and trashed=false"
+            resp = await client.get(f"https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id)",
+                                    headers=headers)
+            if resp.status_code != 200:
+                raise ProbeCleanupError(f"Drive file lookup answered HTTP {resp.status_code}")
+            for f in resp.json().get("files", []):
+                _check_deleted(
+                    await client.delete(f"https://www.googleapis.com/drive/v3/files/{f['id']}", headers=headers),
+                    "Drive delete",
+                )
 
     # --- Dropbox helpers ---
 
@@ -307,12 +333,16 @@ class ProbeMixin(RcloneBase):
             return resp.status_code == 200
 
     async def _dropbox_delete(self, token: str, remote_path: str) -> None:
+        """Delete the probe file; raises ProbeCleanupError unless Dropbox confirms it is gone."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(
+            resp = await client.post(
                 "https://api.dropboxapi.com/2/files/delete_v2",
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 content=json.dumps({"path": f"/{remote_path}"}),
             )
+        if resp.status_code == 409 and _dropbox_error(resp).startswith("path_lookup/not_found"):
+            return  # Dropbox's "not found": already gone
+        _check_deleted(resp, "Dropbox delete")
 
     # --- OneDrive helpers ---
 
@@ -334,8 +364,19 @@ class ProbeMixin(RcloneBase):
             return resp.status_code == 200
 
     async def _onedrive_delete(self, token: str, remote_path: str) -> None:
+        """Delete the probe file; raises ProbeCleanupError unless OneDrive confirms it is gone."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.delete(
+            resp = await client.delete(
                 f"https://graph.microsoft.com/v1.0/me/drive/root:/{remote_path}",
                 headers={"Authorization": f"Bearer {token}"},
             )
+        _check_deleted(resp, "OneDrive delete")
+
+
+def _dropbox_error(resp: httpx.Response) -> str:
+    """The error_summary of a Dropbox error answer ("" when there is none)."""
+    try:
+        summary = resp.json().get("error_summary", "")
+    except (ValueError, AttributeError):
+        return ""
+    return summary if isinstance(summary, str) else ""
