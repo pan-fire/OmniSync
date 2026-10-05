@@ -126,6 +126,19 @@ export interface SyncStopResponse {
  */
 export type JobDirection = Schema<'JobDirection'>;
 
+/** Why a sync left local names alone or treated them specially (see the backend's SyncWarningCode). */
+export type SyncWarningCode = Schema<'SyncWarningCode'>;
+
+/**
+ * One kind of name problem: how many local names have it, and up to 20 of
+ * their paths (escaped for display; a folder ends with "/").
+ */
+export interface SyncWarning {
+  code:  SyncWarningCode;
+  count: number;
+  paths: string[];
+}
+
 export interface SyncJob {
   id:            number;
   direction:     JobDirection;
@@ -138,6 +151,8 @@ export interface SyncJob {
   /** The job's profile as it is named now; null for jobs from before profiles. */
   profile_slug?: string | null;
   profile_name?: string | null;
+  /** What the job left alone or treated specially; a completed job with warnings did not sync everything. */
+  warnings?:     SyncWarning[];
 }
 
 export interface FileChange {
@@ -445,6 +460,8 @@ export interface SyncPreview {
   sync_mode:  SyncMode;
   /** Set for two_way profiles: the next two-way sync. */
   two_way:    TwoWayPreview | null;
+  /** Local names a sync cannot carry as they are. */
+  warnings?:  SyncWarning[];
 }
 
 // --- Granular sync types ---
@@ -486,6 +503,8 @@ export interface DiffResponse {
   summary:    DiffSummary;
   pagination: DiffPagination | null;
   error:      string | null;
+  /** Local names a sync cannot carry as they are (the same on every page). */
+  warnings?:  SyncWarning[];
 }
 
 export interface SelectiveSyncItem {

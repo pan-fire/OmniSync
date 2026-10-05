@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import fc from 'fast-check';
-import { render, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { I18nProvider } from '@/i18n';
 import { formatDateTime } from '@/lib/format';
 import { JobHistoryTable } from '@/components/jobs/job-history-table';
@@ -174,5 +174,48 @@ describe('Jobs name their profile', () => {
 
     const detail = render(<I18nProvider><JobDetail job={job} files={[]} /></I18nProvider>);
     expect(within(detail.container).getByText('Dokumente')).toBeInTheDocument();
+  });
+});
+
+describe('Jobs that left files alone', () => {
+  const job: SyncJob = {
+    id:            7,
+    direction:     'pull',
+    started_at:    '2026-10-05T10:00:00Z',
+    finished_at:   '2026-10-05T10:01:00Z',
+    status:        'completed',
+    files_changed: 2,
+    conflicts:     0,
+    errors:        0,
+    warnings:      [{ code: 'symlink_kept', count: 1, paths: ['clash.txt'] },
+      { code: 'name_not_utf8', count: 2, paths: ['bad\\xff.txt', 'dir\\xfe/'] }],
+  };
+
+  it('say "Completed with warnings" and list the warnings in the detail', () => {
+    render(<I18nProvider><JobDetail job={job} files={[]} /></I18nProvider>);
+    expect(screen.getByText('Completed with warnings')).toBeInTheDocument();
+    const list = screen.getByTestId('sync-warnings');
+    expect(list).toHaveTextContent('1 remote file or folder was not synced because a local symbolic link has its name.');
+    expect(list).toHaveTextContent('2 local names are not valid UTF-8.');
+    expect(within(list).getByText('bad\\xff.txt')).toBeInTheDocument();
+    expect(within(list).getByText('dir\\xfe/')).toBeInTheDocument();
+  });
+
+  it('show the status in the history table; without warnings a job is plainly completed', () => {
+    render(
+      <I18nProvider>
+        <JobHistoryTable jobs={[job, { ...job, id: 8, warnings: [] }, { ...job, id: 9, status: 'failed' }]}
+          isError={false} refetch={() => {}} page={1} onPageChange={() => {}} />
+      </I18nProvider>
+    );
+    expect(screen.getAllByText('Completed with warnings')).toHaveLength(1);
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
+  it('a detail without warnings has no warnings card', () => {
+    render(<I18nProvider><JobDetail job={{ ...job, warnings: undefined }} files={[]} /></I18nProvider>);
+    expect(screen.queryByTestId('sync-warnings')).toBeNull();
+    expect(screen.getByText('Completed')).toBeInTheDocument();
   });
 });

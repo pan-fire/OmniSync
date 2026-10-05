@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useTranslation } from '@/i18n';
 import { formatDateTime } from '@/lib/format';
@@ -37,6 +38,20 @@ export function jobStatusVariant (status: JobStatus): 'default' | 'secondary' | 
     default:
       return 'secondary';
   }
+}
+
+/** A job's status; a completed job that left files alone says "Completed with warnings". */
+export function JobStatusBadge ({ job }: { job: Pick<SyncJob, 'status' | 'warnings'> }) {
+  const { t } = useTranslation();
+  if (job.status === 'completed' && job.warnings && job.warnings.length > 0) {
+    return (
+      <Badge variant="outline" className="gap-1 border-amber-600/50 text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+        {t('jobs.statuses.completedWithWarnings')}
+      </Badge>
+    );
+  }
+  return <Badge variant={jobStatusVariant(job.status)}>{t(`jobs.statuses.${job.status}`)}</Badge>;
 }
 
 export function JobHistoryTable ({
@@ -110,9 +125,7 @@ export function JobHistoryTable ({
                 <time dateTime={job.started_at}>{formatDateTime(job.started_at, locale)}</time>
               </TableCell>
               <TableCell>
-                <Badge variant={jobStatusVariant(job.status)}>
-                  {t(`jobs.statuses.${job.status}`)}
-                </Badge>
+                <JobStatusBadge job={job} />
               </TableCell>
               <TableCell>{job.files_changed}</TableCell>
               <TableCell>{job.conflicts}</TableCell>

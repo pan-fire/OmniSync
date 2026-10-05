@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useTranslation } from '@/i18n';
 import { api } from '@/lib/api';
 import { syncPreviewQueryKey, useStartSyncs, type SyncTarget } from '@/hooks/use-profile-sync';
+import { SyncWarnings } from '@/components/sync/sync-warnings';
 import type { SyncDirection, SyncPreview, SyncPreviewCounts, TwoWayPreview } from '@/types';
 
 /** What a push or pull would do, from the side-effect-free preview. */
@@ -204,6 +205,7 @@ export function SyncConfirmDialog ({ request, onConfirm, onCancel }: SyncConfirm
                       ? <TwoWayPreviewDetails preview={data.two_way} maxDelete={data.max_delete} />
                       : <p className="mt-1 text-muted-foreground">{t('syncConfirm.twoWayUnavailable')}</p>
                 )}
+                <SyncWarnings warnings={data?.warnings} className="mt-2" />
                 {data && counts && !data.error && (
                   <div className="mt-1 space-y-0.5">
                     {data.sync_mode === 'two_way' && (

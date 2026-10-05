@@ -10,6 +10,7 @@ import { useProfilePaginatedDiff } from '@/hooks/use-profile-paginated-diff';
 import { useProfileSelectiveSync } from '@/hooks/use-profile-sync';
 import { useClearProfileManualFlag, useProfileManualFlags } from '@/hooks/use-manual-flags';
 import { FileBrowser } from './file-browser';
+import { SyncWarnings } from './sync-warnings';
 import type { DiffSummary, FileAction, FileError, SelectiveSyncItem } from '@/types';
 import { PathText } from '@/components/shared/path-text';
 
@@ -148,10 +149,17 @@ export function ProfileDiffPanel ({ slug, emptyExtra }: ProfileDiffPanelProps) {
     </div>
   );
 
+  const warningsBox = diff.warnings.length > 0 && (
+    <div className="rounded-md border border-amber-600/40 bg-amber-500/10 p-3" role="status">
+      <SyncWarnings warnings={diff.warnings} />
+    </div>
+  );
+
   if (diff.allFiles.length === 0 && !diff.hasMore) {
     return (
       <div className="space-y-3">
         {errorBox}
+        {warningsBox}
         {!diff.error && (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
@@ -168,6 +176,7 @@ export function ProfileDiffPanel ({ slug, emptyExtra }: ProfileDiffPanelProps) {
   return (
     <div className="space-y-3">
       {errorBox}
+      {warningsBox}
       <FileBrowser
         files={diff.allFiles}
         summary={diff.summary ?? EMPTY_SUMMARY}

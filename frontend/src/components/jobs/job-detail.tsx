@@ -9,12 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { useTranslation } from '@/i18n';
 import { formatBytes, formatDateTime } from '@/lib/format';
-import { jobStatusVariant } from './job-history-table';
+import { JobStatusBadge } from './job-history-table';
 import type { SyncJob, FileChange } from '@/types';
 import { PathText } from '@/components/shared/path-text';
+import { SyncWarnings } from '@/components/sync/sync-warnings';
 
 interface JobDetailProps {
   job:           SyncJob;
@@ -82,7 +82,7 @@ export function JobDetail ({ job, files, filesLoading, filesError }: JobDetailPr
             <span>{formatDateTime(job.finished_at, locale)}</span>
             <span className="text-muted-foreground">{t('jobs.status')}</span>
             <span>
-              <Badge variant={jobStatusVariant(job.status)}>{t(`jobs.statuses.${job.status}`)}</Badge>
+              <JobStatusBadge job={job} />
             </span>
             <span className="text-muted-foreground">{t('jobs.filesChanged')}</span>
             <span>{job.files_changed}</span>
@@ -93,6 +93,17 @@ export function JobDetail ({ job, files, filesLoading, filesError }: JobDetailPr
           </div>
         </CardContent>
       </Card>
+
+      {job.warnings && job.warnings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('syncWarnings.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SyncWarnings warnings={job.warnings} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
