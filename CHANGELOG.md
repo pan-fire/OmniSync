@@ -19,6 +19,10 @@ release notes.
   language other than English (PowerShell writes in the console code page)
   the error became a text-decoding error instead of the reason. Undecodable
   bytes are now replaced, on every platform.
+- **Linux desktop notifications about files starting with `-` arrive.**
+  `notify-send` read a title or body starting with `-` (a file named
+  `-draft.txt`) as an option and refused it, so the notification was lost.
+  The text now follows `--`.
 
 ### Security
 

@@ -24,7 +24,9 @@ class LinuxNotifier:
 
     async def send(self, title: str, body: str, severity: NotificationSeverity) -> None:
         urgency = _SEVERITY_TO_URGENCY.get(severity, "normal")
-        cmd = ["notify-send", "--app-name=omnisync", f"--urgency={urgency}", title, body]
+        # "--" ends the options: a title or body starting with "-" (a file
+        # named "-draft.txt") is text, not an option notify-send rejects.
+        cmd = ["notify-send", "--app-name=omnisync", f"--urgency={urgency}", "--", title, body]
 
         env = os.environ.copy()
         dbus_addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")

@@ -206,6 +206,20 @@ async def test_macos_script_keeps_text_inside_its_literals(fake_exec, text: str)
     assert script.endswith(' sound name "Funk"')
 
 
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(title=st.text(), body=st.text())
+async def test_macos_any_text_stays_a_literal(fake_exec, title: str, body: str) -> None:
+    """Property: in an AppleScript string literal only '"' ends it and '\\' escapes, and
+    both are escaped, so any title and body come back as exactly two literals."""
+    fake = fake_exec()
+
+    await MacNotifier().send(title, body, NotificationSeverity.INFO)
+
+    exe, flag, script = fake.argv[0]
+    assert (exe, flag) == ("osascript", "-e")
+    assert _applescript_literals(script) == [body, title]
+
+
 # PowerShell treats these four as single quotes too (language spec, verbatim strings).
 _PS_QUOTES = "'\u2018\u2019\u201a\u201b"
 
@@ -288,9 +302,7 @@ async def test_windows_any_text_is_carried_verbatim(fake_exec, title: str, body:
     assert (got_title, got_body) == (title.replace("\0", ""), body.replace("\0", ""))
 
 
-@pytest.mark.xfail(strict=True, reason="notify-send gets the title and body as positional arguments with "
-                   "no '--' before them, so text starting with '-' is parsed as an option")
-@pytest.mark.parametrize("title, body", [("-draft.txt could not be synced", "Body"), ("Title", "--help")])
+@pytest.mark.parametrize("title, body", [("-draft.txt could not be synced", "Body"), ("Title", "--help"), ("--", "-")])
 async def test_linux_text_starting_with_a_dash_is_not_an_option(fake_exec, title: str, body: str) -> None:
     """notify-send (GOption) rejects unknown options, so a title like '-draft.txt ...'
     fails the notification unless the arguments end with '--' first."""
@@ -299,5 +311,4 @@ async def test_linux_text_starting_with_a_dash_is_not_an_option(fake_exec, title
     await LinuxNotifier().send(title, body, NotificationSeverity.ERROR)
 
     argv = list(fake.argv[0])
-    assert argv[-2:] == [title, body]
-    assert "--" in argv[:-2]
+    assert argv[-3:] == ["--", title, body]
