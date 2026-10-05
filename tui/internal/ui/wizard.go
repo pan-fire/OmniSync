@@ -579,7 +579,7 @@ func (m WizardModel) View() tea.View {
 	if row := m.table.SelectedRow(); row != nil {
 		for _, p := range m.providers {
 			if p.ID == row.Key && p.SetupGuide != "" {
-				b.WriteString("\n" + mutedText("  "+p.SetupGuide) + "\n")
+				b.WriteString("\n" + mutedText("  "+safeText(p.SetupGuide)) + "\n")
 			}
 		}
 	}
@@ -627,14 +627,14 @@ func (m *WizardModel) buildFieldForm() {
 		}
 		fields = append(fields, f)
 	}
-	title := fmt.Sprintf("Set up %s", m.selected.DisplayName)
+	title := fmt.Sprintf("Set up %s", safeLine(m.selected.DisplayName))
 	if m.selected.AuthType == api.AuthTypeOAuth {
 		// The own app's credentials are the provider's own client_id and
 		// client_secret fields above; there is no second pair.
 		title += " (sign-in in the browser follows)"
 	}
 	if m.reconnect != "" {
-		title = fmt.Sprintf("Reconnect %q (%s)", m.reconnect, m.selected.DisplayName)
+		title = fmt.Sprintf("Reconnect %q (%s)", m.reconnect, safeLine(m.selected.DisplayName))
 	}
 	m.form = components.NewFormWithID(formWizardFields, title, fields)
 	m.form.Intro = m.formIntro()
@@ -655,7 +655,7 @@ func (m WizardModel) formIntro() string {
 			"A remote made with rclone's own app stores none: OmniSync no longer uses\n"+
 			"rclone's app, so enter the client ID (and secret) of your own app.")
 	} else if m.selected.SetupGuide != "" {
-		parts = append(parts, m.selected.SetupGuide)
+		parts = append(parts, safeText(m.selected.SetupGuide))
 	}
 	if m.selected.AuthType == api.AuthTypeOAuth {
 		parts = append(parts, m.oauthAppHint())
@@ -676,7 +676,7 @@ func (m WizardModel) oauthAppHint() string {
 		redirect = label + m.redirectURI
 	case m.redirectErr != nil:
 		redirect = label + m.client.BaseURL() + "/wizard/oauth/callback\n" +
-			"(assumed; the backend could not be asked: " + m.redirectErr.Error() + ")"
+			"(assumed; the backend could not be asked: " + safeLine(m.redirectErr.Error()) + ")"
 	default:
 		redirect = label + "(asking the backend...)"
 	}

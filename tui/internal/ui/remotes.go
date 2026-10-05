@@ -295,10 +295,10 @@ func deletePrompt(name string, deps *api.RemoteDependenciesResponse) string {
 	if !deps.Empty() {
 		b.WriteString("\n\nStill used by:")
 		for _, p := range deps.Profiles {
-			fmt.Fprintf(&b, "\n  profile %s (%s)", p.Name, p.Slug)
+			fmt.Fprintf(&b, "\n  profile %s (%s)", safeLine(p.Name), safeLine(p.Slug))
 		}
 		for _, t := range deps.BackupTargets {
-			fmt.Fprintf(&b, "\n  backup target %s of profile %s", t.TargetName, t.ProfileSlug)
+			fmt.Fprintf(&b, "\n  backup target %s of profile %s", safeLine(t.TargetName), safeLine(t.ProfileSlug))
 		}
 		b.WriteString("\nThey stop working until they point at another remote.")
 	}
@@ -440,7 +440,7 @@ func (m RemotesModel) View() tea.View {
 	if r := m.selectedRemote(); r != nil && r.AuthError {
 		b.WriteString("\n")
 		b.WriteString(lipgloss.NewStyle().Foreground(theme.Current.Error).Render(
-			fmt.Sprintf("  %s: the provider refused the sign-in; %s", r.Name, m.authFix(r.Name))))
+			fmt.Sprintf("  %s: the provider refused the sign-in; %s", safeLine(r.Name), m.authFix(r.Name))))
 		b.WriteString("\n")
 	}
 
@@ -553,7 +553,7 @@ func (m RemotesModel) fetchProviders() tea.Cmd {
 
 // providerOption names a provider in the type dropdown.
 func providerOption(p api.ProviderResponse) string {
-	return fmt.Sprintf("%s (%s)", p.DisplayName, p.ID)
+	return fmt.Sprintf("%s (%s)", safeLine(p.DisplayName), safeLine(p.ID))
 }
 
 // handleProviders opens the first quick-add step with the providers that
@@ -613,7 +613,7 @@ func (m RemotesModel) handleFormSubmit(msg components.FormSubmitMsg) (tea.Model,
 		}
 		m.mode = remotesModeQuickParams
 		m.form = components.NewFormWithID(formQuickParams,
-			fmt.Sprintf("Quick add %s remote %q", m.addProvider.DisplayName, m.addName), fields)
+			fmt.Sprintf("Quick add %s remote %q", safeLine(m.addProvider.DisplayName), m.addName), fields)
 		return m, nil
 	case formEditRemote:
 		return m.submitEdit(msg.Values)

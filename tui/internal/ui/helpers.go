@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/pan-fire/OmniSync/tui/internal/api"
 	"github.com/pan-fire/OmniSync/tui/internal/theme"
+	"github.com/pan-fire/OmniSync/tui/internal/ui/components"
 )
 
 // Key hints shared by several views' bottom bars.
@@ -49,7 +50,7 @@ func formatTime(s string) string {
 			return t.Local().Format("2006-01-02 15:04:05")
 		}
 	}
-	return s
+	return safeLine(s)
 }
 
 // formatTimePtr renders an optional timestamp, or fallback when nil.
@@ -86,9 +87,9 @@ func stateLabel(state api.SyncState, lastError *string, resyncRequired bool) str
 		return "resync required"
 	}
 	if state == api.SyncStateError && lastError != nil && *lastError != "" {
-		return "error: " + *lastError
+		return "error: " + safeLine(*lastError)
 	}
-	return string(state)
+	return safeLine(string(state))
 }
 
 // stateColor is the colour of a profile state cell; the text from
@@ -117,7 +118,7 @@ func syncModeLabel(mode api.SyncMode) string {
 	case "":
 		return "-"
 	}
-	return string(mode)
+	return safeLine(string(mode))
 }
 
 // syncModeSummary explains a sync mode in one line.
@@ -141,7 +142,7 @@ func jobDirectionLabel(dir api.JobDirection) string {
 	case "":
 		return "-"
 	}
-	return string(dir)
+	return safeLine(string(dir))
 }
 
 // fileSideLabel names the folder a job's file change happened in.
@@ -149,7 +150,7 @@ func fileSideLabel(side *api.FileSide) string {
 	if side == nil || *side == "" {
 		return "-"
 	}
-	return string(*side)
+	return safeLine(string(*side))
 }
 
 // deleteLimitShort renders a profile's delete limit for a list or a field:
@@ -170,20 +171,28 @@ func deleteLimitSentence(maxDelete *int) string {
 }
 
 // apiDetail returns the backend's detail message of an API error, or the
-// error text otherwise.
+// error text otherwise, as one line to show.
 func apiDetail(err error) string {
 	var apiErr *api.ApiError
 	if errors.As(err, &apiErr) && apiErr.Detail != "" {
-		return apiErr.Detail
+		return safeLine(apiErr.Detail)
 	}
-	return err.Error()
+	return safeLine(err.Error())
 }
 
 // errorLine renders a view's error banner.
 func errorLine(err error) string {
 	style := lipgloss.NewStyle().Foreground(theme.Current.Error)
-	return style.Render(fmt.Sprintf("  Error: %s", err.Error())) + "\n\n"
+	return style.Render("  Error: "+safeText(err.Error())) + "\n\n"
 }
+
+// safeLine and safeText make server or file text safe to draw: see
+// components.SafeLine and components.SafeText. Every string from an API
+// answer that a view draws outside a table cell, a flash message or a
+// confirmation goes through one of them; servertext_lint_test.go checks.
+func safeLine(s string) string { return components.SafeLine(s) }
+
+func safeText(s string) string { return components.SafeText(s) }
 
 func mutedText(s string) string {
 	return lipgloss.NewStyle().Foreground(theme.Current.Muted).Render(s)

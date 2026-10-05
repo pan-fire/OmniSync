@@ -302,7 +302,7 @@ func (m ProfilesModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				vals := valuesOf(p.ProfileResponse)
 				m.pendingArgs = vals.args
 				m.form = components.NewFormWithID(formEditProfile,
-					fmt.Sprintf("Edit Profile %s (%s)", p.Name, p.Slug), profileFormFields(vals))
+					fmt.Sprintf("Edit Profile %s (%s)", safeLine(p.Name), safeLine(p.Slug)), profileFormFields(vals))
 				return m, nil
 			}
 		}

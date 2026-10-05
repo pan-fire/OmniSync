@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -262,7 +261,7 @@ func (t *Table) View() string {
 			if j < len(row.Colors) && row.Colors[j] != nil {
 				cellStyle = cellStyle.Foreground(row.Colors[j])
 			}
-			cells = append(cells, cellStyle.Width(w).MaxWidth(w).Render(Truncate(cellText(val), w)))
+			cells = append(cells, cellStyle.Width(w).MaxWidth(w).Render(Truncate(SafeLine(val), w)))
 		}
 		b.WriteString(strings.Join(cells, " "))
 		b.WriteString("\n")
@@ -302,17 +301,4 @@ func Truncate(s string, max int) string {
 		used += w
 	}
 	return b.String() + ell
-}
-
-// cellText makes a cell's text (file, remote and profile names from the
-// server) one line of plain text: a newline or tab would break the row, an
-// escape sequence restyle the rest of the screen, so each control
-// character shows as U+FFFD instead.
-func cellText(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
-			return utf8.RuneError
-		}
-		return r
-	}, s)
 }

@@ -117,7 +117,7 @@ func (m RemotesModel) handleEditLoaded(msg ActionResultMsg) (tea.Model, tea.Cmd)
 	}
 	m.edit = &data
 	m.mode = remotesModeEdit
-	m.form = components.NewFormWithID(formEditRemote, fmt.Sprintf("Edit %s remote %q", data.Provider.DisplayName, data.Name),
+	m.form = components.NewFormWithID(formEditRemote, fmt.Sprintf("Edit %s remote %q", safeLine(data.Provider.DisplayName), data.Name),
 		editFields(data))
 	intro := "Secrets are not shown: leave them empty to keep the stored ones."
 	if data.Provider.ID == "crypt" {
@@ -319,7 +319,7 @@ func (m RemotesModel) handleImportPreview(msg ActionResultMsg) (tea.Model, tea.C
 	var refused []string
 	for _, c := range data.Preview.Remotes {
 		if len(c.Problems) > 0 {
-			refused = append(refused, fmt.Sprintf("  %s (%s): %s", c.Name, c.Type, strings.Join(c.Problems, "; ")))
+			refused = append(refused, fmt.Sprintf("  %s (%s): %s", safeLine(c.Name), safeLine(c.Type), safeLine(strings.Join(c.Problems, "; "))))
 			continue
 		}
 		value, help := c.Name, "Import under this name; empty skips it."
@@ -332,7 +332,7 @@ func (m RemotesModel) handleImportPreview(msg ActionResultMsg) (tea.Model, tea.C
 			taken[c.Name] = true
 		}
 		fields = append(fields, components.Field{
-			Name: c.Name, Label: fmt.Sprintf("%s (%s)", c.Name, c.Type), Type: components.FieldText,
+			Name: c.Name, Label: fmt.Sprintf("%s (%s)", safeLine(c.Name), safeLine(c.Type)), Type: components.FieldText,
 			Value: value, Help: help,
 		})
 	}

@@ -20,7 +20,15 @@ release notes.
   sequence in them could set the clipboard, the window title or move the
   cursor over the output. The commands now print every control character
   as a visible `\u001b`-style escape. `--json` output decodes to exactly
-  the same text as before. The terminal UI was not affected.
+  the same text as before.
+- **The terminal UI no longer lets server text draw over or restyle a
+  view.** A log message, file, remote or profile name or error detail
+  holding a carriage return, a backspace or an escape sequence could
+  overwrite the start of its line, move the cursor or change the colours
+  of what followed, outside the tables (which already filtered it). Every
+  view now shows such a character as `�`, and a last filter on the whole
+  screen lets only the views' own colours through. A multi-line log
+  message shows its first line and "(+N lines)" in the Logs view.
 
 ### Fixed
 

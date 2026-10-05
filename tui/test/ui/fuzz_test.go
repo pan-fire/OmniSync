@@ -51,7 +51,8 @@ func terminalInjection(out string) (string, bool) {
 // write access to a synced folder chose. Whatever they hold, the Logs view
 // renders without panicking, and what reaches the terminal holds no
 // sequence from the message: only the renderer's own cursor and style
-// sequences.
+// sequences. Neither does a cell: a carriage return, a backspace or an SGR
+// sequence in a message must not draw over or restyle its line.
 func FuzzLogsViewTerminalOutput(f *testing.F) {
 	var mu sync.Mutex
 	var reply []byte
@@ -64,7 +65,7 @@ func FuzzLogsViewTerminalOutput(f *testing.F) {
 	}))
 	f.Cleanup(srv.Close)
 	client := api.NewClient(srv.URL, "", "fuzz")
-	f.Fuzz(func(t *testing.T, message, level, exc string) {
+	render := func(t *testing.T, message, level, exc string) string {
 		body, err := json.Marshal([]map[string]string{{"timestamp": "2026-10-05T10:00:00Z", "level": level, "message": message, "exc": exc}})
 		if err != nil {
 			t.Skip()
@@ -72,10 +73,27 @@ func FuzzLogsViewTerminalOutput(f *testing.F) {
 		mu.Lock()
 		reply = body
 		mu.Unlock()
-		m := open(t, ui.NewLogsModel(client))
-		out := renderToTerminal(t, m.View().Content)
+		return open(t, ui.NewLogsModel(client)).View().Content
+	}
+	for _, s := range hostileSeeds {
+		f.Add(s, "ERROR", "")
+		f.Add("upload failed", s, s)
+	}
+	f.Fuzz(func(t *testing.T, message, level, exc string) {
+		frame := render(t, message, level, exc)
+		out := renderToTerminal(t, frame)
 		if seq, found := terminalInjection(out); found {
 			t.Errorf("the terminal received %q from server text", seq)
+		}
+		// The renderer's cells: no control character, no cursor movement
+		// or carriage return from the message, and no style from it.
+		checkFrame(t, "logs", frame)
+		inert := strings.NewReplacer("\x1b", "\ufffd", "\u009b", "\ufffd")
+		allowed := sgrSequences(render(t, inert.Replace(message), inert.Replace(level), inert.Replace(exc)))
+		for seq := range sgrSequences(frame) {
+			if !allowed[seq] {
+				t.Errorf("the message restyles the view with %q", seq)
+			}
 		}
 	})
 }

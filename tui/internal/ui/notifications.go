@@ -253,7 +253,7 @@ func (m NotificationsModel) View() tea.View {
 
 	if m.err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(theme.Current.Error)
-		b.WriteString(errStyle.Render(fmt.Sprintf("  Error: %s", m.err.Error())))
+		b.WriteString(errStyle.Render(fmt.Sprintf("  Error: %s", safeLine(m.err.Error()))))
 		b.WriteString("\n\n")
 	}
 

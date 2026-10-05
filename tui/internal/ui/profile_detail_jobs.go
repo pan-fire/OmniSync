@@ -251,7 +251,7 @@ func (m ProfileDetailModel) handleSelectiveDone(msg ActionResultMsg) (tea.Model,
 		text = fmt.Sprintf("Selective sync failed (%d of %d succeeded)", r.Succeeded, r.Total)
 	}
 	if len(r.Errors) > 0 {
-		text += fmt.Sprintf("; %s: %s", r.Errors[0].Path, r.Errors[0].Error)
+		text += fmt.Sprintf("; %s: %s", safeLine(r.Errors[0].Path), safeLine(r.Errors[0].Error))
 		if len(r.Errors) > 1 {
 			text += fmt.Sprintf(" (and %d more)", len(r.Errors)-1)
 		}

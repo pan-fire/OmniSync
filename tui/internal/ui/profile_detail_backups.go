@@ -432,7 +432,7 @@ func restorePrompt(req fullRestore, preview *api.RestorePreviewResponse, err err
 	case preview != nil:
 		for _, s := range preview.Sides {
 			fmt.Fprintf(&b, "%s folder %s: %d added, %d replaced, %d removed, %d unchanged\n",
-				s.Side, s.Path, s.Added, s.Replaced, s.Removed, s.Unchanged)
+				safeLine(s.Side), safeLine(s.Path), s.Added, s.Replaced, s.Removed, s.Unchanged)
 		}
 	}
 	b.WriteString("\nReplaced and removed files are kept in .omnisync-trash/pre-restore/.")

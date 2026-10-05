@@ -467,7 +467,7 @@ func syncAllPrompt(check *syncAllCheck) string {
 		if maxDelete != nil {
 			limit = fmt.Sprintf("delete limit %d files", *maxDelete)
 		}
-		line := fmt.Sprintf("%s (%s): %s; %s", p.Name, p.Slug, counts, limit)
+		line := fmt.Sprintf("%s (%s): %s; %s", safeLine(p.Name), safeLine(p.Slug), counts, limit)
 		if p.TwoWay() {
 			line += ", two-way"
 			twoWay++
@@ -605,25 +605,25 @@ func (m DashboardModel) renderAggregatePanel() string {
 	warn := lipgloss.NewStyle().Foreground(theme.Current.Warning)
 	for _, p := range s.PausedProfiles {
 		if p.UserPaused && p.PendingChanges == 0 {
-			b.WriteString(labelStyle.Render(fmt.Sprintf("  %s: paused by you (u resumes all)", p.Name)))
+			b.WriteString(labelStyle.Render(fmt.Sprintf("  %s: paused by you (u resumes all)", safeLine(p.Name))))
 		} else {
-			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: intervals paused (%d unresolved differences)", theme.Glyphs().Warning, p.Name, p.PendingChanges)))
+			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: intervals paused (%d unresolved differences)", theme.Glyphs().Warning, safeLine(p.Name), p.PendingChanges)))
 		}
 		b.WriteString("\n")
 	}
 	for _, p := range s.ProfilesSummary {
 		if line := progressLine(p.Progress); line != "" && p.State.Busy() {
-			fmt.Fprintf(&b, "  %s: %s\n", p.Name, valueStyle.Render(line))
+			fmt.Fprintf(&b, "  %s: %s\n", safeLine(p.Name), valueStyle.Render(line))
 		}
 	}
 	for _, p := range s.ProfilesSummary {
 		if p.ResyncRequired {
 			why := ""
 			if p.LastError != nil && *p.LastError != "" {
-				why = " (" + *p.LastError + ")"
+				why = " (" + safeLine(*p.LastError) + ")"
 			}
 			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: resync required, two-way syncing is paused%s; open the profile and press R",
-				theme.Glyphs().Warning, p.Name, why)))
+				theme.Glyphs().Warning, safeLine(p.Name), why)))
 			b.WriteString("\n")
 		}
 	}
@@ -662,7 +662,7 @@ func (m DashboardModel) renderHealthPanel() string {
 			checkMark(m.network.RcloneNetwork.OK))
 
 	case m.networkErr != nil:
-		b.WriteString(labelStyle.Render("  network check failed: " + m.networkErr.Error()))
+		b.WriteString(labelStyle.Render("  network check failed: " + safeLine(m.networkErr.Error())))
 		b.WriteString("\n")
 	default:
 		b.WriteString(labelStyle.Render("  network: checking..."))
@@ -682,11 +682,11 @@ func (m DashboardModel) renderRemotesLine() string {
 	case m.remotes != nil:
 		parts := make([]string, 0, len(m.remotes.Remotes))
 		for _, r := range m.remotes.Remotes {
-			parts = append(parts, r.Remote+": "+checkMark(r.Accessible))
+			parts = append(parts, safeLine(r.Remote)+": "+checkMark(r.Accessible))
 		}
 		return "  remotes: " + strings.Join(parts, "  ") + "\n"
 	case m.remotesErr != nil:
-		return labelStyle.Render("  remotes: unknown (check failed: "+m.remotesErr.Error()+")") + "\n"
+		return labelStyle.Render("  remotes: unknown (check failed: "+safeLine(m.remotesErr.Error())+")") + "\n"
 	default:
 		return labelStyle.Render("  remotes: checking...") + "\n"
 	}
@@ -705,9 +705,9 @@ func (m DashboardModel) renderProfilesSection() string {
 		}
 		reason := "no reason reported"
 		if p.LastError != nil && *p.LastError != "" {
-			reason = *p.LastError
+			reason = safeLine(*p.LastError)
 		}
-		b.WriteString(errStyle.Render(fmt.Sprintf("  %s %s: %s", theme.Glyphs().Cross, p.Name, reason)))
+		b.WriteString(errStyle.Render(fmt.Sprintf("  %s %s: %s", theme.Glyphs().Cross, safeLine(p.Name), reason)))
 		b.WriteString("\n")
 	}
 

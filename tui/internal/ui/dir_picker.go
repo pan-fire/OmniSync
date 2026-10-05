@@ -151,7 +151,7 @@ func (p *dirPicker) handleAnswer(msg ActionResultMsg) {
 		p.current, p.parent = "", nil
 		p.rows = nil
 		for _, r := range ans.remotes {
-			p.rows = append(p.rows, pickerRow{label: fmt.Sprintf("%s:  (%s)", r.Name, r.Type), path: r.Name + ":"})
+			p.rows = append(p.rows, pickerRow{label: fmt.Sprintf("%s:  (%s)", safeLine(r.Name), safeLine(r.Type)), path: r.Name + ":"})
 		}
 	default:
 		p.current, p.parent = ans.listing.Current, ans.listing.Parent

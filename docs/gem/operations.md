@@ -165,7 +165,15 @@ Logs view and `osync logs` read. Both get the same lines:
   HTTP client, file watcher, migrations);
 - every unhandled exception, with its traceback: in a request, in a
   background task or in a thread. On the Logs page the traceback is under
-  the entry's **Details**.
+  the entry's **Details**. The terminal UI's Logs view shows one line per
+  entry, the first line of its message, ending in "(+N lines)" when the
+  message or its traceback has more; `osync logs` prints them in full.
+
+A log line can quote a file or remote name, which anyone who can write to
+a synced folder chooses. The terminal UI shows a control character in any
+text from the server (a carriage return, a backspace, an escape sequence)
+as `�`, and `osync` commands print it as an escape such as `\u001b`, so
+such a name cannot draw over, recolour or hide what the screen shows.
 
 The access log (one line per HTTP request, including the container health
 check every 30 s) goes to `docker compose logs backend` only;

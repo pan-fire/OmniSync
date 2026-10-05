@@ -460,7 +460,7 @@ Backend log lines, 200 per page, oldest at the top and newest at the bottom. The
 | `F` | Toggle live updates (LIVE indicator; every 2s) |
 | `r` | Refresh |
 
-Live mode shows the newest page and keeps the newest line in view. Scrolling up or going to an older page (`n`) leaves live mode, so new lines do not move what you are reading; `F` turns it back on and jumps to the newest lines. Search and level filter apply to the page shown. An entry with a traceback ends in "(+N lines)"; `osync logs` prints the traceback in full.
+Live mode shows the newest page and keeps the newest line in view. Scrolling up or going to an older page (`n`) leaves live mode, so new lines do not move what you are reading; `F` turns it back on and jumps to the newest lines. Search and level filter apply to the page shown. Each entry is one line: the first line of its message, ending in "(+N lines)" when the message or its traceback has more; `osync logs` prints them in full. In every view, a control character in text from the server (a carriage return, a backspace, an escape sequence in a file name or a log message) shows as `�`, so it cannot draw over or recolour what the view shows.
 
 ---
 

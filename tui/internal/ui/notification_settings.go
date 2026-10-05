@@ -213,12 +213,12 @@ func channelSettingsSummary(name string, cfg api.ChannelConfig) string {
 		if cfg.Ntfy == nil || cfg.Ntfy.Topic == "" {
 			return "Not configured — press c"
 		}
-		return fmt.Sprintf("%s/%s  token: %s", strings.TrimRight(cfg.Ntfy.Server, "/"), cfg.Ntfy.Topic, set(cfg.Ntfy.TokenSet))
+		return fmt.Sprintf("%s/%s  token: %s", safeLine(strings.TrimRight(cfg.Ntfy.Server, "/")), safeLine(cfg.Ntfy.Topic), set(cfg.Ntfy.TokenSet))
 	case "email":
 		if cfg.Email == nil || cfg.Email.Host == "" {
 			return "Not configured — press c"
 		}
-		return fmt.Sprintf("%s:%d (%s) → %s  password: %s", cfg.Email.Host, cfg.Email.Port, cfg.Email.Security,
+		return fmt.Sprintf("%s:%d (%s) → %s  password: %s", safeLine(cfg.Email.Host), cfg.Email.Port, safeLine(cfg.Email.Security),
 			strings.Join(cfg.Email.To, ", "), set(cfg.Email.PasswordSet))
 	}
 	return ""

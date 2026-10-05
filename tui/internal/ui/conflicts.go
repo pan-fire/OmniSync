@@ -214,16 +214,16 @@ func (m ConflictsModel) handleActionResult(msg ActionResultMsg) (tea.Model, tea.
 	out, _ := msg.Data.(resolveOutcome)
 	label := resolutionLabel(out.conflict, out.resolution)
 	if msg.Err != nil {
-		m.notice = fmt.Sprintf("%s failed for %s: %s", label, out.conflict.FilePath, apiDetail(msg.Err))
+		m.notice = fmt.Sprintf("%s failed for %s: %s", label, safeLine(out.conflict.FilePath), apiDetail(msg.Err))
 		return m, tea.Batch(m.fetchConflicts(), flash(m.notice, true))
 	}
 	m.notice = ""
-	text := fmt.Sprintf("%s: %s resolved", label, out.conflict.FilePath)
+	text := fmt.Sprintf("%s: %s resolved", label, safeLine(out.conflict.FilePath))
 	switch {
 	case out.resolution == api.ConflictDismiss:
-		text = fmt.Sprintf("Conflict for %s dismissed; no file was changed", out.conflict.FilePath)
+		text = fmt.Sprintf("Conflict for %s dismissed; no file was changed", safeLine(out.conflict.FilePath))
 	case out.resolution == api.ConflictKeepBoth && out.conflict.TwoWay():
-		text = fmt.Sprintf("Conflict for %s closed; both versions stay", out.conflict.FilePath)
+		text = fmt.Sprintf("Conflict for %s closed; both versions stay", safeLine(out.conflict.FilePath))
 	}
 	return m, tea.Batch(m.fetchConflicts(), flash(text, false))
 }
@@ -331,7 +331,7 @@ func (m ConflictsModel) View() tea.View {
 		b.WriteString("\n\n")
 	}
 	if m.resolving != nil {
-		fmt.Fprintf(&b, "  Resolving %s...\n\n", m.resolving.FilePath)
+		fmt.Fprintf(&b, "  Resolving %s...\n\n", safeLine(m.resolving.FilePath))
 	}
 
 	if m.loading && len(m.conflicts) == 0 && m.err == nil {
@@ -372,7 +372,7 @@ func (m ConflictsModel) View() tea.View {
 func (m ConflictsModel) renderChoices(c api.ConflictResponse) string {
 	warnStyle := lipgloss.NewStyle().Foreground(theme.Current.Warning)
 	var b strings.Builder
-	b.WriteString(warnStyle.Render(fmt.Sprintf("  Resolve conflict %d: %s in profile %s", c.ID, c.FilePath, conflictProfile(c))))
+	b.WriteString(warnStyle.Render(fmt.Sprintf("  Resolve conflict %d: %s in profile %s", c.ID, safeLine(c.FilePath), conflictProfile(c))))
 	b.WriteString("\n")
 	if c.TwoWay() {
 		fmt.Fprintf(&b, "  %s\n", keptAsSentence(c))
@@ -390,9 +390,9 @@ func (m ConflictsModel) renderChoices(c api.ConflictResponse) string {
 // keptAs is the name one version of a two-way conflict was kept under.
 func keptAs(name *string, c api.ConflictResponse) string {
 	if name != nil && *name != "" {
-		return *name
+		return safeLine(*name)
 	}
-	return c.FilePath
+	return safeLine(c.FilePath)
 }
 
 // keptAsSentence says where a two-way sync kept both versions of a conflict.
@@ -457,7 +457,7 @@ func resolutionEffect(c api.ConflictResponse, res api.ConflictResolution) string
 	case api.ConflictDismiss:
 		return "close this conflict without changing any file;\nboth versions stay as they are"
 	}
-	return string(res)
+	return safeLine(string(res))
 }
 
 // twoWayResolutionEffect is resolutionEffect for a conflict a two-way sync
@@ -466,15 +466,15 @@ func twoWayResolutionEffect(c api.ConflictResponse, res api.ConflictResolution) 
 	local, remote := keptAs(c.LocalKeptAs, c), keptAs(c.RemoteKeptAs, c)
 	switch res {
 	case api.ConflictKeepLocal:
-		return fmt.Sprintf("keep only the local version, as %s on both sides;\nthe other copy (%s) is moved to .omnisync-trash", c.FilePath, remote)
+		return fmt.Sprintf("keep only the local version, as %s on both sides;\nthe other copy (%s) is moved to .omnisync-trash", safeLine(c.FilePath), remote)
 	case api.ConflictKeepRemote:
-		return fmt.Sprintf("keep only the remote version, as %s on both sides;\nthe other copy (%s) is moved to .omnisync-trash", c.FilePath, local)
+		return fmt.Sprintf("keep only the remote version, as %s on both sides;\nthe other copy (%s) is moved to .omnisync-trash", safeLine(c.FilePath), local)
 	case api.ConflictKeepBoth:
 		return fmt.Sprintf("close this conflict and keep both files on both sides:\nthe local version as %s, the remote version as %s", local, remote)
 	case api.ConflictDismiss:
 		return fmt.Sprintf("close this conflict without changing any file;\nboth files stay: the local version as %s, the remote version as %s", local, remote)
 	}
-	return string(res)
+	return safeLine(string(res))
 }
 
 // resolutionSummary is the one-line form of resolutionEffect for the menu.
@@ -482,9 +482,9 @@ func resolutionSummary(c api.ConflictResponse, res api.ConflictResolution) strin
 	if c.TwoWay() {
 		switch res {
 		case api.ConflictKeepLocal:
-			return fmt.Sprintf("keep only the local version, as %s (the other copy to .omnisync-trash)", c.FilePath)
+			return fmt.Sprintf("keep only the local version, as %s (the other copy to .omnisync-trash)", safeLine(c.FilePath))
 		case api.ConflictKeepRemote:
-			return fmt.Sprintf("keep only the remote version, as %s (the other copy to .omnisync-trash)", c.FilePath)
+			return fmt.Sprintf("keep only the remote version, as %s (the other copy to .omnisync-trash)", safeLine(c.FilePath))
 		case api.ConflictKeepBoth:
 			return "close the conflict; both files stay on both sides"
 		case api.ConflictDismiss:
@@ -501,7 +501,7 @@ func resolutionSummary(c api.ConflictResponse, res api.ConflictResolution) strin
 	case api.ConflictDismiss:
 		return "close the conflict without changing any file"
 	}
-	return string(res)
+	return safeLine(string(res))
 }
 
 func resolutionLabel(c api.ConflictResponse, res api.ConflictResolution) string {
@@ -517,11 +517,11 @@ func resolutionLabel(c api.ConflictResponse, res api.ConflictResolution) string 
 func conflictProfile(c api.ConflictResponse) string {
 	switch {
 	case c.ProfileName != nil && *c.ProfileName != "" && c.ProfileSlug != nil && *c.ProfileSlug != "":
-		return fmt.Sprintf("%q (%s)", *c.ProfileName, *c.ProfileSlug)
+		return fmt.Sprintf("%q (%s)", *c.ProfileName, safeLine(*c.ProfileSlug))
 	case c.ProfileName != nil && *c.ProfileName != "":
 		return fmt.Sprintf("%q", *c.ProfileName)
 	case c.ProfileSlug != nil && *c.ProfileSlug != "":
-		return *c.ProfileSlug
+		return safeLine(*c.ProfileSlug)
 	}
 	return "(unknown)"
 }
