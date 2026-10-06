@@ -20,7 +20,9 @@ import yaml
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 # GitHub-hosted runner images the workflows may name; pinned versions, so an
 # image upgrade is a deliberate change.
-GITHUB_HOSTED = {"ubuntu-24.04", "ubuntu-24.04-arm"}
+GITHUB_HOSTED = {"ubuntu-24.04", "ubuntu-24.04-arm",
+                 # ci.yml's cross-OS TUI tests (osync ships for both).
+                 "macos-15", "windows-2025"}
 # A matrix value used as runs-on: its values are checked in the matrix.
 _MATRIX_RUNNER = re.compile(r"^\$\{\{\s*matrix\.([\w.]+)\s*\}\}$")
 

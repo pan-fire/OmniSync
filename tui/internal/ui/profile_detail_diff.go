@@ -82,7 +82,7 @@ func (m ProfileDetailModel) askSelective(action api.FileAction) (tea.Model, tea.
 	}
 	name := m.slug
 	if m.profile != nil {
-		name = fmt.Sprintf("%s (%s)", m.profile.Name, m.slug)
+		name = fmt.Sprintf("%s (%s)", safeLine(m.profile.Name), m.slug)
 	}
 	where := "the remote copies are replaced by the local ones"
 	if action == api.FileActionPull {

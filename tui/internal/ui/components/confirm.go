@@ -108,7 +108,7 @@ func (c *Confirm) View() string {
 		Padding(1, 2)
 	if c.Word != "" {
 		return style.Render(fmt.Sprintf("%s\n\nType %q and press Enter %s, or Esc to cancel.\n> %s",
-			c.Prompt, c.Word, c.WordHint, c.typed))
+			SafeText(c.Prompt), c.Word, c.WordHint, SafeLine(c.typed)))
 	}
-	return style.Render(c.Prompt + "\n\n[y]es  [n]o (Esc)")
+	return style.Render(SafeText(c.Prompt) + "\n\n[y]es  [n]o (Esc)")
 }

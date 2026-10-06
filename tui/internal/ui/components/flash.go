@@ -45,7 +45,7 @@ func (f *Flash) View() string {
 	} else {
 		style = lipgloss.NewStyle().Foreground(theme.Current.Success)
 	}
-	return style.Render(f.Text)
+	return style.Render(SafeLine(f.Text))
 }
 
 // Clear removes the flash message.

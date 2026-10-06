@@ -253,10 +253,10 @@ func (f *Form) View() string {
 	helpStyle := lipgloss.NewStyle().Foreground(theme.Current.Muted)
 	errStyle := lipgloss.NewStyle().Foreground(theme.Current.Error)
 
-	b.WriteString(titleStyle.Render(f.Title))
+	b.WriteString(titleStyle.Render(SafeLine(f.Title)))
 	b.WriteString("\n\n")
 	if f.Intro != "" {
-		b.WriteString(f.Intro)
+		b.WriteString(SafeText(f.Intro))
 		b.WriteString("\n\n")
 	}
 
@@ -265,28 +265,28 @@ func (f *Form) View() string {
 		if i == f.FocusIdx {
 			prefix = focusStyle.Render("> ")
 		}
-		label := field.Label
+		label := SafeLine(field.Label)
 		if field.Required {
 			label += " *"
 		}
 		var value string
 		if field.Type == FieldDropdown {
 			left, right := theme.Glyphs().DropLeft, theme.Glyphs().DropRight
-			value = left + " " + field.Value + " " + right
+			value = left + " " + SafeLine(field.Value) + " " + right
 		} else {
 			value = field.input.View()
 		}
 		b.WriteString(prefix + labelStyle.Render(label+":") + " " + value + "\n")
 		if i == f.FocusIdx && field.Help != "" {
 			// A help text may span several lines; each is indented.
-			for _, line := range strings.Split(field.Help, "\n") {
+			for _, line := range strings.Split(SafeText(field.Help), "\n") {
 				b.WriteString("    " + helpStyle.Render(line) + "\n")
 			}
 		}
 	}
 
 	if f.Error != "" {
-		b.WriteString("\n" + errStyle.Render(f.Error))
+		b.WriteString("\n" + errStyle.Render(SafeText(f.Error)))
 	}
 
 	b.WriteString("\n\n" + helpStyle.Render("Enter: submit  Esc: cancel  Tab/Shift+Tab: next/previous field  Left/Right: change choice"))

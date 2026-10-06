@@ -170,6 +170,17 @@ golangci-lint run               # make lint (CI uses v2.14.0)
 make install                    # ~/.local/bin/osync-tui and the alias osync
 ```
 
+The tests live in `tui/test/`, outside the packages they test, so measure
+coverage across packages; CI fails below the minimum in `ci.yml`. Fuzz
+targets (`func FuzzXxx`) keep their seeds in `testdata/fuzz/`, and
+`go test` runs those seeds; CI also fuzzes each target for 10 seconds:
+
+```bash
+go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out | tail -1
+go test ./test/cli -run '^$' -fuzz '^FuzzTerminalSafeOutput$' -fuzztime 30s
+```
+
 ## Workflows and images
 
 Workflow changes must pass actionlint, as CI runs it:
@@ -219,9 +230,10 @@ this script only, never for an install.
 
 ## CI
 
-Every workflow runs on GitHub-hosted runners (`ubuntu-24.04`, and
-`ubuntu-24.04-arm` for the arm64 release images), so CI needs nothing but
-the repository. [`ci.yml`](.github/workflows/ci.yml) is the gate for every
+Every workflow runs on GitHub-hosted runners (`ubuntu-24.04`,
+`ubuntu-24.04-arm` for the arm64 release images, and `macos-15` and
+`windows-2025` for the TUI's tests on the other systems it ships for), so
+CI needs nothing but the repository. [`ci.yml`](.github/workflows/ci.yml) is the gate for every
 push and pull request: backend, web UI, TUI, actionlint, and both image
 builds with a Trivy scan. Vulnerability scans (pip-audit, pnpm audit,
 govulncheck, Trivy) run weekly in

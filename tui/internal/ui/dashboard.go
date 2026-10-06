@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -56,7 +57,10 @@ type syncAllPreview struct {
 type DashboardModel struct {
 	client  *api.Client
 	loading bool
-	err     error
+	err     error // the aggregate status could not be read
+	// profilesErr: the profile list could not be read. Kept apart from err
+	// so that one answer does not clear the other's error.
+	profilesErr error
 
 	aggStatus    *api.AggregateStatusResponse
 	health       *api.HealthResponse
@@ -77,6 +81,9 @@ type DashboardModel struct {
 	// Switch all mirror profiles to two-way: the profiles captured when the
 	// prompt opened.
 	pendingSwitchAll []api.ProfileStatusResponse
+	// Stop all: the busy profiles captured when the prompt opened; the
+	// answer stops exactly these.
+	pendingStopAll []api.ProfileStatusResponse
 
 	width  int
 	height int
@@ -129,7 +136,7 @@ func (m DashboardModel) KeyBindings() []components.KeyBinding {
 	return []components.KeyBinding{
 		{Key: "p", Desc: "Push all enabled profiles (counts files, then asks)"},
 		{Key: "l", Desc: "Pull all enabled profiles (counts files, then asks)"},
-		{Key: "s", Desc: "Stop all running syncs"},
+		{Key: "s", Desc: "Stop all running syncs (lists them, then asks)"},
 		{Key: "w", Desc: "Switch all mirror profiles to two-way sync (lists them, then asks)"},
 		{Key: "z", Desc: "Pause automatic syncing of all profiles (kept until you resume; syncs you start still run)"},
 		{Key: "u", Desc: "Resume all profiles you paused (pauses OmniSync set to protect files stay)"},
@@ -210,11 +217,10 @@ func (m DashboardModel) handlePollResult(msg PollResultMsg) (tea.Model, tea.Cmd)
 			m.remotes = data
 		}
 	case []api.ProfileStatusResponse:
+		m.profilesErr = msg.Err
 		if msg.Err != nil {
-			m.err = msg.Err
 			return m, nil
 		}
-		m.err = nil
 		m.profiles = data
 		m.updateProfileTable()
 	default:
@@ -261,6 +267,14 @@ func (m DashboardModel) handleActionResult(msg ActionResultMsg) (tea.Model, tea.
 }
 
 func (m DashboardModel) handleConfirmResult(msg components.ConfirmResultMsg) (tea.Model, tea.Cmd) {
+	if msg.Tag == "stop_all" {
+		targets := m.pendingStopAll
+		m.pendingStopAll = nil
+		if !msg.Confirmed || len(targets) == 0 {
+			return m, flash("Stop all cancelled; the syncs keep running", false)
+		}
+		return m, stopAllCmd(m.client, targets)
+	}
 	if msg.Tag == "switch_all_two_way" {
 		targets := m.pendingSwitchAll
 		m.pendingSwitchAll = nil
@@ -338,7 +352,7 @@ func (m DashboardModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "l":
 		return m.askSyncAll(api.SyncDirectionPull)
 	case "s":
-		return m, m.stopAll()
+		return m.askStopAll()
 	case "w":
 		return m.askSwitchAll()
 	case "z":
@@ -464,7 +478,7 @@ func syncAllPrompt(check *syncAllCheck) string {
 		if maxDelete != nil {
 			limit = fmt.Sprintf("delete limit %d files", *maxDelete)
 		}
-		line := fmt.Sprintf("%s (%s): %s; %s", p.Name, p.Slug, counts, limit)
+		line := fmt.Sprintf("%s (%s): %s; %s", safeLine(p.Name), safeLine(p.Slug), counts, limit)
 		if p.TwoWay() {
 			line += ", two-way"
 			twoWay++
@@ -498,19 +512,39 @@ func syncAllPrompt(check *syncAllCheck) string {
 	return b.String()
 }
 
-func (m DashboardModel) stopAll() tea.Cmd {
-	var busy []string
+// askStopAll lists the profiles that are syncing and asks before stopping
+// them; the answer acts on exactly the listed profiles.
+func (m DashboardModel) askStopAll() (tea.Model, tea.Cmd) {
+	var busy []api.ProfileStatusResponse
 	for _, p := range m.profiles {
 		if p.State.Busy() {
-			busy = append(busy, p.Slug)
+			busy = append(busy, p)
 		}
 	}
 	if len(busy) == 0 {
-		return flash("No sync is running", false)
+		return m, flash("No sync is running", false)
 	}
-	client := m.client
-	var cmds []tea.Cmd
-	for _, slug := range busy {
+	m.pendingStopAll = busy
+	m.confirm = components.NewConfirm(stopAllPrompt(busy), "stop_all")
+	return m, nil
+}
+
+// stopAllPrompt names each sync that "Stop all" stops.
+func stopAllPrompt(targets []api.ProfileStatusResponse) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Stop %d running sync(s)?\n\n", len(targets))
+	for _, p := range targets {
+		fmt.Fprintf(&b, "  %s (%s): %s\n", safeLine(p.Name), safeLine(p.Slug), stateLabel(p.State, nil, false))
+	}
+	b.WriteString("\nEach sync stops where it is. Automatic syncing continues.")
+	return b.String()
+}
+
+// stopAllCmd stops the sync of each profile, one request each.
+func stopAllCmd(client *api.Client, targets []api.ProfileStatusResponse) tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(targets))
+	for _, p := range targets {
+		slug := p.Slug
 		cmds = append(cmds, func() tea.Msg {
 			_, err := client.StopProfileSync(context.Background(), slug)
 			return ActionResultMsg{ViewID: ViewDashboard, Action: "stop_all", Err: err}
@@ -538,8 +572,8 @@ func (m DashboardModel) View() tea.View {
 		return tea.NewView(b.String())
 	}
 
-	if m.err != nil {
-		b.WriteString(errorLine(m.err))
+	if err := cmp.Or(m.err, m.profilesErr); err != nil {
+		b.WriteString(errorLine(err))
 	}
 
 	if m.loading && m.aggStatus == nil && m.err == nil {
@@ -602,25 +636,25 @@ func (m DashboardModel) renderAggregatePanel() string {
 	warn := lipgloss.NewStyle().Foreground(theme.Current.Warning)
 	for _, p := range s.PausedProfiles {
 		if p.UserPaused && p.PendingChanges == 0 {
-			b.WriteString(labelStyle.Render(fmt.Sprintf("  %s: paused by you (u resumes all)", p.Name)))
+			b.WriteString(labelStyle.Render(fmt.Sprintf("  %s: paused by you (u resumes all)", safeLine(p.Name))))
 		} else {
-			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: intervals paused (%d unresolved differences)", theme.Glyphs().Warning, p.Name, p.PendingChanges)))
+			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: intervals paused (%d unresolved differences)", theme.Glyphs().Warning, safeLine(p.Name), p.PendingChanges)))
 		}
 		b.WriteString("\n")
 	}
 	for _, p := range s.ProfilesSummary {
 		if line := progressLine(p.Progress); line != "" && p.State.Busy() {
-			fmt.Fprintf(&b, "  %s: %s\n", p.Name, valueStyle.Render(line))
+			fmt.Fprintf(&b, "  %s: %s\n", safeLine(p.Name), valueStyle.Render(line))
 		}
 	}
 	for _, p := range s.ProfilesSummary {
 		if p.ResyncRequired {
 			why := ""
 			if p.LastError != nil && *p.LastError != "" {
-				why = " (" + *p.LastError + ")"
+				why = " (" + safeLine(*p.LastError) + ")"
 			}
 			b.WriteString(warn.Render(fmt.Sprintf("  %s %s: resync required, two-way syncing is paused%s; open the profile and press R",
-				theme.Glyphs().Warning, p.Name, why)))
+				theme.Glyphs().Warning, safeLine(p.Name), why)))
 			b.WriteString("\n")
 		}
 	}
@@ -659,7 +693,7 @@ func (m DashboardModel) renderHealthPanel() string {
 			checkMark(m.network.RcloneNetwork.OK))
 
 	case m.networkErr != nil:
-		b.WriteString(labelStyle.Render("  network check failed: " + m.networkErr.Error()))
+		b.WriteString(labelStyle.Render("  network check failed: " + safeLine(m.networkErr.Error())))
 		b.WriteString("\n")
 	default:
 		b.WriteString(labelStyle.Render("  network: checking..."))
@@ -679,11 +713,11 @@ func (m DashboardModel) renderRemotesLine() string {
 	case m.remotes != nil:
 		parts := make([]string, 0, len(m.remotes.Remotes))
 		for _, r := range m.remotes.Remotes {
-			parts = append(parts, r.Remote+": "+checkMark(r.Accessible))
+			parts = append(parts, safeLine(r.Remote)+": "+checkMark(r.Accessible))
 		}
 		return "  remotes: " + strings.Join(parts, "  ") + "\n"
 	case m.remotesErr != nil:
-		return labelStyle.Render("  remotes: unknown (check failed: "+m.remotesErr.Error()+")") + "\n"
+		return labelStyle.Render("  remotes: unknown (check failed: "+safeLine(m.remotesErr.Error())+")") + "\n"
 	default:
 		return labelStyle.Render("  remotes: checking...") + "\n"
 	}
@@ -702,9 +736,9 @@ func (m DashboardModel) renderProfilesSection() string {
 		}
 		reason := "no reason reported"
 		if p.LastError != nil && *p.LastError != "" {
-			reason = *p.LastError
+			reason = safeLine(*p.LastError)
 		}
-		b.WriteString(errStyle.Render(fmt.Sprintf("  %s %s: %s", theme.Glyphs().Cross, p.Name, reason)))
+		b.WriteString(errStyle.Render(fmt.Sprintf("  %s %s: %s", theme.Glyphs().Cross, safeLine(p.Name), reason)))
 		b.WriteString("\n")
 	}
 

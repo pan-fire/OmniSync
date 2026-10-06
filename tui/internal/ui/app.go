@@ -547,7 +547,10 @@ func (a *App) pollInterval(id ViewID) time.Duration {
 // screens, uses the alternate screen, so switching between them does not
 // flicker or leave output in the scrollback.
 func (a App) View() tea.View {
-	v := tea.NewView(a.render())
+	// The views draw server text through safeLine and safeText; SafeFrame
+	// catches what one of them missed, so no view can move the cursor or
+	// send a sequence to the terminal.
+	v := tea.NewView(components.SafeFrame(a.render()))
 	v.AltScreen = true
 	// Clicks on the tabs switch views; the wheel scrolls. Most terminals
 	// (also inside tmux or over SSH) still select text with Shift+drag.
@@ -694,7 +697,7 @@ func (a App) renderStartupError() string {
 	b.WriteString(infoStyle.Render(fmt.Sprintf("  Cannot reach backend at: %s", a.config.URL)))
 	b.WriteString("\n")
 	if a.startupError != nil {
-		b.WriteString(mutedStyle.Render(fmt.Sprintf("  %s", a.startupError.Error())))
+		b.WriteString(mutedStyle.Render(fmt.Sprintf("  %s", safeLine(a.startupError.Error()))))
 	}
 	b.WriteString("\n\n")
 

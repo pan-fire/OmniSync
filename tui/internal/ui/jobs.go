@@ -411,9 +411,9 @@ func (m JobsModel) pageLabel() string {
 func (m JobsModel) jobProfile(j api.SyncJobResponse) string {
 	switch {
 	case j.ProfileName != nil && *j.ProfileName != "":
-		return *j.ProfileName
+		return safeLine(*j.ProfileName)
 	case j.ProfileSlug != nil && *j.ProfileSlug != "":
-		return *j.ProfileSlug
+		return safeLine(*j.ProfileSlug)
 	case m.filter != "":
 		return m.filter
 	}

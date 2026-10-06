@@ -142,3 +142,26 @@ func TestTable_CellColors(t *testing.T) {
 		t.Errorf("colour applied to more than one cell: %q", line)
 	}
 }
+
+// A name from the server stays on its row: wide characters count the two
+// columns they take (they used to wrap the cell onto a second line and
+// push the next column), and a newline, tab or escape sequence shows as
+// U+FFFD instead of starting a row or restyling the screen.
+func TestTable_ServerNamesStayOnTheirRow(t *testing.T) {
+	table := components.NewTable([]components.Column{{Title: "Name", Width: 8}, {Title: "Size", Width: 6}}, 10)
+	table.SetRows([]components.Row{
+		{Key: "a", Values: []string{"日本語のファイル名.txt", "1 KB"}},
+		{Key: "b", Values: []string{"evil\nfake\trow\x1b[8m", "2 KB"}},
+	})
+	lines := strings.Split(strings.TrimRight(table.View(), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("%d lines, want a header and two rows:\n%s", len(lines), strings.Join(lines, "\n"))
+	}
+	first, second := stripANSI(lines[1]), stripANSI(lines[2])
+	if !strings.Contains(first, "日本語…") || !strings.Contains(first, "1 KB") || lipgloss.Width(first) > 3+8+1+6+1 {
+		t.Errorf("wide name row = %q", first)
+	}
+	if !strings.Contains(second, "evil�fa") || strings.Contains(lines[2], "\x1b[8m") {
+		t.Errorf("control characters row = %q", lines[2])
+	}
+}

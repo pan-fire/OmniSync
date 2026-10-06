@@ -90,7 +90,7 @@ func switchAllPrompt(targets []api.ProfileStatusResponse) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Switch all %d mirror profile(s) to two-way sync?\n\n", len(targets))
 	for _, p := range targets {
-		line := fmt.Sprintf("  %s (%s): %s %s %s", p.Name, p.Slug, p.LocalDir, theme.Glyphs().LeftRight, p.RemoteDir)
+		line := fmt.Sprintf("  %s (%s): %s %s %s", safeLine(p.Name), safeLine(p.Slug), safeLine(p.LocalDir), theme.Glyphs().LeftRight, safeLine(p.RemoteDir))
 		if !p.Enabled {
 			line += " (disabled)"
 		}
@@ -119,7 +119,7 @@ func switchAllTwoWayCmd(client *api.Client, slugs []string) tea.Cmd {
 		mode := api.SyncModeTwoWay
 		for _, slug := range slugs {
 			if _, err := client.UpdateProfile(context.Background(), slug, api.ProfileUpdateRequest{SyncMode: &mode}); err != nil {
-				res.failed = append(res.failed, slug+": "+err.Error())
+				res.failed = append(res.failed, safeLine(slug+": "+err.Error()))
 				continue
 			}
 			res.switched = append(res.switched, slug)
