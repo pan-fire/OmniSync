@@ -114,6 +114,7 @@ def responses() -> dict[str, BaseModel]:
                 remote=s.SyncPreviewCounts(deletes=60, replaces=4, creates=5, exceeds_max_delete=True),
                 conflicts=2, resync=True, resync_required=True, error="bisync dry run failed",
             ),
+            warnings=[s.SyncWarning(code=s.SyncWarningCode.SYMLINK_SHADOW, count=1, paths=["Fotos/aktuell"])],
         ),
         "DiffResponse": s.DiffResponse(
             files=[
@@ -129,6 +130,7 @@ def responses() -> dict[str, BaseModel]:
             ),
             pagination=s.DiffPagination(offset=10, limit=5, total=21, has_more=True),
             error="rclone warning",
+            warnings=[s.SyncWarning(code=s.SyncWarningCode.NAME_COLLISION, count=2, paths=["docs/café.txt"])],
         ),
         "SelectiveSyncResponse": s.SelectiveSyncResponse(
             job_id=43, total=3, succeeded=2, failed=1,
@@ -143,6 +145,7 @@ def responses() -> dict[str, BaseModel]:
             id=42, direction=s.JobDirection.TWO_WAY, started_at=T1, finished_at=T2,
             status=s.JobStatus.COMPLETED, files_changed=17, conflicts=1, errors=2,
             profile_slug="docs", profile_name="Dokumente",
+            warnings=[s.SyncWarning(code=s.SyncWarningCode.NAME_NOT_UTF8, count=1, paths=["bad\\xff.txt"])],
         ),
         "FileChangeResponse": s.FileChangeResponse(
             id=9, job_id=42, file_path="docs/report.pdf",

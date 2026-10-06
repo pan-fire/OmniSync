@@ -56,7 +56,10 @@ open a picker for local folders (inside your sync folder) and for folders on
 the chosen remote. With no remote yet, **Setup Wizard** under the remote list
 creates one without leaving the form. **Test Sync** writes a small test file
 into the local folder, uploads it to the remote folder, checks that it
-arrived and removes it again, and shows which step failed if one did.
+arrived and removes it again, and shows which step failed if one did. If
+the test file cannot be removed from the remote, the test fails at that
+step: a file named `.omnisync-test-…` is left in the remote folder (the
+OmniSync log names it), and you can delete it yourself.
 
 ### A profile's page
 
@@ -177,7 +180,11 @@ Selective for per-file actions, Two-way, or Resync), start time, status,
 files changed and errors. Click a job for its details and the **File
 Changes** table (each file created, modified or deleted, and for newer jobs
 the **Side**, Local or Remote, it changed on). The error message of a failed sync is
-shown on the profile ("Last error").
+shown on the profile ("Last error"). A sync that completed but left files
+alone or treated them specially reads **Completed with warnings**; its
+details list each kind of warning with the files concerned (see
+[File names and links](how-syncing-works.md#file-names-and-links)). The
+sync confirmation and the diff show the same warnings before you sync.
 
 ## Remotes
 

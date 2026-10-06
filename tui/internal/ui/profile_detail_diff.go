@@ -122,6 +122,7 @@ func (m ProfileDetailModel) renderDiffTab() string {
 	if m.diffData.Error != nil && *m.diffData.Error != "" {
 		b.WriteString(errorLine(fmt.Errorf("%s", *m.diffData.Error)))
 	}
+	b.WriteString(renderWarnings(m.diffData.Warnings))
 	b.WriteString("\n")
 	b.WriteString(m.diffTable.View())
 

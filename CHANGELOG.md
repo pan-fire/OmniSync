@@ -12,6 +12,125 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **A differing file with a modification time on one side only is a
+  conflict.** When rclone gave a readable modification time for only one
+  copy of a file that differs, the diff counted it as changed on that side
+  ("modified local" or "modified remote"), although nothing showed that the
+  other copy was unchanged, so a push or pull could overwrite a change. It
+  is now listed as a conflict, for you to review, like a file with no
+  readable time on either side.
+- **Every sync job and conflict record belongs to a profile.** A database
+  migration (0012) makes the profile required on sync jobs and conflict
+  records. OmniSync has always set it since 0.12.0, and deleting a profile
+  deletes its history, so a row without a profile could be neither shown
+  under a profile nor acted on. Any such leftover rows are removed (with
+  their file changes and errors; the count is logged), and the copy of the
+  database taken before migrating still has them.
+- **Jobs, the sync preview and the diff report names a sync cannot carry
+  as they are.** A new `warnings` list (`code`, `count`, up to 20 `paths`)
+  on `SyncJobResponse`, `SyncPreviewResponse` and `DiffResponse` names
+  local files whose names exist in two spellings equal after Unicode
+  normalisation (rclone syncs only one of them), names that are not valid
+  UTF-8, and symbolic links that share a name with a remote file or
+  folder. A job with warnings shows as "Completed with warnings" in the
+  web UI, its detail lists them, the sync confirmation and the diff show
+  them before anything runs, the log has one line per kind, and the
+  completed notification becomes a warning. The terminal UI shows them
+  too: "warnings" in the job lists, "completed with warnings" and the
+  warnings in a job's detail, and the warnings in the sync confirmation
+  and the diff tab. See
+  [File names and links](docs/gem/how-syncing-works.md#file-names-and-links).
+
+### Fixed
+
+- **A failed desktop notification shows its real error.** The notifiers
+  read the tool's error output as strict UTF-8, so on a Windows host in a
+  language other than English (PowerShell writes in the console code page)
+  the error became a text-decoding error instead of the reason. Undecodable
+  bytes are now replaced, on every platform.
+- **Linux desktop notifications about files starting with `-` arrive.**
+  `notify-send` read a title or body starting with `-` (a file named
+  `-draft.txt`) as an option and refused it, so the notification was lost.
+  The text now follows `--`.
+- **The sync test probes the folder the profile syncs.** For remotes tested
+  through rclone (SFTP, SMB, local and the like), the leading `/` of the
+  remote path was dropped, so `server:/srv/data` was tested as
+  `server:srv/data` under the remote's home folder, where the test could
+  create folders that were never meant to exist. The rclone test now uses
+  the path exactly as the sync does. The Google Drive, Dropbox and OneDrive
+  tests also ignore a trailing or doubled `/` now.
+- **A sync test that leaves its test file behind fails.** When the
+  `.omnisync-test-…` file could not be deleted from the remote, the test
+  still passed and the file stayed there: rclone's failure was ignored, and
+  the Google Drive, Dropbox and OneDrive deletes only failed when the
+  provider could not be reached at all, not when it refused the delete (or,
+  for Google Drive, when the folder could not be looked up). The test now
+  fails at the cleanup step ("The test file could not be removed from the
+  remote.") unless the file is confirmed gone; "not found" counts as gone.
+  The log names the file. The Google Drive cleanup no longer creates the
+  folder it looks into.
+- **The trash list says when rclone is not available.** GET
+  /profiles/{slug}/trash answered 502 `rclone_failed` (and logged a crash)
+  while the backend's rclone service was not running, for example during
+  start-up; it now answers 503 `service_unavailable`, like restoring and
+  deleting from the trash.
+- **One trash restore that cannot keep the file in its place no longer
+  stops the others.** If the trash already held a version of a file for
+  every second of the hour after a restore, restoring it raised an
+  internal error that ended the whole batch with a 500. That file is now
+  reported as failed (nothing moved, with a message that says why) and the
+  other selected files are still restored.
+- **A hung helper process no longer stays behind.** When `rclone` did not
+  answer within its time limit in the network check (GET
+  /health/network) or while storing a password, OmniSync gave up waiting
+  but left the process running; each check could add one. Desktop
+  notifiers that hang were killed but not reaped. All of them are now
+  killed and reaped when their time is up or the request is cancelled.
+- **A push or pull no longer overwrites a manually flagged or conflicting
+  file when the profile filters with includes.** OmniSync's exclusions
+  were passed to rclone in a filter file, which rclone applies after a
+  profile's filter rules and after its `--include` flags: with an
+  include-style filter such as `+ /Docs/**`, `- **`, a flagged file or an
+  unresolved conflict inside `Docs` was synced anyway, overwriting the
+  other side's version (it went to the trash). The exclusions now always
+  come first, a `!` rule in a profile's filters can no longer clear them
+  (or the trash's exclusion; for a two-way profile it made every sync
+  fail), and a flagged name ending in a space is matched exactly. What the
+  profile's filters select is unchanged. See
+  [What a sync leaves out](docs/gem/how-syncing-works.md#what-a-sync-leaves-out-and-the-profiles-filters).
+- **A pull or two-way sync no longer replaces a local symbolic link.** A
+  remote file with the name of a local link was copied over the link (its
+  target was untouched), and a remote folder with that name was written
+  through the link into the folder it points to, outside the synced
+  folder. Both paths are now left out of the run, and the job says so; a
+  per-file pull onto a link is refused. A push still moves such a remote
+  item to the remote trash, as for any file missing locally, and now
+  reports it.
+- **Two spellings of one name no longer sync silently as one.** rclone
+  matches names after Unicode normalisation, so of `café.txt` written
+  composed and decomposed (as macOS writes it) only one was synced, with a
+  folder's whole content, while the job said "completed". The job, the
+  preview and the diff now name them.
+- **Per-file actions on a name that is not valid UTF-8 say why they
+  fail** ("The file name is not valid UTF-8 ...") instead of claiming the
+  file does not exist.
+- **Large files show up in the job history.** rclone copies a large file
+  (256 MiB and up, to or from most cloud storage) in several streams and
+  reports it differently; such files were left out of a sync's changed
+  files and its count. The files themselves were always synced.
+
+### Security
+
+- **Windows toasts no longer build PowerShell code from file names.** The
+  title and body used to be pasted into the PowerShell command as quoted
+  text, with only `'` escaped. PowerShell also ends a quoted string at the
+  typographic quotes `‘ ’ ‚ ‛`, so a file named `Bob’s report.docx` broke
+  the toast, and a crafted file name could run PowerShell commands on the
+  Windows host. The command is now fixed text, and the title and body
+  reach it as environment variables, so they are only ever data.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed

@@ -56,7 +56,7 @@ on both sides:
 | remote only | exists only in the cloud folder |
 | modified local | differs; only the local copy changed since the last sync |
 | modified remote | differs; only the cloud copy changed since the last sync |
-| conflict | differs and changed on both sides since the last sync (or OmniSync cannot tell which side changed) |
+| conflict | differs and changed on both sides since the last sync, or OmniSync cannot tell which side changed (for example, when the modification time of either copy is missing or unreadable) |
 | manual | you marked it to handle yourself |
 
 You can filter by category, search, sort, and group the list by folder.

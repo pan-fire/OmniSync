@@ -409,6 +409,37 @@ async def test_emptied_local_folder_with_marker_deletes_nothing(env):
     assert "local folder is empty" in (engine._state.last_error or "")
 
 
+async def test_emptied_remote_folder_with_marker_deletes_nothing(env):
+    """The mirror image: a remote emptied but for the marker (a wiped bucket,
+    a restored share) must not empty the local folder."""
+    engine = await synced(env, {"a.txt": "A", "b.txt": "B"})
+    before = files_under(env.local)
+    for name in ("a.txt", "b.txt"):
+        (env.remote / name).unlink()
+
+    await engine.two_way_sync()
+
+    assert files_under(env.local) == before
+    assert (await env.last_job()).status == "failed"
+    assert "remote folder is empty" in (engine._state.last_error or "")
+
+
+async def test_unreadable_local_folder_deletes_nothing(env):
+    engine = await synced(env, {"a.txt": "A"})
+    before = files_under(env.remote)
+    env.local.chmod(0)
+    try:
+        if os.access(env.local, os.R_OK):
+            pytest.skip("running as root: permissions do not apply")
+        await engine.two_way_sync()
+    finally:
+        env.local.chmod(0o755)
+
+    assert files_under(env.remote) == before
+    assert (await env.last_job()).status == "failed"
+    assert "cannot be read" in (engine._state.last_error or "")
+
+
 async def test_unmounted_local_folder_deletes_nothing(env):
     engine = await synced(env, {"a.txt": "A"})
     before = files_under(env.remote)

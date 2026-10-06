@@ -16,9 +16,11 @@ from backend.api.schemas import (
     SyncPreviewCounts,
     SyncPreviewResponse,
     SyncStatusResponse,
+    SyncWarningCode,
 )
 from backend.db.models import ManualFlag
 from backend.services.sync_engine.common import logger
+from backend.services.sync_engine.names import link_filter_rules
 from backend.services.sync_engine.reporting import ReportingMixin
 
 
@@ -56,18 +58,21 @@ class DiffMixin(ReportingMixin):
         state alone, and it takes no lock (rclone only compares). Files a
         bulk sync excludes (manual flags, unresolved conflicts of the cached
         diff) are left out of the counts, as the sync leaves them alone.
+        ``warnings`` lists the local names a sync cannot carry as they are.
         """
         config = self._profile
         max_delete = self.max_delete
         mode = SyncMode(config.sync_mode)
-        two_way = await self._two_way_preview() if config.two_way else None
+        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW)
+        two_way = await self._two_way_preview(link_filter_rules(links)) if config.two_way else None
         result = await self._rclone.check_diff(
             config.local_dir, config.remote_dir,
             rclone_filter=config.rclone_filter, rclone_args=config.rclone_args,
         )
         check = SyncCheckResponse(**result)
         if check.error:
-            return SyncPreviewResponse(max_delete=max_delete, error=check.error, sync_mode=mode, two_way=two_way)
+            return SyncPreviewResponse(max_delete=max_delete, error=check.error, sync_mode=mode, two_way=two_way,
+                                       warnings=warnings)
 
         excluded = set(await self.get_manual_flags())
         diff = self._state.cached_diff
@@ -88,7 +93,7 @@ class DiffMixin(ReportingMixin):
         return SyncPreviewResponse(
             push=counts(deletes=len(remote_only), creates=len(local_only)),
             pull=counts(deletes=len(local_only), creates=len(remote_only)),
-            excluded=skipped, max_delete=max_delete, sync_mode=mode, two_way=two_way,
+            excluded=skipped, max_delete=max_delete, sync_mode=mode, two_way=two_way, warnings=warnings,
         )
 
     @staticmethod
@@ -263,13 +268,13 @@ class DiffMixin(ReportingMixin):
                 except (ValueError, TypeError):
                     pass
 
-            # Classify based on timestamps
+            # Classify based on timestamps. A one-sided category is only
+            # given on evidence from both sides: with a time missing or
+            # unreadable on either side, nothing shows that the other side
+            # is unchanged, and a one-sided label would let a push or pull
+            # overwrite it. Such a file is a conflict, for the user to review.
             if local_mod is not None and remote_mod is not None:
                 category = self._classify_differ(local_mod, remote_mod, last_sync)
-            elif local_mod is not None:
-                category = ChangeCategory.MODIFIED_LOCAL
-            elif remote_mod is not None:
-                category = ChangeCategory.MODIFIED_REMOTE
             else:
                 category = ChangeCategory.MODIFIED_BOTH
 
@@ -295,7 +300,10 @@ class DiffMixin(ReportingMixin):
         files = [f for f in files if f.path not in self._skipped]
 
         summary = self._summarize(files)
-        response = DiffResponse(files=files, summary=summary)
+        # Local names a sync cannot carry as they are, among what it sees.
+        warnings, _links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW,
+                                                     listed={e["Path"] for e in local_entries if "Path" in e})
+        response = DiffResponse(files=files, summary=summary, warnings=warnings)
 
         # Cache result and update pending changes
         self._state.cache_diff(response)

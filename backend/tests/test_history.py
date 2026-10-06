@@ -66,7 +66,7 @@ async def add_target(db: async_sessionmaker[AsyncSession], profile_id: int) -> i
 
 
 async def add_job(
-    db: async_sessionmaker[AsyncSession], profile_id: int | None, days_ago: float,
+    db: async_sessionmaker[AsyncSession], profile_id: int, days_ago: float,
     status: str = "completed", changes: int = 0, errors: int = 0,
 ) -> int:
     started = NOW - timedelta(days=days_ago)
@@ -155,11 +155,10 @@ async def test_the_newest_jobs_of_each_profile_are_kept(db) -> None:
     b = await add_profile(db, "b")
     a_jobs = [await add_job(db, a, 200 + i) for i in range(5)]  # all old; a_jobs[0] newest
     b_jobs = [await add_job(db, b, 300 + i) for i in range(2)]
-    legacy = [await add_job(db, None, 400 + i) for i in range(3)]
 
     await prune_history(db, 90, keep_jobs=2, now=NOW)
 
-    assert await ids(db, SyncJob) == {*a_jobs[:2], *b_jobs, *legacy[:2]}
+    assert await ids(db, SyncJob) == {*a_jobs[:2], *b_jobs}
 
 
 async def test_running_jobs_and_unresolved_conflicts_are_kept(db) -> None:

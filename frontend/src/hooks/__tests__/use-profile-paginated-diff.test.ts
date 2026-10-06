@@ -64,6 +64,16 @@ describe('useProfilePaginatedDiff', () => {
     expect(result.current.allFiles).toHaveLength(100);
     expect(result.current.hasMore).toBe(true);
     expect(result.current.summary?.total).toBe(150);
+    expect(result.current.warnings).toEqual([]);
+  });
+
+  it('takes the warnings from the first page', async () => {
+    const warnings = [{ code: 'name_collision' as const, count: 1, paths: ['café.txt'] }];
+    mockedApi.getProfileDiff.mockResolvedValue({ ...PAGE_1, warnings });
+    const { result } = renderHook(() => useProfilePaginatedDiff('default'), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.warnings).toEqual(warnings);
   });
 
   it('loadMore accumulates files', async () => {

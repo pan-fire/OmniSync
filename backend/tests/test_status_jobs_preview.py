@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -44,10 +44,19 @@ env = test_profiles.env
     (["--max-delete=-1"], None),  # rclone: no limit
     (["--max-delete", "lots"], None),
     (["--max-delete"], None),
+    (["5", "--max-delete"], None),  # the value follows the flag, never precedes it
+    (["--max-delete", "7", "--transfers"], 7),
+    (["--max-delete=5=6"], None),  # not a number rclone would accept
 ])
 def test_effective_max_delete(monkeypatch, args, expected):
     monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 50)
     assert effective_max_delete(args) == expected
+
+
+def test_a_default_of_zero_allows_no_deletion(monkeypatch):
+    """OMNISYNC_MAX_DELETE=0 is a limit of nothing, not "no limit"."""
+    monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 0)
+    assert effective_max_delete([]) == 0
 
 
 def test_negative_default_means_no_limit(monkeypatch):
@@ -91,18 +100,15 @@ async def test_jobs_carry_the_profile_slug_and_name(env: Env):
     async with env.factory() as session:
         session.add_all([
             SyncJob(profile_id=a["id"], direction="push", started_at=now, status="completed"),
-            SyncJob(profile_id=None, direction="pull", started_at=now - timedelta(minutes=1), status="failed"),
         ])
         await session.commit()
 
     jobs = (await env.client.get("/jobs")).json()
     assert [(j["direction"], j["profile_slug"], j["profile_name"]) for j in jobs] == [
         ("push", "alpha-docs", "Alpha Docs"),
-        ("pull", None, None),  # from before profiles existed
     ]
     one = (await env.client.get(f"/jobs/{jobs[0]['id']}")).json()
     assert (one["profile_slug"], one["profile_name"]) == ("alpha-docs", "Alpha Docs")
-    assert (await env.client.get(f"/jobs/{jobs[1]['id']}")).json()["profile_slug"] is None
     assert (await env.client.get("/jobs/9999")).status_code == 404
 
     filtered = (await env.client.get("/jobs", params={"profile": "alpha-docs"})).json()

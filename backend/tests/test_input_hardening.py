@@ -580,7 +580,7 @@ async def test_body_under_the_limit_reaches_the_route(test_client):
 async def test_conflict_listing_is_paginated(test_client, test_db_factory):
     async with test_db_factory() as session:
         for i in range(5):
-            session.add(Conflict(file_path=f"f{i}.txt", resolved=False))
+            session.add(Conflict(file_path=f"f{i}.txt", resolved=False, profile_id=1))
         await session.commit()
     resp = await test_client.get("/conflicts")
     assert resp.status_code == 200

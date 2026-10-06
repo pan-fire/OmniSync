@@ -195,7 +195,8 @@
     "statuses": {
       "running": "Running",
       "completed": "Completed",
-      "failed": "Failed"
+      "failed": "Failed",
+      "completedWithWarnings": "Completed with warnings"
     },
     "actions": {
       "created": "Created",
@@ -1059,6 +1060,21 @@
     "overrideNote": "This profile syncs both ways; this is a one-time, one-way override.",
     "noPreviewWarning": "The preview failed, so it is unknown which files this sync would replace or delete. The delete limit and the trash folder still apply.",
     "confirmWithoutPreview": "I understand that this sync runs without a preview and may replace or delete files"
+  },
+  "syncWarnings": {
+    "title": "Warnings",
+    "name_collision_one": "{{count}} local name exists in two spellings that differ only in Unicode normalisation (an accented letter stored as one character or as two). rclone syncs only one of them; rename one so that both are synced.",
+    "name_collision_other": "{{count}} local names exist in two spellings that differ only in Unicode normalisation (an accented letter stored as one character or as two). rclone syncs only one spelling of each; rename one so that both are synced.",
+    "name_not_utf8_one": "{{count}} local name is not valid UTF-8. Push, pull and two-way sync carry it, but per-file actions cannot; renaming it is safest.",
+    "name_not_utf8_other": "{{count}} local names are not valid UTF-8. Push, pull and two-way sync carry them, but per-file actions cannot; renaming them is safest.",
+    "symlink_shadow_one": "{{count}} local symbolic link has the name of a remote file or folder. Links are not synced: a push moves that remote item to the trash, a pull or two-way sync leaves both alone.",
+    "symlink_shadow_other": "{{count}} local symbolic links have the names of remote files or folders. Links are not synced: a push moves those remote items to the trash, a pull or two-way sync leaves both alone.",
+    "symlink_kept_one": "{{count}} remote file or folder was not synced because a local symbolic link has its name. The link and the remote item were left as they are.",
+    "symlink_kept_other": "{{count}} remote files or folders were not synced because local symbolic links have their names. The links and the remote items were left as they are.",
+    "symlink_trashed_one": "{{count}} remote file or folder was moved to the remote trash because a local symbolic link has its name (links are not synced).",
+    "symlink_trashed_other": "{{count}} remote files or folders were moved to the remote trash because local symbolic links have their names (links are not synced).",
+    "more_one": "… and {{count}} more",
+    "more_other": "… and {{count}} more"
   },
   "syncMode": {
     "label": "Sync mode",

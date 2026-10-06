@@ -109,7 +109,8 @@
     "statuses": {
       "running": "Läuft",
       "completed": "Abgeschlossen",
-      "failed": "Fehlgeschlagen"
+      "failed": "Fehlgeschlagen",
+      "completedWithWarnings": "Abgeschlossen mit Warnungen"
     },
     "actions": {
       "created": "Erstellt",
@@ -1059,6 +1060,21 @@
     "overrideNote": "Dieses Profil synchronisiert in beide Richtungen; dies ist eine einmalige Übersteuerung in eine Richtung.",
     "noPreviewWarning": "Die Vorschau ist fehlgeschlagen, daher ist unbekannt, welche Dateien diese Synchronisierung ersetzen oder löschen würde. Das Löschlimit und der Papierkorb-Ordner gelten weiterhin.",
     "confirmWithoutPreview": "Mir ist klar, dass diese Synchronisierung ohne Vorschau läuft und Dateien ersetzen oder löschen kann"
+  },
+  "syncWarnings": {
+    "title": "Warnungen",
+    "name_collision_one": "{{count}} lokaler Name existiert in zwei Schreibweisen, die sich nur in der Unicode-Normalisierung unterscheiden (ein Buchstabe mit Akzent als ein oder als zwei Zeichen gespeichert). rclone synchronisiert nur eine davon; benenne eine um, damit beide synchronisiert werden.",
+    "name_collision_other": "{{count}} lokale Namen existieren in zwei Schreibweisen, die sich nur in der Unicode-Normalisierung unterscheiden (ein Buchstabe mit Akzent als ein oder als zwei Zeichen gespeichert). rclone synchronisiert jeweils nur eine davon; benenne eine um, damit beide synchronisiert werden.",
+    "name_not_utf8_one": "{{count}} lokaler Name ist kein gültiges UTF-8. Push, Pull und Zwei-Wege-Synchronisierung übertragen ihn, Aktionen für einzelne Dateien aber nicht; am sichersten ist es, ihn umzubenennen.",
+    "name_not_utf8_other": "{{count}} lokale Namen sind kein gültiges UTF-8. Push, Pull und Zwei-Wege-Synchronisierung übertragen sie, Aktionen für einzelne Dateien aber nicht; am sichersten ist es, sie umzubenennen.",
+    "symlink_shadow_one": "{{count}} lokaler symbolischer Link trägt den Namen einer Remote-Datei oder eines Remote-Ordners. Links werden nicht synchronisiert: Ein Push verschiebt das Remote-Element in den Papierkorb, ein Pull oder eine Zwei-Wege-Synchronisierung lässt beide unverändert.",
+    "symlink_shadow_other": "{{count}} lokale symbolische Links tragen die Namen von Remote-Dateien oder -Ordnern. Links werden nicht synchronisiert: Ein Push verschiebt diese Remote-Elemente in den Papierkorb, ein Pull oder eine Zwei-Wege-Synchronisierung lässt beide unverändert.",
+    "symlink_kept_one": "{{count}} Remote-Datei oder -Ordner wurde nicht synchronisiert, weil ein lokaler symbolischer Link ihren Namen trägt. Link und Remote-Element blieben unverändert.",
+    "symlink_kept_other": "{{count}} Remote-Dateien oder -Ordner wurden nicht synchronisiert, weil lokale symbolische Links ihre Namen tragen. Links und Remote-Elemente blieben unverändert.",
+    "symlink_trashed_one": "{{count}} Remote-Datei oder -Ordner wurde in den Remote-Papierkorb verschoben, weil ein lokaler symbolischer Link ihren Namen trägt (Links werden nicht synchronisiert).",
+    "symlink_trashed_other": "{{count}} Remote-Dateien oder -Ordner wurden in den Remote-Papierkorb verschoben, weil lokale symbolische Links ihre Namen tragen (Links werden nicht synchronisiert).",
+    "more_one": "… und {{count}} weitere",
+    "more_other": "… und {{count}} weitere"
   },
   "syncMode": {
     "label": "Sync-Modus",

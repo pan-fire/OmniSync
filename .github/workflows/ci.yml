@@ -84,22 +84,40 @@ jobs:
           OMNISYNC_CONFIG_PATH: ${{ runner.temp }}/omnisync-data/config.toml
           HYPOTHESIS_STORAGE_DIRECTORY: ${{ runner.temp }}/hypothesis
           OMNISYNC_REQUIRE_RCLONE: "1"  # the real-rclone tests must run, not skip
-        # Fails below backend/.coveragerc's fail_under (the whole backend).
+        # Fails below backend/.coveragerc's fail_under (the whole backend,
+        # lines and branches).
         # One process per CPU (pytest-xdist): every test uses its own
         # tmp_path and in-memory database, so none share files.
         run: |
           mkdir -p "$RUNNER_TEMP/omnisync-data"
-          python -m pytest -q -p no:cacheprovider -n auto --cov=backend --cov-report=term
-      # The modules that can lose data keep at least 70% each, whatever the
-      # total does. A package (quoted, so the shell does not expand it)
-      # counts as one module.
+          python -m pytest -q -p no:cacheprovider -n auto --cov=backend --cov-branch --cov-report=term
+      # The modules that can lose data keep at least 91% each, whatever the
+      # total does (the lowest measured, 94.5%, minus a margin). A package
+      # (quoted, so the shell does not expand it) counts as one module.
       - name: Coverage of the data-touching modules
         working-directory: backend
         run: |
           for module in 'services/rclone/*' 'services/sync_engine/*' services/sync_engine_manager.py \
-                        services/profile_service.py api/routes/profiles.py; do
-            python -m coverage report --include="*/backend/$module" --fail-under=70
+                        services/profile_service.py api/routes/profiles.py \
+                        'services/backup_service/*' services/trash.py api/routes/conflicts.py \
+                        api/routes/backups.py api/routes/remotes.py services/rclone_import.py \
+                        services/path_guard.py; do
+            python -m coverage report --include="*/backend/$module" --fail-under=91
           done
+      # The scale tests (backend/tests/test_scale_integration.py): about 5,000
+      # files through the real rclone, with CPU, memory and growth budgets.
+      # The run above deselects them (backend/pytest.ini: -m "not slow").
+      - name: Scale tests
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          OMNISYNC_DB_PATH: ${{ runner.temp }}/omnisync-data/omnisync.db
+          OMNISYNC_LOG_PATH: ${{ runner.temp }}/omnisync-data/omnisync.log
+          OMNISYNC_RCLONE_CONFIG: ${{ runner.temp }}/omnisync-data/rclone.conf
+          OMNISYNC_CONFIG_PATH: ${{ runner.temp }}/omnisync-data/config.toml
+          OMNISYNC_REQUIRE_RCLONE: "1"
+        timeout-minutes: 6
+        run: python -m pytest -q -p no:cacheprovider -m slow -n auto
       # The TUI's contract fixtures are generated from these backend models;
       # a model change must come with regenerated fixtures (tui/test/contract).
       - name: TUI contract fixtures match the backend models

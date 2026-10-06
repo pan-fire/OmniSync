@@ -203,10 +203,19 @@ class TestWindowsNotifier:
         script = mock_exec.call_args[0][-1]
         assert script.endswith(flag)
 
-    async def test_sanitizes_quotes(self) -> None:
-        from backend.services.notification_channels.platforms.windows import _sanitize_powershell
+    async def test_text_goes_through_the_environment(self) -> None:
+        """The title and body are never part of the script PowerShell parses."""
+        from backend.services.notification_channels.platforms.windows import WindowsNotifier
 
-        assert _sanitize_powershell("it's here") == "it''s here"
+        mock_proc = AsyncMock()
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_proc.returncode = 0
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            with patch("asyncio.wait_for", side_effect=_await_now):
+                await WindowsNotifier().send("it's here", "Body", NotificationSeverity.INFO)
+        assert "it's here" not in mock_exec.call_args[0][-1]
+        env = mock_exec.call_args.kwargs["env"]
+        assert (env["OMNISYNC_TOAST_TITLE"], env["OMNISYNC_TOAST_BODY"]) == ("it's here", "Body")
 
     async def test_is_available(self) -> None:
         from backend.services.notification_channels.platforms.windows import WindowsNotifier

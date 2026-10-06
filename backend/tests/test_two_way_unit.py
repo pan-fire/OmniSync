@@ -415,3 +415,52 @@ async def test_new_profiles_are_two_way_and_switching_to_mirror_forgets_the_stat
     workdir.mkdir(parents=True)
     assert (await env.client.delete("/profiles/docs?confirm=true")).status_code == 204
     assert not workdir.exists()
+
+
+# --- The delete limit's dry run ---
+
+
+def listing(path: Path, files: int) -> None:
+    """A bisync listing (header plus one "-" line per file), as rclone 1.75.1 writes it."""
+    rows = [f'- 1 - - 2026-01-01T00:00:00.000000000+0000 "f{i}.txt"' for i in range(files)]
+    path.write_text("# bisync listing v1 from test\n" + "\n".join(rows) + "\n")
+
+
+def test_listed_files_is_the_larger_listing(tmp_path, bisync_dir):
+    engine = two_way_engine(tmp_path, AsyncMock(), None)
+    workdir = Path(bisync_workdir(1))
+    workdir.mkdir(parents=True)
+    assert engine._listed_files() == 0
+    listing(workdir / "x.path1.lst", 3)
+    listing(workdir / "x.path2.lst", 5)
+    assert engine._listed_files() == 5
+
+
+@pytest.mark.parametrize(("listed", "dry_run"), [(3, False), (4, True)])
+async def test_the_delete_check_dry_runs_only_when_a_listing_exceeds_the_limit(
+        tmp_path, bisync_dir, monkeypatch, listed, dry_run):
+    """A side whose last listing holds no more files than the limit cannot
+    lose more than the limit: no dry run then. Otherwise the dry run counts
+    the deletions, with --check-access like the run itself."""
+    monkeypatch.setattr("backend.services.sync_engine.safety.DEFAULT_MAX_DELETE", 3)
+    rclone = AsyncMock()
+
+    async def plan(*args, recorder: BisyncRecorder, dry_run: bool = False, check_access: bool = False, **kwargs):
+        assert dry_run and check_access
+        recorder.feed(line("- Path2             Do queued copies to                         - Path1"))
+        for i in range(4):
+            recorder.feed(line("Skipped delete as --dry-run is set", "notice", obj=f"f{i}.txt", skipped="delete"))
+
+    rclone.bisync = AsyncMock(side_effect=plan)
+    engine = two_way_engine(tmp_path, rclone, None)
+    workdir = Path(bisync_workdir(1))
+    workdir.mkdir(parents=True)
+    listing(workdir / "x.path1.lst", listed)
+    listing(workdir / "x.path2.lst", 2)
+
+    refusal = await engine._two_way_delete_refusal(BisyncRecorder(max_rows=0), short=False)
+
+    assert rclone.bisync.await_count == int(dry_run)
+    assert (refusal is not None) == dry_run
+    if refusal:
+        assert "4 file(s) in the local folder" in refusal and "limit of 3" in refusal

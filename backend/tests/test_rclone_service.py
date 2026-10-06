@@ -238,6 +238,16 @@ class TestBisyncCommand:
         assert argv[argv.index("--bwlimit") + 1] == "1M"
         assert after_double_dash(argv) == ["/data/docs", "r:docs"]
 
+    async def test_exclude_rules_are_filter_flags_outside_the_filters_file(self, fake: FakeRclone) -> None:
+        """rclone applies --filter rules before the filters file (FilterFrom), and
+        bisync hashes only the file: the rules win and need no resync."""
+        await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),
+                                    exclude_rules=["- /a\\[1\\].txt", "- /a\\[1\\].txt/**"])
+        (argv,) = fake.calls
+        assert [a for a in argv if a.startswith("--filter=")] == ["--filter=- /a\\[1\\].txt",
+                                                                   "--filter=- /a\\[1\\].txt/**"]
+        assert argv.index("--filter=- /a\\[1\\].txt") < argv.index("--")
+
     async def test_minimal_run_has_no_optional_flags(self, fake: FakeRclone) -> None:
         await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),
                                     check_access=False)
@@ -368,6 +378,34 @@ class TestListings:
             await fake.service().list_dirs("r:x")
         with pytest.raises(RcloneAuthError):
             await fake.service().list_top_level("r:x")
+
+    async def test_existing_items_lists_only_the_ruled_paths(self, fake: FakeRclone) -> None:
+        fake.answer(stdout="clash.txt\nsub/\nsub/dir/\nsub/dir/x.txt\n")
+        assert await fake.service().existing_items("r:x", ["+ /clash.txt", "+ /sub/dir/"]) == {
+            "clash.txt", "sub/", "sub/dir/", "sub/dir/x.txt",
+        }
+        (argv,) = fake.calls
+        assert argv[2:5] == ["lsf", "-R", "--filter-from"]
+        assert after_double_dash(argv) == ["r:x"]
+        # No rules: nothing to look for, no rclone call.
+        assert await fake.service().existing_items("r:x", []) == set()
+        assert len(fake.calls) == 1
+
+    async def test_existing_items_of_a_missing_root_and_failures(self, fake: FakeRclone) -> None:
+        fake.answer(rc=3, stderr="ERROR : error listing: directory not found\n")
+        assert await fake.service().existing_items("r:gone", ["+ /a"]) == set()
+        fake.answer(rc=1, stderr="Failed: 401 Unauthorized, directory not found\n")
+        with pytest.raises(RcloneAuthError):
+            await fake.service().existing_items("r:x", ["+ /a"])
+        fake.answer(rc=1, stderr="ERROR : permission denied\n")
+        with pytest.raises(RcloneError):
+            await fake.service().existing_items("r:x", ["+ /a"])
+
+    async def test_lsjson_passes_filter_flags(self, fake: FakeRclone) -> None:
+        fake.answer(stdout="[]")
+        assert await fake.service().lsjson("/l", rclone_filter=["- *.tmp"], rclone_args=["--exclude", "x"]) == []
+        (argv,) = fake.calls
+        assert "--filter=- *.tmp" in argv and argv[argv.index("--exclude") + 1] == "x"
 
     async def test_existing_paths_keeps_unusual_names(self, fake: FakeRclone) -> None:
         fake.answer(stdout="a.txt\nweird\rname.txt\n")

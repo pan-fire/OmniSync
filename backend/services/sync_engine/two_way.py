@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 
-from backend.api.schemas import SyncPreviewCounts, SyncState, TwoWayPreview
+from backend.api.schemas import SyncPreviewCounts, SyncState, SyncWarningCode, TwoWayPreview
 from backend.db.models import SyncJob
 from backend.exceptions import RcloneAuthError, RcloneError, RcloneRateLimitError
 from backend.services.rclone import (
@@ -32,6 +32,8 @@ from backend.services.sync_engine.common import (
     logger,
     remote_join,
 )
+from backend.services.sync_engine.filters import after_last_clear
+from backend.services.sync_engine.names import link_filter_rules
 from backend.services.sync_engine.partials import PartialsMixin
 
 # Two-way sync (rclone bisync) keeps its listings of the last successful run
@@ -188,7 +190,10 @@ class TwoWayMixin(PartialsMixin):
             BISYNC_PARTIAL_FILTER,
             *(f"- /{filter_escape(p.lstrip('/'))}" for p in sorted(set(manual_flags))),
             *([f"+ /{filter_escape(SENTINEL_FILE)}"] if self._profile.rclone_filter else []),
-            *self._profile.rclone_filter,
+            # A "!" of the profile's would clear every rule above, OmniSync's
+            # excludes included: only what follows the last one is kept,
+            # which is all it leaves of the profile's rules anyway.
+            *after_last_clear(self._profile.rclone_filter),
         ]
         return "\n".join(lines) + "\n"
 
@@ -342,11 +347,17 @@ class TwoWayMixin(PartialsMixin):
             # --check-access needs the marker on both sides before any run.
             await self._write_sentinels()
 
+        # Local symbolic links are left alone, with the remote items of the
+        # same name: otherwise bisync would copy such a remote file over the
+        # link (see names.py).
+        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_KEPT)
+        link_rules = link_filter_rules(links)
+
         steps = [True] if resync_now else ([False, True] if plan == "flush" else [False])
         for resync in steps:
             if resync:
                 await asyncio.to_thread(_write_text, os.path.join(self._workdir, BISYNC_FILTERS_FILE), filters)
-            if not await self._bisync_with_retries(job_id, recorder, resync, short):
+            if not await self._bisync_with_retries(job_id, recorder, resync, short, link_rules):
                 return job_id
         if plan == "flush" and not explicit_resync:
             logger.info("Profile '%s': filters changed; synced with the old ones, then resynced", config.slug)
@@ -355,7 +366,7 @@ class TwoWayMixin(PartialsMixin):
                                  names="short" if short else "paths")
         await self._remove_partial_leftovers(job_id)
         conflicts = await self._record_two_way_conflicts(job_id, recorder.conflicts)
-        await self._finish_job(job_id, "completed", recorder=recorder, conflicts=conflicts)
+        await self._finish_job(job_id, "completed", recorder=recorder, conflicts=conflicts, warnings=warnings)
         self._state.set_idle(files_processed=recorder.total)
         self._state.resync_required = False
         self._skipped.clear()
@@ -364,15 +375,21 @@ class TwoWayMixin(PartialsMixin):
         logger.info("Two-way sync completed for '%s' (job %d, %d file(s) changed, %d conflict(s))",
                     config.slug, job_id, recorder.total, conflicts)
         direction = "resync" if explicit_resync or plan in ("resync", "flush") else "two-way"
-        await self._emit_notification("sync_completed", direction=direction, files=recorder.total, conflicts=conflicts)
+        await self._emit_notification("sync_completed", direction=direction, files=recorder.total, conflicts=conflicts,
+                                      warnings=warnings)
         if conflicts:
             await self._emit_notification("conflict_detected", count=conflicts, kept_both=True)
         await self._maybe_prune_trash("local")
         await self._maybe_prune_trash("remote")
         return job_id
 
-    async def _bisync_with_retries(self, job_id: int, recorder: BisyncRecorder, resync: bool, short: bool) -> bool:
-        """One bisync step with the profile's retries; False once the failure is recorded."""
+    async def _bisync_with_retries(
+        self, job_id: int, recorder: BisyncRecorder, resync: bool, short: bool, link_rules: list[str] | None = None,
+    ) -> bool:
+        """One bisync step with the profile's retries; False once the failure is recorded.
+
+        ``link_rules``: the filter rules that leave local links alone.
+        """
         max_retries = self._profile.max_retries
         last_error: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -381,7 +398,7 @@ class TwoWayMixin(PartialsMixin):
                 if not resync:
                     probe = BisyncRecorder(max_rows=0)
                     failed = probe
-                    refusal = await self._two_way_delete_refusal(probe, short)
+                    refusal = await self._two_way_delete_refusal(probe, short, link_rules)
                     if refusal is not None:
                         await self._two_way_failed(job_id, recorder, refusal, attempt, pause=True)
                         return False
@@ -393,7 +410,7 @@ class TwoWayMixin(PartialsMixin):
                     filters_file=os.path.join(self._workdir, BISYNC_FILTERS_FILE),
                     recorder=recorder, rclone_args=self._transfer_args,
                     backup_dirs=self._backup_dirs(), resync=resync,
-                    short_names=self.profile_id if short else None,
+                    short_names=self.profile_id if short else None, exclude_rules=link_rules,
                 )
                 return True
             except RcloneAuthError as exc:
@@ -418,7 +435,8 @@ class TwoWayMixin(PartialsMixin):
         await self._two_way_failed(job_id, recorder, str(last_error), max_retries, record=False, retried=True)
         return False
 
-    async def _two_way_delete_refusal(self, probe: BisyncRecorder, short: bool) -> str | None:
+    async def _two_way_delete_refusal(self, probe: BisyncRecorder, short: bool,
+                                      link_rules: list[str] | None = None) -> str | None:
         """Why the next two-way run must not start because of the delete limit, or None.
 
         bisync's own --max-delete is a percentage of each side's files,
@@ -437,7 +455,8 @@ class TwoWayMixin(PartialsMixin):
         listed = self._listed_files()
         if listed is not None and listed <= limit:
             return None
-        await self._bisync_dry_run(probe, resync=False, filters=None, check_access=True, short=short)
+        await self._bisync_dry_run(probe, resync=False, filters=None, check_access=True, short=short,
+                                   link_rules=link_rules)
         over = [(side, n) for side in ("local", "remote") if (n := probe.count(side, "deleted")) > limit]
         if not over:
             return None
@@ -451,11 +470,13 @@ class TwoWayMixin(PartialsMixin):
 
     async def _bisync_dry_run(
         self, recorder: BisyncRecorder, resync: bool, filters: str | None, check_access: bool, short: bool,
+        link_rules: list[str] | None = None,
     ) -> None:
         """bisync --dry-run in a scratch copy of the workdir (no lock file, no listings touched).
 
         ``filters`` replaces the filters file of the copy (for a resync);
-        None keeps the one of the last run. Raises RcloneError on failure.
+        None keeps the one of the last run. ``link_rules``: as for the run.
+        Raises RcloneError on failure.
         """
         with tempfile.TemporaryDirectory(prefix="omnisync-bisync-plan-") as tmp:
             def copy_state() -> None:
@@ -476,7 +497,7 @@ class TwoWayMixin(PartialsMixin):
                 workdir=tmp, filters_file=filters_file, recorder=recorder,
                 rclone_args=self._profile.rclone_args, backup_dirs=self._backup_dirs(),
                 resync=resync, dry_run=True, check_access=check_access,
-                short_names=self.profile_id if short else None,
+                short_names=self.profile_id if short else None, exclude_rules=link_rules,
             )
 
     async def _require_resync(self, job_id: int, recorder: BisyncRecorder, reason: str, attempt: int) -> None:
@@ -513,8 +534,11 @@ class TwoWayMixin(PartialsMixin):
         if conflicts:  # the files bisync kept in two versions before it failed
             await self._emit_notification("conflict_detected", count=conflicts, kept_both=True)
 
-    async def _two_way_preview(self) -> TwoWayPreview:
-        """What the next two-way run would do (dry run; changes nothing, takes no lock)."""
+    async def _two_way_preview(self, link_rules: list[str] | None = None) -> TwoWayPreview:
+        """What the next two-way run would do (dry run; changes nothing, takes no lock).
+
+        ``link_rules``: the rules the run will leave local links alone with.
+        """
         config = self._profile
         limit = self.max_delete
         filters = self._bisync_filters(await self.get_manual_flags())
@@ -537,6 +561,7 @@ class TwoWayMixin(PartialsMixin):
             await self._bisync_dry_run(
                 recorder, resync=plan == "resync", filters=filters if plan == "resync" else None,
                 check_access=local_marked, short=self._short_names(resync=plan == "resync"),
+                link_rules=link_rules,
             )
         except RcloneError as exc:
             return TwoWayPreview(resync=resync, error=f"The two-way preview failed: {exc}")

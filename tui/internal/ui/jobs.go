@@ -102,7 +102,7 @@ func jobRows(jobs []api.SyncJobResponse, profile func(api.SyncJobResponse) strin
 		values = append(values,
 			jobDirectionLabel(j.Direction),
 			formatTime(j.StartedAt),
-			string(j.Status),
+			jobListStatus(j),
 			strconv.Itoa(j.FilesChanged),
 			strconv.Itoa(j.Conflicts),
 			strconv.Itoa(j.Errors),
@@ -111,7 +111,7 @@ func jobRows(jobs []api.SyncJobResponse, profile func(api.SyncJobResponse) strin
 			Key:    strconv.Itoa(j.ID),
 			Values: values,
 			// The Status column is the fourth from the end.
-			Colors: cellColors(len(values), len(values)-4, theme.Current.StatusColor(string(j.Status))),
+			Colors: cellColors(len(values), len(values)-4, theme.Current.StatusColor(jobStatusLabel(j))),
 		})
 	}
 	return rows
@@ -137,7 +137,7 @@ func renderJobSummary(job *api.SyncJobResponse, profile string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "  ID: %s  Status: %s  Direction: %s\n",
 		valueStyle.Render(strconv.Itoa(job.ID)),
-		components.RenderBadge(string(job.Status)),
+		components.RenderBadge(jobStatusLabel(*job)),
 		valueStyle.Render(jobDirectionLabel(job.Direction)))
 
 	b.WriteString("  ")
@@ -150,6 +150,12 @@ func renderJobSummary(job *api.SyncJobResponse, profile string) string {
 
 	fmt.Fprintf(&b, "  Files: %d  Conflicts: %d  Errors: %d\n\n",
 		job.FilesChanged, job.Conflicts, job.Errors)
+	if warnings := renderWarnings(job.Warnings); warnings != "" {
+		b.WriteString(headerText("  Warnings"))
+		b.WriteString("\n")
+		b.WriteString(warnings)
+		b.WriteString("\n")
+	}
 
 	return b.String()
 }

@@ -22,8 +22,15 @@ _FILTER_SPECIAL = set("\\*?[]{}")
 
 
 def filter_escape(path: str) -> str:
-    """Escape a literal path for an rclone filter rule."""
-    return "".join("\\" + c if c in _FILTER_SPECIAL else c for c in path)
+    """Escape a literal path for an rclone filter rule.
+
+    Whitespace at the end goes in brackets (``[ ]``): rclone strips it from
+    the lines of a filter file, so ``- /notes.txt `` would match
+    ``notes.txt`` instead (verified with rclone 1.75.1).
+    """
+    body = path.rstrip()
+    escaped = "".join("\\" + c if c in _FILTER_SPECIAL else c for c in body)
+    return escaped + "".join(f"[{c}]" for c in path[len(body):])
 
 
 def remote_join(base: str, rel: str) -> str:

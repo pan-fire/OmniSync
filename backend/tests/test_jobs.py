@@ -15,7 +15,7 @@ BASE = datetime(2024, 1, 1)
 
 
 def _job(started_at: datetime, **kw) -> SyncJob:
-    defaults = dict(direction="push", status="completed", files_changed=0, conflicts=0, errors=0)
+    defaults = dict(direction="push", status="completed", files_changed=0, conflicts=0, errors=0, profile_id=1)
     return SyncJob(started_at=started_at, **{**defaults, **kw})
 
 
@@ -92,7 +92,7 @@ async def test_profile_filter_and_names(test_client, test_db_factory) -> None:
     profile = SyncProfile(slug="docs", name="Docs", local_dir="/a", remote_dir="r:a", created_at=now, updated_at=now)
     await _seed(test_db_factory, profile)
     mine, _other = await _seed(
-        test_db_factory, _job(BASE, profile_id=profile.id), _job(BASE + timedelta(hours=1)),
+        test_db_factory, _job(BASE, profile_id=profile.id), _job(BASE + timedelta(hours=1), profile_id=profile.id + 1),
     )
 
     filtered = (await test_client.get("/jobs", params={"profile": "docs"})).json()
