@@ -59,6 +59,14 @@ func NewRootCommand(invoked, ver, commit string) *cobra.Command {
 	rootCmd.AddCommand(logsCmd())
 	rootCmd.AddCommand(notificationsCmd())
 
+	// Server text never reaches the terminal as control sequences
+	// (terminalSafeWriter); the TUI writes to the terminal itself.
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		root := cmd.Root()
+		root.SetOut(newTerminalSafeWriter(root.OutOrStdout()))
+		root.SetErr(newTerminalSafeWriter(root.ErrOrStderr()))
+	}
+
 	// A wrong flag is a usage error (exit status 2), like wrong arguments.
 	rootCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return usageError{err}

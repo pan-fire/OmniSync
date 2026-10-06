@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -261,7 +262,7 @@ func (t *Table) View() string {
 			if j < len(row.Colors) && row.Colors[j] != nil {
 				cellStyle = cellStyle.Foreground(row.Colors[j])
 			}
-			cells = append(cells, cellStyle.Width(w).MaxWidth(w).Render(Truncate(val, w)))
+			cells = append(cells, cellStyle.Width(w).MaxWidth(w).Render(Truncate(cellText(val), w)))
 		}
 		b.WriteString(strings.Join(cells, " "))
 		b.WriteString("\n")
@@ -275,19 +276,43 @@ func (t *Table) View() string {
 	return b.String()
 }
 
-// Truncate shortens s to at most max runes, ending in an ellipsis when cut.
-// It never splits a UTF-8 character.
+// Truncate shortens s to at most max terminal columns, ending in an
+// ellipsis when cut. It never splits a character, and a wide one (CJK, most
+// emoji) counts as the two columns it takes.
 func Truncate(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) <= max {
+	if lipgloss.Width(s) <= max {
 		return s
 	}
-	ell := []rune(theme.Glyphs().Ellipsis)
-	if max <= len(ell) {
-		return string(r[:max])
+	ell := theme.Glyphs().Ellipsis
+	room := max - lipgloss.Width(ell)
+	if room <= 0 {
+		room, ell = max, ""
 	}
-	return string(r[:max-len(ell)]) + string(ell)
+	var b strings.Builder
+	used := 0
+	for _, r := range s {
+		w := lipgloss.Width(string(r))
+		if used+w > room {
+			break
+		}
+		b.WriteRune(r)
+		used += w
+	}
+	return b.String() + ell
+}
+
+// cellText makes a cell's text (file, remote and profile names from the
+// server) one line of plain text: a newline or tab would break the row, an
+// escape sequence restyle the rest of the screen, so each control
+// character shows as U+FFFD instead.
+func cellText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
+			return utf8.RuneError
+		}
+		return r
+	}, s)
 }

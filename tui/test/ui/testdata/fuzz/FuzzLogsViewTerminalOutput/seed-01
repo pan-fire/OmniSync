@@ -1,0 +1,4 @@
+go test fuzz v1
+string("upload docs/report.pdf")
+string("INFO")
+string("")

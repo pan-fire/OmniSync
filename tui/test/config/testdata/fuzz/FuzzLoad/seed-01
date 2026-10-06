@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("url = \"https://sync.example.org\"\napi_key = \"fake-token\"\ntheme = \"light\"\nascii_mode = true\n")

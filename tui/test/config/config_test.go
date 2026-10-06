@@ -361,3 +361,28 @@ func TestInsecureURL(t *testing.T) {
 		}
 	}
 }
+
+// A tui.toml that does not parse is the lowest layer only: it is reported,
+// and the environment and flags still decide. Before, the whole
+// configuration fell back to the defaults, so an explicit --url went to
+// 127.0.0.1:8000 instead.
+func TestLoad_BrokenFileKeepsEnvAndFlags(t *testing.T) {
+	dir := isolate(t)
+	writeConfig(t, dir, "url = [unclosed")
+	t.Setenv("OMNISYNC_API_KEY", "from-env")
+	cmd := &cobra.Command{}
+	cmd.Flags().String("url", "", "")
+	if err := cmd.Flags().Set("url", "https://sync.example.org"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URL != "https://sync.example.org" || cfg.APIKey != "from-env" || cfg.Theme != "dark" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+	if !hasWarning(cfg, filepath.Join(dir, "tui.toml")+" is not used") {
+		t.Errorf("warnings = %q", cfg.Warnings)
+	}
+}

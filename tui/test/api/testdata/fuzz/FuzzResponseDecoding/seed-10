@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"files\": [{\"path\": \"a\", \"category\": \"local_only\", \"local_size\": -1}], \"summary\": {\"total\": 1e309}}")

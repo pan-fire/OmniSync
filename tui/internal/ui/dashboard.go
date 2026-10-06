@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -56,7 +57,10 @@ type syncAllPreview struct {
 type DashboardModel struct {
 	client  *api.Client
 	loading bool
-	err     error
+	err     error // the aggregate status could not be read
+	// profilesErr: the profile list could not be read. Kept apart from err
+	// so that one answer does not clear the other's error.
+	profilesErr error
 
 	aggStatus    *api.AggregateStatusResponse
 	health       *api.HealthResponse
@@ -210,11 +214,10 @@ func (m DashboardModel) handlePollResult(msg PollResultMsg) (tea.Model, tea.Cmd)
 			m.remotes = data
 		}
 	case []api.ProfileStatusResponse:
+		m.profilesErr = msg.Err
 		if msg.Err != nil {
-			m.err = msg.Err
 			return m, nil
 		}
-		m.err = nil
 		m.profiles = data
 		m.updateProfileTable()
 	default:
@@ -538,8 +541,8 @@ func (m DashboardModel) View() tea.View {
 		return tea.NewView(b.String())
 	}
 
-	if m.err != nil {
-		b.WriteString(errorLine(m.err))
+	if err := cmp.Or(m.err, m.profilesErr); err != nil {
+		b.WriteString(errorLine(err))
 	}
 
 	if m.loading && m.aggStatus == nil && m.err == nil {
