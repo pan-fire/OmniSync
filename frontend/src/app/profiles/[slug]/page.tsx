@@ -28,6 +28,7 @@ import { ProfileDiffPanel } from '@/components/sync/profile-diff-panel';
 import { useConfirmedSync } from '@/components/sync/sync-confirm-dialog';
 import { LastErrorNotice } from '@/components/sync/last-error-notice';
 import { ResyncAction } from '@/components/sync/resync-action';
+import { StopSyncDialog } from '@/components/sync/stop-sync-dialog';
 import { SyncModeBadge } from '@/components/profiles/sync-mode-badge';
 import { MirrorNotice } from '@/components/profiles/mirror-notice';
 import { TestSyncButton } from '@/components/profiles/test-sync-button';
@@ -71,6 +72,7 @@ export default function ProfileDetailPage () {
   const updateBackup = useUpdateBackupTarget(slug);
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [stopTargets, setStopTargets] = useState<{ slug: string; name: string }[] | null>(null);
   const [editingTarget, setEditingTarget] = useState<BackupTarget | null>(null);
   const [showTargetForm, setShowTargetForm] = useState(false);
 
@@ -217,7 +219,11 @@ export default function ProfileDetailPage () {
           <ResyncAction slug={slug} name={profile.name} disabled={active || !profile.enabled} />
         )}
         {active && (
-          <Button variant="destructive" onClick={() => stopSync.mutate()} disabled={stopSync.isPending}>
+          <Button
+            variant="destructive"
+            onClick={() => setStopTargets([{ slug, name: profile.name }])}
+            disabled={stopSync.isPending}
+          >
             {t('dashboard.stop')}
           </Button>
         )}
@@ -428,6 +434,16 @@ export default function ProfileDetailPage () {
         onCancel={() => setShowDeleteConfirm(false)}
         onConfirm={handleDelete}
         isPending={deleteProfile.isPending}
+      />
+
+      <StopSyncDialog
+        profiles={stopTargets}
+        onCancel={() => setStopTargets(null)}
+        isPending={stopSync.isPending}
+        onConfirm={() => {
+          stopSync.mutate();
+          setStopTargets(null);
+        }}
       />
     </div>
   );

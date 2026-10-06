@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { I18nProvider } from '@/i18n';
 import { ProfileForm } from '@/components/profiles/profile-form';
 import { validateProfileForm } from '@/lib/profile-validation';
+import { fill } from '@/__tests__/helpers/fill';
 import type { Profile } from '@/types';
 
 // Radix Switch measures itself inside a form; jsdom has no ResizeObserver.
@@ -74,12 +75,12 @@ describe('ProfileForm', () => {
     const onSubmit = vi.fn();
     render(<ProfileForm onSubmit={onSubmit} onCancel={vi.fn()} />, { wrapper });
 
-    await user.type(screen.getByLabelText('Profile name'), 'Docs');
-    await user.type(screen.getByLabelText('Local directory'), 'relative/path');
-    await user.type(screen.getByLabelText('Remote directory'), 'no-colon');
+    await fill(user, screen.getByLabelText('Profile name'), 'Docs');
+    await fill(user, screen.getByLabelText('Local directory'), 'relative/path');
+    await fill(user, screen.getByLabelText('Remote directory'), 'no-colon');
     const debounce = screen.getByLabelText('Debounce (seconds)');
     await user.clear(debounce);
-    await user.type(debounce, '0');
+    await fill(user, debounce, '0');
     await user.click(screen.getByRole('button', { name: 'Create Profile' }));
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -95,9 +96,9 @@ describe('ProfileForm', () => {
     const onSubmit = vi.fn();
     render(<ProfileForm onSubmit={onSubmit} onCancel={vi.fn()} />, { wrapper });
 
-    await user.type(screen.getByLabelText('Profile name'), 'Docs');
-    await user.type(screen.getByLabelText('Local directory'), '/data/docs');
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:docs');
+    await fill(user, screen.getByLabelText('Profile name'), 'Docs');
+    await fill(user, screen.getByLabelText('Local directory'), '/data/docs');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:docs');
     await user.click(screen.getByRole('button', { name: 'Create Profile' }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -111,29 +112,47 @@ describe('ProfileForm', () => {
     });
   });
 
-  it('an initial "Same remote" backup needs remote:path and starts with the profile remote', async () => {
+  // Split in three: as one test it ran over 5 s under coverage on a loaded machine.
+  async function sameRemoteBackup (user: ReturnType<typeof userEvent.setup>) {
+    await fill(user, screen.getByLabelText('Profile name'), 'Docs');
+    await fill(user, screen.getByLabelText('Local directory'), '/data/docs');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:docs');
+    await user.click(screen.getByRole('switch', { name: 'Initial Backup Target' }));
+    await user.click(screen.getByLabelText('Same remote'));
+    const path = screen.getByLabelText('Target path');
+    await user.clear(path);
+    return path;
+  }
+
+  it('an initial "Same remote" backup starts with the profile remote and explains the path', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(<ProfileForm onSubmit={onSubmit} onCancel={vi.fn()} />, { wrapper });
 
-    await user.type(screen.getByLabelText('Profile name'), 'Docs');
-    await user.type(screen.getByLabelText('Local directory'), '/data/docs');
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:docs');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:docs');
     await user.click(screen.getByRole('switch', { name: 'Initial Backup Target' }));
     await user.click(screen.getByLabelText('Same remote'));
-
-    const path = screen.getByLabelText('Target path');
-    expect(path).toHaveValue('gdrive:');
+    expect(screen.getByLabelText('Target path')).toHaveValue('gdrive:');
     expect(screen.getByText(/Type the full rclone path, remote name and folder, e\.g\. gdrive:Backups\/my-profile/)).toBeInTheDocument();
+  });
 
-    await user.clear(path);
-    await user.type(path, 'Backups/docs');
+  it('an initial "Same remote" backup refuses a path without the remote', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<ProfileForm onSubmit={onSubmit} onCancel={vi.fn()} />, { wrapper });
+
+    await fill(user, await sameRemoteBackup(user), 'Backups/docs');
     await user.click(screen.getByRole('button', { name: 'Create Profile' }));
     expect(await screen.findByText('Enter the full rclone path as remote:folder, e.g. gdrive:Backups/docs.')).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
 
-    await user.clear(path);
-    await user.type(path, 'gdrive:Backups/docs');
+  it('an initial "Same remote" backup is sent with its remote:path', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<ProfileForm onSubmit={onSubmit} onCancel={vi.fn()} />, { wrapper });
+
+    await fill(user, await sameRemoteBackup(user), 'gdrive:Backups/docs');
     await user.click(screen.getByRole('button', { name: 'Create Profile' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].initialBackupTarget).toMatchObject({
@@ -144,9 +163,9 @@ describe('ProfileForm', () => {
   });
 
   const fillValid = async (user: ReturnType<typeof userEvent.setup>) => {
-    await user.type(screen.getByLabelText('Profile name'), 'Docs');
-    await user.type(screen.getByLabelText('Local directory'), '/data/docs');
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:docs');
+    await fill(user, screen.getByLabelText('Profile name'), 'Docs');
+    await fill(user, screen.getByLabelText('Local directory'), '/data/docs');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:docs');
   };
 
   it('a new profile defaults to two-way and sends it', async () => {

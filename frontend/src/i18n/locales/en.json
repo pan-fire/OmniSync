@@ -340,7 +340,7 @@
     },
     "profiles": {
       "title": "Profiles Help",
-      "content": "Sync Profiles let you manage multiple independent sync configurations.\n\n**Each profile** has its own local directory, remote directory, and sync settings. Profiles sync independently — you can push/pull each one separately.\n\n**Create a profile** by clicking the Create Profile button and filling in the local and remote directories.\n\n**Enable/disable** profiles using the toggle switch on each card. Disabled profiles won't sync automatically but keep their configuration.\n\n**Per-profile settings** like debounce, pull interval, and rclone filters are configured when editing a profile.\n\n**Sync mode** — Two-way (recommended, the default for new profiles) carries the changes on either side to the other and keeps both versions of a file changed on both sides. Mirror only pushes local changes and pulls the remote on the interval; the side that syncs last wins. Push and Pull stay available in both modes as confirmed one-way overrides.\n\n**Resync** — The first two-way sync, and a sync after the two-way state was lost, is a resync: both folders become the union of both and nothing is deleted. A profile that needs one shows \"Resync needed\" and waits for your confirmation."
+      "content": "Sync Profiles let you manage multiple independent sync configurations.\n\n**Each profile** has its own local directory, remote directory, and sync settings. Profiles sync independently — you can push/pull each one separately.\n\n**Create a profile** by clicking the Create Profile button and filling in the local and remote directories.\n\n**Enable/disable** profiles using the toggle switch on each card, after a confirmation that says what changes. Disabled profiles won't sync automatically (a running sync is stopped) but keep their configuration.\n\n**Per-profile settings** like debounce, pull interval, and rclone filters are configured when editing a profile.\n\n**Sync mode** — Two-way (recommended, the default for new profiles) carries the changes on either side to the other and keeps both versions of a file changed on both sides. Mirror only pushes local changes and pulls the remote on the interval; the side that syncs last wins. Push and Pull stay available in both modes as confirmed one-way overrides.\n\n**Resync** — The first two-way sync, and a sync after the two-way state was lost, is a resync: both folders become the union of both and nothing is deleted. A profile that needs one shows \"Resync needed\" and waits for your confirmation."
     },
     "remotes": {
       "title": "Remotes Help",
@@ -642,7 +642,16 @@
     "deleteTitle": "Delete the profile \"{{name}}\"?",
     "deleteRemoves": "OmniSync forgets this profile together with its job history, conflicts and backup targets. This cannot be undone.",
     "deleteKeepsFiles": "No files are deleted: both folders, and any backups already made, stay as they are.",
-    "deleteConfirm": "Delete profile"
+    "deleteConfirm": "Delete profile",
+    "enableTitle": "Enable the profile \"{{name}}\"?",
+    "enableExplain": "Its automatic syncs start: OmniSync watches the local folder for changes and syncs with the remote at the pull interval. Push, Pull and Sync now become available.",
+    "enableStaysPaused": "You paused this profile: its automatic syncs start once you resume it.",
+    "enableConfirm": "Enable profile",
+    "disableTitle": "Disable the profile \"{{name}}\"?",
+    "disableExplain": "Its automatic syncs stop: OmniSync no longer watches the local folder or syncs with the remote on schedule, and Push, Pull and Sync now are unavailable until you enable it again.",
+    "disableStopsRunning": "Its running sync is stopped now.",
+    "disableConfirm": "Disable profile",
+    "toggleKeeps": "Its settings, history and files stay as they are."
   },
   "backups": {
     "title": "Backups",
@@ -1059,6 +1068,17 @@
     "overrideNote": "This profile syncs both ways; this is a one-time, one-way override.",
     "noPreviewWarning": "The preview failed, so it is unknown which files this sync would replace or delete. The delete limit and the trash folder still apply.",
     "confirmWithoutPreview": "I understand that this sync runs without a preview and may replace or delete files"
+  },
+  "stopConfirm": {
+    "title": "Stop the sync of \"{{name}}\"?",
+    "titleMany_one": "Stop {{count}} running sync?",
+    "titleMany_other": "Stop {{count}} running syncs?",
+    "explain_one": "The running sync ends now and is recorded as stopped. Changes it has not transferred yet wait for the next sync.",
+    "explain_other": "The running syncs end now and are recorded as stopped. Changes they have not transferred yet wait for the next sync.",
+    "keepsSyncing_one": "Automatic syncing of this profile goes on afterwards. To hold it, pause the profile.",
+    "keepsSyncing_other": "Automatic syncing of these profiles goes on afterwards. To hold it, pause them.",
+    "confirm_one": "Stop sync",
+    "confirm_other": "Stop syncs"
   },
   "syncMode": {
     "label": "Sync mode",

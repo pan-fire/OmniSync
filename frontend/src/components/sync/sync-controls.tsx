@@ -9,11 +9,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTranslation } from '@/i18n';
 import { useProfiles } from '@/hooks/use-profiles';
 import { useAggregateStatus } from '@/hooks/use-aggregate-status';
-import { isActiveState, syncCheckQueryKey } from '@/hooks/use-profile-sync';
+import { isActiveState, syncCheckQueryKey, type SyncTarget } from '@/hooks/use-profile-sync';
 import { api } from '@/lib/api';
 import { ProfileDiffTabs } from './profile-diff-tabs';
 import { ShowDiffButton } from './show-diff-button';
 import { useConfirmedSync } from './sync-confirm-dialog';
+import { StopSyncDialog } from './stop-sync-dialog';
 import { usePauseAll, useResumeAll } from '@/hooks/use-pause';
 
 export { isActiveState };
@@ -23,7 +24,7 @@ export { isActiveState };
  * /profiles/{slug}/sync/*: push and pull cover all enabled profiles behind
  * one confirmation, "Sync now" covers the enabled two-way profiles (except
  * those waiting for a resync) behind one confirmation, stop covers the
- * profiles that are running.
+ * profiles that are running, after a confirmation that names them.
  */
 export function SyncControls () {
   const { t } = useTranslation();
@@ -33,6 +34,9 @@ export function SyncControls () {
   const confirmedSync = useConfirmedSync();
   const [checking, setChecking] = useState(false);
   const [stopping, setStopping] = useState(false);
+  // The running profiles when Stop was pressed: the dialog names these and
+  // only these are stopped, even if the status changes while it is open.
+  const [stopTargets, setStopTargets] = useState<SyncTarget[] | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const pauseAll = usePauseAll();
   const resumeAll = useResumeAll();
@@ -65,14 +69,15 @@ export function SyncControls () {
     }
   };
 
-  const handleStop = async () => {
+  const handleStop = async (stopped: SyncTarget[]) => {
+    setStopTargets(null);
     setStopping(true);
     try {
-      const results = await Promise.allSettled(runningProfiles.map((p) => api.stopProfileSync(p.slug)));
+      const results = await Promise.allSettled(stopped.map((p) => api.stopProfileSync(p.slug)));
       results.forEach((r, i) => {
         if (r.status === 'rejected') {
           const message = r.reason instanceof Error ? r.reason.message : t('common.error');
-          toast.error(`${runningProfiles[i].name}: ${message}`);
+          toast.error(`${stopped[i].name}: ${message}`);
         }
       });
       queryClient.invalidateQueries({ queryKey: ['sync', 'status'] });
@@ -160,7 +165,7 @@ export function SyncControls () {
         {active && (
           <Button
             variant="destructive"
-            onClick={handleStop}
+            onClick={() => setStopTargets(runningProfiles.map((p) => ({ slug: p.slug, name: p.name })))}
             disabled={stopping}
           >
             <Square className="h-4 w-4" aria-hidden="true" />
@@ -174,6 +179,13 @@ export function SyncControls () {
       )}
 
       {confirmedSync.dialog}
+
+      <StopSyncDialog
+        profiles={stopTargets}
+        onCancel={() => setStopTargets(null)}
+        isPending={stopping}
+        onConfirm={handleStop}
+      />
     </div>
   );
 }

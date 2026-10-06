@@ -29,12 +29,12 @@ export default defineConfig({
       ],
       reporter:   ['text-summary', 'html'],
       thresholds: {
-        // Measured 2026-10-02: lines 85.14, statements 83.76,
-        // functions 76.09, branches 81.40.
-        lines:      84,
-        statements: 82,
-        functions:  74,
-        branches:   80,
+        // Measured 2026-10-05: lines 97.67, statements 96.67,
+        // functions 96.59, branches 91.37.
+        lines:      96,
+        statements: 95,
+        functions:  95,
+        branches:   90,
       },
     },
   },

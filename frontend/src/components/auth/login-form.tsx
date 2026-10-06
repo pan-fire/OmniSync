@@ -70,12 +70,15 @@ export function LoginForm ({ next: rawNext }: { next?: string }) {
       }
       const body: unknown = await res.json().catch(() => null);
       const seconds = retryAfterSeconds(body);
-      setNow(Date.now());
+      // One clock reading for both, or a slow tick in between shows one
+      // second more than the server asked for.
+      const at = Date.now();
+      setNow(at);
       if (res.status === 429 && seconds) {
-        setProblem({ kind: 'throttled', until: Date.now() + seconds * 1000 });
+        setProblem({ kind: 'throttled', until: at + seconds * 1000 });
       } else if (res.status === 401) {
         setPassword('');
-        setProblem(seconds ? { kind: 'throttled', until: Date.now() + seconds * 1000 } : { kind: 'invalid' });
+        setProblem(seconds ? { kind: 'throttled', until: at + seconds * 1000 } : { kind: 'invalid' });
       } else {
         setProblem({ kind: res.status === 503 ? 'misconfigured' : 'failed' });
       }

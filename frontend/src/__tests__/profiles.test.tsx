@@ -150,16 +150,99 @@ describe('ProfilesPage', () => {
     expect(screen.getByLabelText('Profile name')).toBeInTheDocument();
   });
 
-  it('toggling a card disables the profile through the API', async () => {
-    const { requests } = stubBackend({
-      'GET /profiles':               [profile()],
+  describe('enable/disable confirmation', () => {
+    const routes = {
+      'GET /profiles':               [profile(), profile({ id: 2, slug: 'work', name: 'Work', enabled: false })],
       'POST /profiles/docs/disable': profile({ enabled: false }),
-    });
-    const user = userEvent.setup();
-    render(<ProfilesPage />, { wrapper });
+      'POST /profiles/work/enable':  profile({ id: 2, slug: 'work', name: 'Work' }),
+    };
+    const toggles = (requests: string[]) => requests.filter((r) => /\/(enable|disable)$/.test(r));
 
-    await user.click(await screen.findByRole('switch', { name: 'Enable or disable profile Docs' }));
-    await waitFor(() => expect(requests).toContain('POST /profiles/docs/disable'));
+    // Disabling stops a profile's automatic syncs: the switch asks first,
+    // like the TUI, and names the profile.
+    it('asks before disabling, names the profile and says its syncs stop', async () => {
+      const { requests } = stubBackend(routes);
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      await user.click(await screen.findByRole('switch', { name: 'Enable or disable profile Docs' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Disable the profile "Docs"?' });
+      expect(within(dialog).getByText(/Its automatic syncs stop/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/Its running sync is stopped now/)).not.toBeInTheDocument();
+      expect(toggles(requests)).toEqual([]);
+
+      await user.click(within(dialog).getByRole('button', { name: 'Disable profile' }));
+      await waitFor(() => expect(toggles(requests)).toEqual(['POST /profiles/docs/disable']));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('asks before enabling, names the profile and says its syncs start', async () => {
+      const { requests } = stubBackend(routes);
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      await user.click(await screen.findByRole('switch', { name: 'Enable or disable profile Work' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Enable the profile "Work"?' });
+      expect(within(dialog).getByText(/Its automatic syncs start/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/You paused this profile/)).not.toBeInTheDocument();
+      expect(toggles(requests)).toEqual([]);
+
+      await user.click(within(dialog).getByRole('button', { name: 'Enable profile' }));
+      await waitFor(() => expect(toggles(requests)).toEqual(['POST /profiles/work/enable']));
+    });
+
+    it('cancel changes nothing', async () => {
+      const { requests } = stubBackend(routes);
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      const toggle = await screen.findByRole('switch', { name: 'Enable or disable profile Docs' });
+      await user.click(toggle);
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(toggles(requests)).toEqual([]);
+      expect(toggle).toBeChecked();
+    });
+
+    it('Escape changes nothing', async () => {
+      const { requests } = stubBackend(routes);
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      const toggle = await screen.findByRole('switch', { name: 'Enable or disable profile Work' });
+      await user.click(toggle);
+      await screen.findByRole('dialog');
+      await user.keyboard('{Escape}');
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(toggles(requests)).toEqual([]);
+      expect(toggle).not.toBeChecked();
+    });
+
+    // Disabling also cancels a running sync (the engine stops); say so.
+    it('warns that disabling stops the running sync', async () => {
+      stubBackend({ ...routes, 'GET /profiles': [profile({ state: 'pushing' })] });
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      await user.click(await screen.findByRole('switch', { name: 'Enable or disable profile Docs' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Disable the profile "Docs"?' });
+      expect(within(dialog).getByText('Its running sync is stopped now.')).toBeInTheDocument();
+    });
+
+    // A pause of the user's outlives disable/enable: enabling does not
+    // start its automatic syncs until it is resumed.
+    it('says a paused profile stays paused when enabled', async () => {
+      stubBackend({ ...routes, 'GET /profiles': [profile({ enabled: false, user_paused: true })] });
+      const user = userEvent.setup();
+      render(<ProfilesPage />, { wrapper });
+
+      await user.click(await screen.findByRole('switch', { name: 'Enable or disable profile Docs' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Enable the profile "Docs"?' });
+      expect(within(dialog).getByText(/You paused this profile/)).toBeInTheDocument();
+    });
   });
 
   describe('delete confirmation', () => {
