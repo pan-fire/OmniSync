@@ -12,6 +12,13 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Large files show up in the job history.** rclone copies a large file
+  (256 MiB and up, to or from most cloud storage) in several streams and
+  reports it differently; such files were left out of a sync's changed
+  files and its count. The files themselves were always synced.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed

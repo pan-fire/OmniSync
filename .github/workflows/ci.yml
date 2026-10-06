@@ -100,6 +100,20 @@ jobs:
                         services/profile_service.py api/routes/profiles.py; do
             python -m coverage report --include="*/backend/$module" --fail-under=70
           done
+      # The scale tests (backend/tests/test_scale_integration.py): about 5,000
+      # files through the real rclone, with CPU, memory and growth budgets.
+      # The run above deselects them (backend/pytest.ini: -m "not slow").
+      - name: Scale tests
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          OMNISYNC_DB_PATH: ${{ runner.temp }}/omnisync-data/omnisync.db
+          OMNISYNC_LOG_PATH: ${{ runner.temp }}/omnisync-data/omnisync.log
+          OMNISYNC_RCLONE_CONFIG: ${{ runner.temp }}/omnisync-data/rclone.conf
+          OMNISYNC_CONFIG_PATH: ${{ runner.temp }}/omnisync-data/config.toml
+          OMNISYNC_REQUIRE_RCLONE: "1"
+        timeout-minutes: 6
+        run: python -m pytest -q -p no:cacheprovider -m slow -n auto
       # The TUI's contract fixtures are generated from these backend models;
       # a model change must come with regenerated fixtures (tui/test/contract).
       - name: TUI contract fixtures match the backend models
