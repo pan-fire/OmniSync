@@ -90,16 +90,28 @@ class _Listing:
                                  total_bytes=self.total_bytes, truncated=self.total_files > len(self.entries))
 
 
+# How far past the restore's own stamp a free trash folder is looked for.
+TRASH_SLOT_SECONDS = 3600
+
+
 def _now_stamp() -> str:
     return datetime.now(timezone.utc).strftime(TRASH_STAMP_FORMAT)
 
 
+class NoFreeTrashSlotError(Exception):
+    """Every trash folder name within the hour after a restore already holds the file's path."""
+
+
 def _later_stamps(stamp: str):
-    """``stamp``, then the following seconds: trash folder names that retention still prunes."""
+    """``stamp``, then the following seconds: trash folder names that retention still prunes.
+
+    Raises NoFreeTrashSlotError when all of them are used up (before anything
+    is moved); apply_to_trash reports that as a failure of that one entry.
+    """
     start = datetime.strptime(stamp, TRASH_STAMP_FORMAT)
-    for seconds in range(3600):
+    for seconds in range(TRASH_SLOT_SECONDS):
         yield (start + timedelta(seconds=seconds)).strftime(TRASH_STAMP_FORMAT)
-    raise RuntimeError("no free trash folder name")
+    raise NoFreeTrashSlotError(f"no free trash folder name in the {TRASH_SLOT_SECONDS} s after {stamp}")
 
 
 def _fail(entry_id: str, code: str, message: str) -> TrashItemError:
@@ -339,6 +351,13 @@ async def apply_to_trash(
         except (OSError, RcloneError) as exc:
             logger.warning("Trash %s of %r on the %s side failed: %s", action, entry_id, side.value, exc)
             error = _fail(entry_id, "failed", f"The {action} failed. The OmniSync log has the details.")
+        except NoFreeTrashSlotError as exc:
+            # Nothing was moved: the file in the way has nowhere to go in the trash.
+            logger.warning("Trash %s of %r on the %s side refused: %s", action, entry_id, side.value, exc)
+            error = _fail(entry_id, "failed",
+                          f"The {action} was not done: the trash already holds a version of this file "
+                          "for every second of the next hour, so the file in its place cannot be kept. "
+                          "Try again later.")
         if error is None:
             done.append(entry_id)
         else:

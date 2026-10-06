@@ -59,8 +59,8 @@ async def test_conflicts_returns_only_unresolved(
     with their paths unchanged.
     """
     await _clear(test_db_factory)
-    await _seed(test_db_factory, *[Conflict(file_path=p, resolved=True, resolution=r) for p, r in resolved])
-    ids = await _seed(test_db_factory, *[Conflict(file_path=p, resolved=False) for p in unresolved])
+    await _seed(test_db_factory, *[Conflict(file_path=p, resolved=True, resolution=r, profile_id=1) for p, r in resolved])
+    ids = await _seed(test_db_factory, *[Conflict(file_path=p, resolved=False, profile_id=1) for p in unresolved])
 
     resp = await test_client.get("/conflicts")
     assert resp.status_code == 200
@@ -82,7 +82,7 @@ async def test_dismiss_resolves_the_record(test_client, test_db_factory, file_pa
     resolution, and it leaves the unresolved list.
     """
     await _clear(test_db_factory)
-    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path=file_path, resolved=False))
+    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path=file_path, resolved=False, profile_id=1))
 
     resp = await test_client.post(f"/conflicts/{conflict_id}/resolve", json={"resolution": "dismiss"})
     assert resp.status_code == 200
@@ -112,7 +112,7 @@ async def test_profile_filter_and_names(test_client, test_db_factory) -> None:
         test_db_factory,
         Conflict(file_path="a.txt", resolved=False, profile_id=profile.id, job_id=job.id,
                  local_modified=datetime(2024, 1, 2, 3, 4, 5)),
-        Conflict(file_path="b.txt", resolved=False),
+        Conflict(file_path="b.txt", resolved=False, profile_id=profile.id + 1),  # another profile
     )
 
     (conflict,) = (await test_client.get("/conflicts", params={"profile": "docs"})).json()
@@ -155,8 +155,8 @@ async def test_file_resolutions_go_through_the_profiles_engine(test_client, test
 async def test_file_resolution_without_a_running_profile_is_409(test_client, test_db_factory) -> None:
     ids = await _seed(
         test_db_factory,
-        Conflict(file_path="a.txt", resolved=False, profile_id=None),
-        Conflict(file_path="b.txt", resolved=False, profile_id=7),  # not running
+        Conflict(file_path="a.txt", resolved=False, profile_id=7),  # not running
+        Conflict(file_path="b.txt", resolved=False, profile_id=8),  # not running either
     )
     for conflict_id in ids:
         resp = await test_client.post(f"/conflicts/{conflict_id}/resolve", json={"resolution": "keep_local"})
@@ -165,7 +165,7 @@ async def test_file_resolution_without_a_running_profile_is_409(test_client, tes
 
 
 async def test_resolved_conflict_cannot_be_resolved_again(test_client, test_db_factory) -> None:
-    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path="a.txt", resolved=True, resolution="keep_local"))
+    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path="a.txt", resolved=True, resolution="keep_local", profile_id=1))
 
     assert (await test_client.get("/conflicts")).json() == []
     resp = await test_client.post(f"/conflicts/{conflict_id}/resolve", json={"resolution": "dismiss"})
@@ -174,6 +174,6 @@ async def test_resolved_conflict_cannot_be_resolved_again(test_client, test_db_f
 
 async def test_unknown_conflict_and_bad_resolution(test_client, test_db_factory) -> None:
     assert (await test_client.post("/conflicts/999/resolve", json={"resolution": "dismiss"})).status_code == 404
-    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path="a.txt", resolved=False))
+    (conflict_id,) = await _seed(test_db_factory, Conflict(file_path="a.txt", resolved=False, profile_id=1))
     resp = await test_client.post(f"/conflicts/{conflict_id}/resolve", json={"resolution": "keep_neither"})
     assert resp.status_code == 422

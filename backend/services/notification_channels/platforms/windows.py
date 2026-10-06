@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 
 from backend.services.notification_events import NotificationSeverity
+from backend.services.subprocesses import communicate_or_kill
 
 logger = logging.getLogger(__name__)
 
@@ -21,40 +23,48 @@ _SEVERITY_TO_SOUND: dict[NotificationSeverity, str] = {
 }
 
 
-def _sanitize_powershell(text: str) -> str:
-    """Escape characters that could break PowerShell string literals."""
-    return text.replace("'", "''")
+# The title and body reach PowerShell as environment variables, never as
+# script text: the command is fixed, so no file name can end a string literal
+# (PowerShell also ends '...' at the typographic quotes U+2018..U+201B) and
+# run code. A variable's value is data however it is quoted.
+TITLE_VAR = "OMNISYNC_TOAST_TITLE"
+BODY_VAR = "OMNISYNC_TOAST_BODY"
+
+
+def toast_script(severity: NotificationSeverity) -> str:
+    """The PowerShell command for a toast: the same for every title and body."""
+    sound = _SEVERITY_TO_SOUND.get(severity, "-Sound 'Default'")
+    return f"New-BurntToastNotification -Text $env:{TITLE_VAR}, $env:{BODY_VAR} -AppLogo $null {sound}"
+
+
+def _env_value(text: str) -> str:
+    """An environment variable cannot hold NUL; drop it rather than fail the toast."""
+    return text.replace("\0", "")
 
 
 class WindowsNotifier:
     """Sends desktop notifications via PowerShell on Windows."""
 
     async def send(self, title: str, body: str, severity: NotificationSeverity) -> None:
-        safe_title = _sanitize_powershell(title)
-        safe_body = _sanitize_powershell(body)
+        cmd = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", toast_script(severity)]
+        env = {**os.environ, TITLE_VAR: _env_value(title), BODY_VAR: _env_value(body)}
 
-        sound = _SEVERITY_TO_SOUND.get(severity, "-Sound 'Default'")
-        script = (
-            f"New-BurntToastNotification -Text '{safe_title}', '{safe_body}' "
-            f"-AppLogo $null {sound}"
-        )
-        cmd = ["powershell.exe", "-NoProfile", "-Command", script]
-
-        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                env=env,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            _, stderr = await communicate_or_kill(proc, timeout=5.0)
             if proc.returncode != 0:
-                msg = f"PowerShell toast failed (rc={proc.returncode}): {stderr.decode().strip()}"
+                # errors="replace": a non-UTF-8 message (e.g. a Windows OEM code page)
+                # must not turn the failure into a UnicodeDecodeError.
+                detail = stderr.decode(errors="replace").strip()
+                msg = f"PowerShell toast failed (rc={proc.returncode}): {detail}"
                 logger.warning(msg)
                 raise RuntimeError(msg)
-        except asyncio.TimeoutError:
-            if proc is not None:
-                proc.kill()
+        except asyncio.TimeoutError:  # the process is killed and reaped by then
             raise RuntimeError("PowerShell timed out after 5s")
         except FileNotFoundError:
             raise RuntimeError("powershell.exe not found")

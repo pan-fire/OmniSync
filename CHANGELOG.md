@@ -12,6 +12,79 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **A differing file with a modification time on one side only is a
+  conflict.** When rclone gave a readable modification time for only one
+  copy of a file that differs, the diff counted it as changed on that side
+  ("modified local" or "modified remote"), although nothing showed that the
+  other copy was unchanged, so a push or pull could overwrite a change. It
+  is now listed as a conflict, for you to review, like a file with no
+  readable time on either side.
+- **Every sync job and conflict record belongs to a profile.** A database
+  migration (0012) makes the profile required on sync jobs and conflict
+  records. OmniSync has always set it since 0.12.0, and deleting a profile
+  deletes its history, so a row without a profile could be neither shown
+  under a profile nor acted on. Any such leftover rows are removed (with
+  their file changes and errors; the count is logged), and the copy of the
+  database taken before migrating still has them.
+
+### Fixed
+
+- **A failed desktop notification shows its real error.** The notifiers
+  read the tool's error output as strict UTF-8, so on a Windows host in a
+  language other than English (PowerShell writes in the console code page)
+  the error became a text-decoding error instead of the reason. Undecodable
+  bytes are now replaced, on every platform.
+- **Linux desktop notifications about files starting with `-` arrive.**
+  `notify-send` read a title or body starting with `-` (a file named
+  `-draft.txt`) as an option and refused it, so the notification was lost.
+  The text now follows `--`.
+- **The sync test probes the folder the profile syncs.** For remotes tested
+  through rclone (SFTP, SMB, local and the like), the leading `/` of the
+  remote path was dropped, so `server:/srv/data` was tested as
+  `server:srv/data` under the remote's home folder, where the test could
+  create folders that were never meant to exist. The rclone test now uses
+  the path exactly as the sync does. The Google Drive, Dropbox and OneDrive
+  tests also ignore a trailing or doubled `/` now.
+- **A sync test that leaves its test file behind fails.** When the
+  `.omnisync-test-…` file could not be deleted from the remote, the test
+  still passed and the file stayed there: rclone's failure was ignored, and
+  the Google Drive, Dropbox and OneDrive deletes only failed when the
+  provider could not be reached at all, not when it refused the delete (or,
+  for Google Drive, when the folder could not be looked up). The test now
+  fails at the cleanup step ("The test file could not be removed from the
+  remote.") unless the file is confirmed gone; "not found" counts as gone.
+  The log names the file. The Google Drive cleanup no longer creates the
+  folder it looks into.
+- **The trash list says when rclone is not available.** GET
+  /profiles/{slug}/trash answered 502 `rclone_failed` (and logged a crash)
+  while the backend's rclone service was not running, for example during
+  start-up; it now answers 503 `service_unavailable`, like restoring and
+  deleting from the trash.
+- **One trash restore that cannot keep the file in its place no longer
+  stops the others.** If the trash already held a version of a file for
+  every second of the hour after a restore, restoring it raised an
+  internal error that ended the whole batch with a 500. That file is now
+  reported as failed (nothing moved, with a message that says why) and the
+  other selected files are still restored.
+- **A hung helper process no longer stays behind.** When `rclone` did not
+  answer within its time limit in the network check (GET
+  /health/network) or while storing a password, OmniSync gave up waiting
+  but left the process running; each check could add one. Desktop
+  notifiers that hang were killed but not reaped. All of them are now
+  killed and reaped when their time is up or the request is cancelled.
+
+### Security
+
+- **Windows toasts no longer build PowerShell code from file names.** The
+  title and body used to be pasted into the PowerShell command as quoted
+  text, with only `'` escaped. PowerShell also ends a quoted string at the
+  typographic quotes `‘ ’ ‚ ‛`, so a file named `Bob’s report.docx` broke
+  the toast, and a crafted file name could run PowerShell commands on the
+  Windows host. The command is now fixed text, and the title and body
+  reach it as environment variables, so they are only ever data.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
