@@ -12,6 +12,23 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The web UI type-checks against Node.js 24.** Its `@types/node` moves
+  from Node 20's types to Node 24's (`^24`), matching the Node 24 LTS the
+  image, CI and the development setup run on, so the compiler knows the
+  APIs the server actually has.
+
+### Security
+
+- **rclone's bundled gRPC (CVE-2026-84445) stays accepted until
+  2027-01-15.** rclone 1.75.1, the latest release, still ships a gRPC with
+  this advisory; rclone's development branch has the fix, which comes with
+  its next release. The flaw crashes gRPC *servers* built for xDS, and the
+  image runs none: rclone uses gRPC only as a client and OmniSync runs it
+  only as a one-shot command. The image scan's exception now records this
+  and moves its expiry from 2026-11-15 to 2027-01-15 (`.trivyignore`).
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
