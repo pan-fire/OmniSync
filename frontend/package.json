@@ -18,11 +18,11 @@
     "screenshots": "playwright test -c playwright.screenshots.config.ts && python3 ../scripts/optimize-screenshots.py"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.104.0",
+    "@tanstack/react-query": "^5.104.1",
     "@tanstack/react-virtual": "^3.14.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.49.0",
+    "lucide-react": "^1.50.0",
     "next": "16.3.8",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.6.7",
