@@ -159,7 +159,11 @@ api GET "/profiles/$slug/sync/status" 200
 [[ $(field .last_error) == *"5 file(s) in the remote folder, more than the limit of 3"* ]] \
   || fail "the refusal does not say why: $body"
 same_tree "$expected" "$remote_dir"
-[ ! -d "$remote_dir/.omnisync-trash/many" ] || fail "files went to the remote's trash"
+# The trash keeps .omnisync-trash/<timestamp>/<path>: look in every
+# timestamp folder (the trash exists: keep_local put a.txt in it).
+[ -d "$remote_dir/.omnisync-trash" ] || fail "the remote has no trash folder"
+trashed=$(find "$remote_dir/.omnisync-trash" -path '*/many/*')
+[ -z "$trashed" ] || fail "files went to the remote's trash: $trashed"
 api POST "/profiles/$slug/sync/start" '{"direction": "two_way"}' 409
 [ "$(field .code)" = sync_paused ] || fail "a sync of the paused profile: $body"
 # Recover the deleted files the way the refusal suggests: from the other side.
