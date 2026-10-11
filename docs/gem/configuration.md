@@ -176,7 +176,9 @@ written as `22:00-06:00` (every day) or `Mon-Fri 22:00-06:00`.
 
 ### Enabled
 A disabled profile keeps its settings and history but has no running sync
-engine: nothing is watched or synced.
+engine: nothing is watched or synced, and disabling stops a sync that is
+running. The switch on the profile's card asks before it enables or
+disables the profile.
 
 ## Backup targets
 

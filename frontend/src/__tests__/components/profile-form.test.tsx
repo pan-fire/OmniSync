@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { I18nProvider } from '@/i18n';
 import { ProfileForm } from '@/components/profiles/profile-form';
+import { fill } from '../helpers/fill';
 import type { BrowseResponse, Remote } from '@/types';
 
 // Radix Switch measures itself inside a form; jsdom has no ResizeObserver.
@@ -94,7 +95,7 @@ describe('ProfileForm directory browsing', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(screen.getByLabelText('Local directory'), '/data');
+    await fill(user, screen.getByLabelText('Local directory'), '/data');
     await user.click(screen.getByRole('button', { name: 'Browse local directory' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Browse local directory' });
@@ -113,7 +114,7 @@ describe('ProfileForm directory browsing', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:');
     await user.click(screen.getByRole('button', { name: 'Browse remote directory' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Browse remote directory' });
@@ -132,7 +133,7 @@ describe('ProfileForm directory browsing', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(screen.getByLabelText('Local directory'), '/data');
+    await fill(user, screen.getByLabelText('Local directory'), '/data');
     await user.click(screen.getByRole('button', { name: 'Browse local directory' }));
     const dialog = await screen.findByRole('dialog', { name: 'Browse local directory' });
     await within(dialog).findByText('/data');
@@ -170,7 +171,7 @@ describe('ProfileForm remote dropdown', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:work/docs');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:work/docs');
     expect(await screen.findByRole('button', { name: /gdrive/ })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByRole('button', { name: /nas/ }));
@@ -199,9 +200,9 @@ describe('ProfileForm helper text', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.type(screen.getByLabelText('Profile name'), 'Docs');
-    await user.type(screen.getByLabelText('Local directory'), 'relative');
-    await user.type(screen.getByLabelText('Remote directory'), 'gdrive:docs');
+    await fill(user, screen.getByLabelText('Profile name'), 'Docs');
+    await fill(user, screen.getByLabelText('Local directory'), 'relative');
+    await fill(user, screen.getByLabelText('Remote directory'), 'gdrive:docs');
     await user.click(screen.getByRole('button', { name: 'Create Profile' }));
 
     expect(screen.queryByText('Full path on your machine, e.g. /home/user/Documents/gdrive')).not.toBeInTheDocument();

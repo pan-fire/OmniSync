@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { I18nProvider } from '@/i18n';
 import { ChannelCard } from '@/components/notifications/channel-card';
 import { emailErrors, ntfyErrors, urlError, webhookErrors } from '@/components/notifications/channel-settings-form';
+import { fill } from './helpers/fill';
 import type { ChannelConfig } from '@/types';
 
 vi.mock('sonner', () => ({
@@ -114,7 +115,7 @@ describe('webhook form', () => {
     const user = userEvent.setup();
     renderCard('webhook', { ...config, webhook: { url: '', allow_http: false, headers: [] } });
     await user.click(screen.getByRole('button', { name: 'Configure' }));
-    await user.type(screen.getByLabelText('URL'), 'http://192.168.1.5:8123/api/webhook/x');
+    await fill(user, screen.getByLabelText('URL'), 'http://192.168.1.5:8123/api/webhook/x');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText(/needs “Allow plain http”/)).toBeInTheDocument();
     expect(screen.getByLabelText('URL')).toHaveAttribute('aria-invalid', 'true');
@@ -176,10 +177,10 @@ describe('email form', () => {
     const user = userEvent.setup();
     renderCard('email', { enabled: false, min_severity: 'warning' });
     await user.click(screen.getByRole('button', { name: 'Configure' }));
-    await user.type(screen.getByLabelText('SMTP server'), 'smtp.example.com');
-    await user.type(screen.getByLabelText('Password'), 'geheim');
-    await user.type(screen.getByLabelText('From'), 'nas@example.com');
-    await user.type(screen.getByLabelText('To'), 'a@example.com, b@example.com');
+    await fill(user, screen.getByLabelText('SMTP server'), 'smtp.example.com');
+    await fill(user, screen.getByLabelText('Password'), 'geheim');
+    await fill(user, screen.getByLabelText('From'), 'nas@example.com');
+    await fill(user, screen.getByLabelText('To'), 'a@example.com, b@example.com');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(putBody()?.channels.email).toEqual({
       email: {
