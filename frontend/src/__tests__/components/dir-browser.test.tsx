@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from '@/i18n';
 import { DirBrowser } from '@/components/shared/dir-browser';
@@ -74,5 +74,58 @@ describe('DirBrowser', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Browse remote directory' })).toBeInTheDocument();
     expect(requests).toEqual([]);
+  });
+
+  it('goes up to the parent folder and selects the folder shown', async () => {
+    stubTree();
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onOpenChange = vi.fn();
+    render(<DirBrowser open onOpenChange={onOpenChange} mode="local" initialPath="/data/photos" onSelect={onSelect} />, { wrapper: Wrapper });
+    await user.click(await screen.findByRole('button', { name: 'Parent folder' }));
+    expect(await screen.findByRole('button', { name: 'photos' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Select this folder' }));
+    expect(onSelect).toHaveBeenCalledWith('/data');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('explains a start folder that cannot be listed', async () => {
+    stubBackend({});
+    render(<DirBrowser open onOpenChange={vi.fn()} mode="remote" initialPath="gdrive:" />, { wrapper: Wrapper });
+    expect(await screen.findByRole('alert')).toHaveTextContent('no route for GET /browse/remote');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('explains a subfolder that cannot be listed', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => (String(input).includes('path=gdrive%3Aa')
+      ? new Response(JSON.stringify({ detail: 'Permission denied' }), { status: 403 })
+      : new Response(JSON.stringify({ current: 'gdrive:', parent: null, entries: [{ name: 'a', path: 'gdrive:a' }] }), { status: 200 }))));
+    const user = userEvent.setup();
+    render(<DirBrowser open onOpenChange={vi.fn()} mode="remote" initialPath="gdrive:" />, { wrapper: Wrapper });
+    await user.click(await screen.findByRole('button', { name: 'a' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied');
+  });
+
+  it('ignores a first listing that answers after the dialog was reopened', async () => {
+    // Only the listing for the current opening may fill the browser.
+    let release: (body: unknown) => void = () => {};
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(() => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise((resolve) => {
+          release = (body) => resolve(new Response(JSON.stringify(body), { status: 200 }));
+        });
+      }
+      return Promise.resolve(new Response(JSON.stringify({ current: '/new', parent: null, entries: [] }), { status: 200 }));
+    }));
+    const props = { onOpenChange: vi.fn(), mode: 'local' as const, initialPath: '/data' };
+    const { rerender } = render(<DirBrowser open {...props} />, { wrapper: Wrapper });
+    rerender(<DirBrowser open={false} {...props} />);
+    rerender(<DirBrowser open {...props} />);
+    expect(await screen.findByText('/new')).toBeInTheDocument();
+    await act(async () => release({ current: '/stale', parent: null, entries: [] }));
+    expect(screen.queryByText('/stale')).not.toBeInTheDocument();
+    expect(screen.getByText('/new')).toBeInTheDocument();
   });
 });

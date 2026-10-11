@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from '@/i18n';
 import { INITIAL_STATE } from '@/components/config/wizard/remote-wizard';
@@ -61,5 +61,22 @@ describe('TestStep', () => {
     stubBackend({ 'POST /wizard/test': { success: false, error: null } });
     render(<TestStep state={state} dispatch={vi.fn()} />, { wrapper: Wrapper });
     expect(await screen.findByText('An unknown error occurred')).toBeInTheDocument();
+  });
+
+  it('shows only the answer for the remote now being tested', async () => {
+    // An answer for an earlier remote name that arrives late is dropped.
+    const pending: ((body: unknown) => void)[] = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => {
+      pending.push((body) => resolve(new Response(JSON.stringify(body), { status: 200 })));
+    })));
+    const dispatch = vi.fn();
+    const { rerender } = render(<TestStep state={{ ...state, remoteName: 'old' }} dispatch={dispatch} />, { wrapper: Wrapper });
+    rerender(<TestStep state={{ ...state, remoteName: 'new' }} dispatch={dispatch} />);
+    await waitFor(() => expect(pending).toHaveLength(2));
+    await act(async () => pending[0]({ success: true, error: null }));
+    expect(screen.getByText('Testing connection...')).toBeInTheDocument();
+    expect(dispatch).not.toHaveBeenCalled();
+    await act(async () => pending[1]({ success: false, error: 'bad key' }));
+    expect(await screen.findByText('bad key')).toBeInTheDocument();
   });
 });
