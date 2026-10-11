@@ -1,13 +1,57 @@
+import stylistic from '@stylistic/eslint-plugin';
 import nextConfig from 'eslint-config-next';
 import neostandard from 'neostandard';
 
 const eslintConfig = [
   ...neostandard({
-    semi:  true,
-    noJsx: true,
+    semi:    true,
+    // noJsx: no JSX style rules (eslint-config-next covers JSX). Since
+    // neostandard 0.14 it also drops .tsx from every neostandard scope, and
+    // its configs are file-scoped, so .ts needs ts: true and .tsx is added
+    // back through filesTs: the base and TypeScript rules apply to both.
+    noJsx:   true,
+    ts:      true,
+    filesTs: ['**/*.tsx'],
   }),
   {
-    rules: {
+    // neostandard registers @stylistic only for the files of its own
+    // (file-scoped) configs since 0.14; this block applies to every file
+    // ESLint checks, so it brings the plugin itself (pinned to neostandard's).
+    plugins: { '@stylistic': stylistic },
+    rules:   {
+      // neostandard 0.13's indent: JSX is left to the JSX-aware rules of
+      // eslint-config-next (0.14 dropped these ignoredNodes with noJsx).
+      '@stylistic/indent': [
+        'error',
+        2,
+        {
+          SwitchCase:               1,
+          VariableDeclarator:       1,
+          outerIIFEBody:            1,
+          MemberExpression:         1,
+          FunctionDeclaration:      { parameters: 1, body: 1 },
+          FunctionExpression:       { parameters: 1, body: 1 },
+          CallExpression:           { arguments: 1 },
+          ArrayExpression:          1,
+          ObjectExpression:         1,
+          ImportDeclaration:        1,
+          flatTernaryExpressions:   false,
+          ignoreComments:           false,
+          assignmentOperator:       'off',
+          offsetTernaryExpressions: { CallExpression: false, AwaitExpression: false, NewExpression: false },
+          ignoredNodes:             [
+            'TemplateLiteral *', 'TSTypeParameterInstantiation',
+            'JSXElement', 'JSXElement > *', 'JSXAttribute', 'JSXIdentifier', 'JSXNamespacedName',
+            'JSXMemberExpression', 'JSXSpreadAttribute', 'JSXExpressionContainer', 'JSXOpeningElement',
+            'JSXClosingElement', 'JSXFragment', 'JSXOpeningFragment', 'JSXClosingFragment', 'JSXText',
+            'JSXEmptyExpression', 'JSXSpreadChild',
+          ],
+        },
+      ],
+      // typescript-eslint turns this off for TypeScript files, leaving it to
+      // tsc, which only hints at unreachable code unless
+      // allowUnreachableCode is false; neostandard 0.13 still reported it.
+      'no-unreachable':         'error',
       '@stylistic/key-spacing': [
         'error',
         {
