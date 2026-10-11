@@ -762,7 +762,17 @@ async def test_files_changing_during_a_sync_lose_nothing(env: Env, mode: str):
             await env.completed(await engine.resync())
         await env.job(await sync(env, engine, mode))
     assert tree(env.local) == tree(env.remote)
-    assert (env.remote / "hot.txt").read_text() == f"version {writes}"
+    # The last version survives on both sides. Usually as hot.txt; but a
+    # copy of a file being rewritten can leave both sides changed against
+    # bisync's listings, and when the rewrites land within one tick of the
+    # file system's clock the two versions have the same time, so bisync
+    # cannot pick the newer and keeps both under conflict names (the
+    # documented conflict handling, nothing deleted).
+    names = [p.name for p in env.remote.glob("hot*.txt")]
+    last = [n for n in names if (env.remote / n).read_text() == f"version {writes}"]
+    assert last, f"the last version is on neither side: {sorted(names)}"
+    if "hot.txt" not in names:
+        assert sorted(names) == ["hot.local-conflict1.txt", "hot.remote-conflict1.txt"]
     assert partials(env.local, env.remote) == []
 
 
