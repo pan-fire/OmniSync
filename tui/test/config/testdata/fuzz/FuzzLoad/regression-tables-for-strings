@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("url = {host = \"x\"}\ntheme = [1]\napi_key = [\"k\"]")

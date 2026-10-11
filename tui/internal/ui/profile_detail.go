@@ -942,8 +942,8 @@ func (m ProfileDetailModel) toggleMirrorNotice() (tea.Model, tea.Cmd) {
 // resyncPrompt explains what a resync does.
 func resyncPrompt(req *syncRequest, required bool) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Resync profile %q (%s)?\n\n", req.name, req.slug)
-	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", req.localDir, req.remoteDir)
+	fmt.Fprintf(&b, "Resync profile %q (%s)?\n\n", req.name, safeLine(req.slug))
+	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", safeLine(req.localDir), safeLine(req.remoteDir))
 	b.WriteString("A resync makes both folders the union of both sides:\n")
 	b.WriteString("  - files that are only in one folder are copied to the other;\n    nothing is deleted\n")
 	b.WriteString("  - where a file differs, the newer version wins; the older one is moved\n    to .omnisync-trash on its side\n")
@@ -961,7 +961,7 @@ func resyncPrompt(req *syncRequest, required bool) string {
 // does.
 func switchTwoWayPrompt(req *syncRequest) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Switch profile %q (%s) to two-way sync?\n\n", req.name, req.slug)
+	fmt.Fprintf(&b, "Switch profile %q (%s) to two-way sync?\n\n", req.name, safeLine(req.slug))
 	b.WriteString("Two-way sync carries changes on either side to the other: edits made on\n")
 	b.WriteString("either side are kept, new files on both sides are kept, and deletions are\n")
 	b.WriteString("carried over (the deleted file goes to .omnisync-trash). A file changed on\n")
@@ -981,11 +981,11 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 	var b strings.Builder
 	arrow := theme.Glyphs().Arrow
 	verb := directionVerb(req.dir)
-	fmt.Fprintf(&b, "%s profile %q (%s)?\n\n", verb, req.name, req.slug)
+	fmt.Fprintf(&b, "%s profile %q (%s)?\n\n", verb, req.name, safeLine(req.slug))
 	if req.dir == api.SyncDirectionPush {
-		fmt.Fprintf(&b, "Direction: local %s %s remote %s\n\n", req.localDir, arrow, req.remoteDir)
+		fmt.Fprintf(&b, "Direction: local %s %s remote %s\n\n", safeLine(req.localDir), arrow, safeLine(req.remoteDir))
 	} else {
-		fmt.Fprintf(&b, "Direction: remote %s %s local %s\n\n", req.remoteDir, arrow, req.localDir)
+		fmt.Fprintf(&b, "Direction: remote %s %s local %s\n\n", safeLine(req.remoteDir), arrow, safeLine(req.localDir))
 	}
 	if req.twoWay {
 		if req.dir == api.SyncDirectionPush {
@@ -999,7 +999,7 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 	var counts *api.SyncPreviewCounts
 	switch {
 	case previewErr != nil:
-		fmt.Fprintf(&b, "Could not count the files this would change: %s\n", previewErr.Error())
+		fmt.Fprintf(&b, "Could not count the files this would change: %s\n", safeLine(previewErr.Error()))
 	case preview == nil:
 		b.WriteString("Could not count the files this would change.\n")
 	default:
@@ -1007,7 +1007,7 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 		c := preview.Counts(req.dir)
 		counts = &c
 		if preview.Error != nil && *preview.Error != "" {
-			fmt.Fprintf(&b, "The comparison reported a problem: %s\n", *preview.Error)
+			fmt.Fprintf(&b, "The comparison reported a problem: %s\n", safeLine(*preview.Error))
 		}
 		if req.dir == api.SyncDirectionPush {
 			fmt.Fprintf(&b, "Deletes %d file(s) on the remote that are not in the local folder.\n", c.Deletes)
@@ -1043,19 +1043,19 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 func twoWayPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr error) string {
 	var b strings.Builder
 	warning := theme.Glyphs().Warning
-	fmt.Fprintf(&b, "Sync profile %q (%s) both ways now?\n\n", req.name, req.slug)
-	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", req.localDir, req.remoteDir)
+	fmt.Fprintf(&b, "Sync profile %q (%s) both ways now?\n\n", req.name, safeLine(req.slug))
+	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", safeLine(req.localDir), safeLine(req.remoteDir))
 
 	maxDelete := req.maxDelete
 	var tw *api.TwoWayPreview
 	switch {
 	case previewErr != nil:
-		fmt.Fprintf(&b, "Could not count the files this would change: %s\n", previewErr.Error())
+		fmt.Fprintf(&b, "Could not count the files this would change: %s\n", safeLine(previewErr.Error()))
 	case preview == nil || preview.TwoWay == nil:
 		b.WriteString("Could not count the files this would change (no two-way preview).\n")
 	case preview.TwoWay.Error != nil && *preview.TwoWay.Error != "":
 		maxDelete = preview.MaxDelete
-		fmt.Fprintf(&b, "Could not preview the two-way sync: %s\n", *preview.TwoWay.Error)
+		fmt.Fprintf(&b, "Could not preview the two-way sync: %s\n", safeLine(*preview.TwoWay.Error))
 	default:
 		maxDelete = preview.MaxDelete
 		tw = preview.TwoWay
@@ -1106,9 +1106,9 @@ func (m ProfileDetailModel) View() tea.View {
 
 	var b strings.Builder
 
-	name := m.slug
+	name := safeLine(m.slug)
 	if m.profile != nil {
-		name = fmt.Sprintf("%s (%s)", m.profile.Name, m.slug)
+		name = fmt.Sprintf("%s (%s)", safeLine(m.profile.Name), safeLine(m.slug))
 	}
 	b.WriteString(headerText("  " + name))
 	b.WriteString("\n  ")
@@ -1161,7 +1161,7 @@ func (m ProfileDetailModel) View() tea.View {
 // lastError returns why the last sync failed, if the backend said.
 func (m ProfileDetailModel) lastError() string {
 	if m.profile != nil && m.profile.LastError != nil {
-		return *m.profile.LastError
+		return safeLine(*m.profile.LastError)
 	}
 	return ""
 }
@@ -1213,8 +1213,8 @@ func (m ProfileDetailModel) renderOverviewTab() string {
 	}
 	fmt.Fprintf(&b, "  Mode: %s\n", valueStyle.Render(syncModeSummary(p.SyncMode)))
 	fmt.Fprintf(&b, "  Enabled: %s\n", valueStyle.Render(enabled))
-	fmt.Fprintf(&b, "  Local:  %s\n", valueStyle.Render(p.LocalDir))
-	fmt.Fprintf(&b, "  Remote: %s\n", valueStyle.Render(p.RemoteDir))
+	fmt.Fprintf(&b, "  Local:  %s\n", valueStyle.Render(safeLine(p.LocalDir)))
+	fmt.Fprintf(&b, "  Remote: %s\n", valueStyle.Render(safeLine(p.RemoteDir)))
 	fmt.Fprintf(&b, "  Last sync: %s\n", mutedText(formatTimePtr(p.LastSync, "never")))
 	fmt.Fprintf(&b, "  Files: %s  Errors: %s  Pending: %s\n",
 		valueStyle.Render(fmt.Sprintf("%d", p.FilesProcessed)),
@@ -1227,7 +1227,7 @@ func (m ProfileDetailModel) renderOverviewTab() string {
 	}
 	fmt.Fprintf(&b, "  Delete limit: %s\n", valueStyle.Render(limit))
 	if p.Bwlimit != nil && *p.Bwlimit != "" {
-		fmt.Fprintf(&b, "  Bandwidth limit: %s\n", valueStyle.Render(*p.Bwlimit))
+		fmt.Fprintf(&b, "  Bandwidth limit: %s\n", valueStyle.Render(safeLine(*p.Bwlimit)))
 	}
 	if p.SyncWindow != nil {
 		fmt.Fprintf(&b, "  Sync window: %s (server time; automatic syncs only)\n", valueStyle.Render(formatSyncWindow(p.SyncWindow)))

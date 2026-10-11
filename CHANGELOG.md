@@ -14,13 +14,22 @@ release notes.
 
 ### Changed
 
+- **The terminal UI asks before "Stop all" and before enabling or
+  disabling a profile.** On the Dashboard, `s` lists the running syncs and
+  stops exactly those after `y`; in Profiles, `t` says whether it will
+  enable or disable the profile and what that does. `n` or `Esc` sends
+  nothing, as in the other prompts. The flash now says "Profile enabled"
+  or "Profile disabled" instead of "Profile toggled".
+
 - **The web UI type-checks against Node.js 24.** Its `@types/node` moves
   from Node 20's types to Node 24's (`^24`), matching the Node 24 LTS the
   image, CI and the development setup run on, so the compiler knows the
   APIs the server actually has.
+
 - **Building osync from source needs Go 1.26 or newer.** bubbletea 2.0.10
   requires it; `go` fetches the pinned 1.27.2 toolchain by itself, and the
   released binaries and images are unaffected.
+
 - **The web UI asks before Stop and before enabling or disabling a
   profile,** as the terminal UI does. The Dashboard's **Stop** names every
   profile whose sync is running and stops only those once you confirm; the
@@ -31,10 +40,34 @@ release notes.
 
 ### Fixed
 
+- **The terminal UI's Dashboard shows when the sync status cannot be
+  read**, also when the profile list can; before, the list's answer hid
+  the error and the panel just said "No data".
+
+- **The terminal UI's Conflicts view no longer says "all clear" when the
+  conflicts could not be read**; it shows only the error.
+
+- **Tables in the terminal UI keep each file on one row.** A name with
+  Chinese, Japanese or Korean characters (or wide emoji) wrapped onto a
+  second line and pushed the next column; it is now cut at the column's
+  width, between whole characters: an emoji with a variation selector
+  (❤️, ✔️), a skin tone, a keycap, a family (ZWJ) sequence or a flag is
+  kept or cut as one. A newline, tab or escape sequence in a name shows
+  as `�`.
+
+- **A `tui.toml` that cannot be read no longer overrides `--url`,
+  `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
+  to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
+  the file is not used and keeps the flags and environment. A setting
+  with a value of the wrong type (`no_mouse = "yes"` in the file, or
+  `OMNISYNC_ASCII_MODE=on`) did the same; now only that setting keeps its
+  default, with a warning that names it.
+
 - **Persian: Pause and Stop have different names.** Both buttons read
   "توقف", so on a profile page with a running sync two buttons with the
   same name did different things. Pause (and every paused or resumed
   message, banner and help text) now says "مکث"; Stop keeps "توقف".
+
 - **Snapshot browser: "Next page" no longer jumps back to page 1.** The
   search debounce also fired 300 ms after the dialog opened and reset the
   page, so paging right after opening a snapshot was undone. Only a changed
@@ -42,19 +75,41 @@ release notes.
 
 ### Security
 
+- **`osync` commands no longer pass control sequences from server text to
+  the terminal.** Log messages, file and remote names and error details
+  can come from anyone who can write to a synced folder; an escape
+  sequence in them could set the clipboard, the window title or move the
+  cursor over the output. The commands now print every control character
+  as a visible `\u001b`-style escape. `--json` output decodes to exactly
+  the same text as before.
+
+- **The terminal UI no longer lets server text draw over or restyle a
+  view.** A log message, file, remote or profile name or error detail
+  holding a carriage return, a backspace or an escape sequence could
+  overwrite the start of its line, move the cursor or change the colours
+  of what followed, outside the tables (which already filtered it). Every
+  view (also the wizard's sign-in URL, the files a running sync lists, a
+  remote's test result and a webhook's URL and headers) now shows such a
+  character as `�`, and a last filter on the whole
+  screen lets only the views' own colours through. A multi-line log
+  message shows its first line and "(+N lines)" in the Logs view.
+
 - **rclone 1.75.2 in the backend image.** It fixes the advisories in
   rclone's compiled-in dependencies that the image scan reports: gRPC
   (CVE-2026-84445), Go's net/http and crypto/tls (CVE-2026-78667,
   CVE-2026-97031, built with Go 1.26.9) and golang.org/x/net's HTTP/2
   (CVE-2026-78669). The scan's exception for the gRPC advisory is removed:
   the image has no accepted findings.
+
 - **`osync` is built with Go 1.27.2.** It fixes denial-of-service
   advisories in Go 1.27.1's `net/http` and HTTP/2 (GO-2026-6608,
   GO-2026-6610, GO-2026-6611, GO-2026-6613, GO-2026-6617) that reach the
   client's API calls.
+
 - **source-map-js 1.2.2 in the web UI** (GHSA-68fv-2mgg-jv7q, a denial of
   service through crafted source maps; it comes in through Next.js's
   PostCSS).
+
 
 ## [0.13.0] - 2026-10-04
 

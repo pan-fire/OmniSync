@@ -142,7 +142,7 @@ func renderJobSummary(job *api.SyncJobResponse, profile string) string {
 
 	b.WriteString("  ")
 	if profile != "" {
-		fmt.Fprintf(&b, "Profile: %s  ", valueStyle.Render(profile))
+		fmt.Fprintf(&b, "Profile: %s  ", valueStyle.Render(safeLine(profile)))
 	}
 	fmt.Fprintf(&b, "Started: %s  Finished: %s\n",
 		labelStyle.Render(formatTime(job.StartedAt)),
@@ -383,7 +383,7 @@ func (m JobsModel) View() tea.View {
 
 	filter := "all profiles"
 	if m.filter != "" {
-		filter = "profile " + m.filter
+		filter = "profile " + safeLine(m.filter)
 	}
 	b.WriteString(headerText("  Jobs"))
 	b.WriteString(mutedText(fmt.Sprintf("  Filter: %s  %s", filter, m.pageLabel())))
@@ -411,9 +411,9 @@ func (m JobsModel) pageLabel() string {
 func (m JobsModel) jobProfile(j api.SyncJobResponse) string {
 	switch {
 	case j.ProfileName != nil && *j.ProfileName != "":
-		return *j.ProfileName
+		return safeLine(*j.ProfileName)
 	case j.ProfileSlug != nil && *j.ProfileSlug != "":
-		return *j.ProfileSlug
+		return safeLine(*j.ProfileSlug)
 	case m.filter != "":
 		return m.filter
 	}

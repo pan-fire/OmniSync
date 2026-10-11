@@ -244,7 +244,7 @@ func (m ConfigModel) View() tea.View {
 
 	if m.config != nil {
 		valueStyle := lipgloss.NewStyle().Foreground(theme.Current.Foreground)
-		fmt.Fprintf(&b, "  %s  %s\n", mutedText("Log Level:"), valueStyle.Render(m.config.LogLevel))
+		fmt.Fprintf(&b, "  %s  %s\n", mutedText("Log Level:"), valueStyle.Render(safeLine(m.config.LogLevel)))
 		history := fmt.Sprintf("%d days", m.config.HistoryDays)
 		if m.config.HistoryDays == 0 {
 			history = "forever"

@@ -401,13 +401,24 @@ func (m LogsModel) View() tea.View {
 	}
 
 	for _, e := range m.visibleLines() {
-		more := ""
+		// One line per entry: the first line of the message, and how many
+		// more the message and its traceback hold (osync logs prints them
+		// whole). Server text, so through safeText: a carriage return or
+		// an escape sequence in it must not draw over the line.
+		message, rest, multiline := strings.Cut(strings.TrimRight(safeText(e.Message), "\n"), "\n")
+		extra := 0
+		if multiline {
+			extra = strings.Count(rest, "\n") + 1
+		}
 		if e.Exc != "" {
-			// A traceback or a multi-line message: osync logs prints it whole.
-			more = labelStyle.Render(fmt.Sprintf(" (+%d lines)", strings.Count(e.Exc, "\n")+1))
+			extra += strings.Count(e.Exc, "\n") + 1
+		}
+		more := ""
+		if extra > 0 {
+			more = labelStyle.Render(fmt.Sprintf(" (+%d lines)", extra))
 		}
 		fmt.Fprintf(&b, "  %s %s %s%s\n",
-			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), e.Message, more)
+			labelStyle.Render(formatTime(e.Timestamp)), levelBadge(e.Level), message, more)
 	}
 
 	if len(m.filtered) == 0 {
@@ -453,7 +464,7 @@ func levelBadge(level string) string {
 		c = theme.Current.Foreground
 	}
 	style := lipgloss.NewStyle().Foreground(c)
-	return style.Render(fmt.Sprintf("[%s]", strings.ToUpper(level)))
+	return style.Render("[" + safeLine(strings.ToUpper(level)) + "]")
 }
 
 func (m LogsModel) fetchLogs() tea.Cmd {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -117,7 +118,7 @@ func (m RemotesModel) handleEditLoaded(msg ActionResultMsg) (tea.Model, tea.Cmd)
 	}
 	m.edit = &data
 	m.mode = remotesModeEdit
-	m.form = components.NewFormWithID(formEditRemote, fmt.Sprintf("Edit %s remote %q", data.Provider.DisplayName, data.Name),
+	m.form = components.NewFormWithID(formEditRemote, fmt.Sprintf("Edit %s remote %q", safeLine(data.Provider.DisplayName), data.Name),
 		editFields(data))
 	intro := "Secrets are not shown: leave them empty to keep the stored ones."
 	if data.Provider.ID == "crypt" {
@@ -284,7 +285,7 @@ func freeRemoteName(name string, taken map[string]bool) string {
 	for i := 1; ; i++ {
 		candidate := name + "-imported"
 		if i > 1 {
-			candidate = fmt.Sprintf("%s-imported-%d", name, i)
+			candidate = name + "-imported-" + strconv.Itoa(i)
 		}
 		if !taken[candidate] {
 			return candidate
@@ -319,7 +320,7 @@ func (m RemotesModel) handleImportPreview(msg ActionResultMsg) (tea.Model, tea.C
 	var refused []string
 	for _, c := range data.Preview.Remotes {
 		if len(c.Problems) > 0 {
-			refused = append(refused, fmt.Sprintf("  %s (%s): %s", c.Name, c.Type, strings.Join(c.Problems, "; ")))
+			refused = append(refused, fmt.Sprintf("  %s (%s): %s", safeLine(c.Name), safeLine(c.Type), safeLine(strings.Join(c.Problems, "; "))))
 			continue
 		}
 		value, help := c.Name, "Import under this name; empty skips it."
@@ -327,12 +328,12 @@ func (m RemotesModel) handleImportPreview(msg ActionResultMsg) (tea.Model, tea.C
 			// A clash starts skipped; the suggested free name is in the help.
 			value = ""
 			help = fmt.Sprintf("A remote %q exists already: enter another name, e.g. %s, or leave empty to skip.",
-				c.Name, freeRemoteName(c.Name, taken))
+				c.Name, safeLine(freeRemoteName(c.Name, taken)))
 		} else {
 			taken[c.Name] = true
 		}
 		fields = append(fields, components.Field{
-			Name: c.Name, Label: fmt.Sprintf("%s (%s)", c.Name, c.Type), Type: components.FieldText,
+			Name: c.Name, Label: fmt.Sprintf("%s (%s)", safeLine(c.Name), safeLine(c.Type)), Type: components.FieldText,
 			Value: value, Help: help,
 		})
 	}

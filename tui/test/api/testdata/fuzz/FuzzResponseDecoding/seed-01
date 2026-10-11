@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("[{\"slug\": \"docs\", \"name\": \"Dokumente\", \"state\": \"idle\", \"sync_mode\": \"two_way\"}]")

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"overall_state\": \"pushing\", \"profiles_summary\": [{\"slug\": \"a\", \"progress\": {\"bytes\": 1}}]}")

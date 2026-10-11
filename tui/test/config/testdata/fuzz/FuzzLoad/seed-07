@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("no_mouse = 1\nlog_file = [\"a\"]")

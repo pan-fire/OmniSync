@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"overall_state\": [1, 2]}")

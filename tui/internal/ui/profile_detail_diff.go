@@ -80,9 +80,9 @@ func (m ProfileDetailModel) askSelective(action api.FileAction) (tea.Model, tea.
 	if len(items) == 0 {
 		return m, nil
 	}
-	name := m.slug
+	name := safeLine(m.slug)
 	if m.profile != nil {
-		name = fmt.Sprintf("%s (%s)", m.profile.Name, m.slug)
+		name = fmt.Sprintf("%s (%s)", safeLine(m.profile.Name), safeLine(m.slug))
 	}
 	where := "the remote copies are replaced by the local ones"
 	if action == api.FileActionPull {
@@ -133,7 +133,7 @@ func (m ProfileDetailModel) renderDiffTab() string {
 	if selected := m.diffTable.SelectedCount(); selected > 0 {
 		fmt.Fprintf(&b, "\n  %d selected %s p/l/s/m apply to the selection", selected, theme.Glyphs().EmDash)
 	} else if row := m.diffTable.SelectedRow(); row != nil {
-		fmt.Fprintf(&b, "\n  Current file: %s %s p/l/s/m apply to this file", mutedText(row.Key), theme.Glyphs().EmDash)
+		fmt.Fprintf(&b, "\n  Current file: %s %s p/l/s/m apply to this file", mutedText(safeLine(row.Key)), theme.Glyphs().EmDash)
 	}
 
 	return b.String()

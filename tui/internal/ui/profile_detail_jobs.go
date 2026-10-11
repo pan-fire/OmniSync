@@ -159,7 +159,7 @@ func capitalize(s string) string {
 // refusal is shown, a started job is followed.
 func (m ProfileDetailModel) handleBackupStarted(msg ActionResultMsg, doneAction string) (tea.Model, tea.Cmd) {
 	start, _ := msg.Data.(backupStart)
-	what := fmt.Sprintf("%s of %s", capitalize(start.Kind), start.Slug)
+	what := fmt.Sprintf("%s of %s", capitalize(start.Kind), safeLine(start.Slug))
 	var refresh tea.Cmd
 	if start.Kind == jobKindBackup {
 		refresh = m.fetchBackups()
@@ -182,7 +182,7 @@ func (m ProfileDetailModel) handleBackupStarted(msg ActionResultMsg, doneAction 
 func (m ProfileDetailModel) handleBackupDone(msg ActionResultMsg) (tea.Model, tea.Cmd) {
 	out, _ := msg.Data.(backupFollow)
 	m = m.withoutRunning(out.Slug, out.Kind, out.JobID)
-	what := fmt.Sprintf("%s of %s", capitalize(out.Kind), out.Slug)
+	what := fmt.Sprintf("%s of %s", capitalize(out.Kind), safeLine(out.Slug))
 	var refresh tea.Cmd
 	if out.Kind == jobKindBackup && out.Slug == m.slug {
 		refresh = m.fetchBackups()
@@ -251,7 +251,7 @@ func (m ProfileDetailModel) handleSelectiveDone(msg ActionResultMsg) (tea.Model,
 		text = fmt.Sprintf("Selective sync failed (%d of %d succeeded)", r.Succeeded, r.Total)
 	}
 	if len(r.Errors) > 0 {
-		text += fmt.Sprintf("; %s: %s", r.Errors[0].Path, r.Errors[0].Error)
+		text += fmt.Sprintf("; %s: %s", safeLine(r.Errors[0].Path), safeLine(r.Errors[0].Error))
 		if len(r.Errors) > 1 {
 			text += fmt.Sprintf(" (and %d more)", len(r.Errors)-1)
 		}

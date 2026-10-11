@@ -7,6 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/ansi/parser"
 	"github.com/pan-fire/OmniSync/tui/internal/theme"
 )
 
@@ -226,9 +228,9 @@ func (t *Table) View() string {
 	checkStyle := lipgloss.NewStyle().Foreground(theme.Current.Success)
 
 	// Header
-	headerCells := []string{headerStyle.Width(3).Render(" ")}
+	headerCells := []string{renderCell(headerStyle, "", 3)}
 	for _, col := range t.Columns {
-		headerCells = append(headerCells, headerStyle.Width(col.Width).Render(col.Title))
+		headerCells = append(headerCells, renderCell(headerStyle, col.Title, col.Width))
 	}
 	b.WriteString(strings.Join(headerCells, " "))
 	b.WriteString("\n")
@@ -261,7 +263,7 @@ func (t *Table) View() string {
 			if j < len(row.Colors) && row.Colors[j] != nil {
 				cellStyle = cellStyle.Foreground(row.Colors[j])
 			}
-			cells = append(cells, cellStyle.Width(w).MaxWidth(w).Render(Truncate(val, w)))
+			cells = append(cells, renderCell(cellStyle, val, w))
 		}
 		b.WriteString(strings.Join(cells, " "))
 		b.WriteString("\n")
@@ -275,19 +277,88 @@ func (t *Table) View() string {
 	return b.String()
 }
 
-// Truncate shortens s to at most max runes, ending in an ellipsis when cut.
-// It never splits a UTF-8 character.
+// renderCell draws s as one table cell of exactly w columns: made safe,
+// cut to w and padded with spaces to w. It does not use the style's Width,
+// because lipgloss word-wraps a string it measures as wider than w, and its
+// wrapper measures some grapheme clusters (an emoji modifier after a
+// digit, a spacing mark) wider than the cluster is. Cutting and padding
+// with the one width function (Columns) means the measure and the layout
+// cannot disagree, so a cell never spills onto a second line.
+func renderCell(style lipgloss.Style, s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	txt := Truncate(SafeLine(s), w)
+	if pad := w - Columns(txt); pad > 0 {
+		txt += strings.Repeat(" ", pad)
+	}
+	return style.Render(txt)
+}
+
+// Truncate shortens s to at most max terminal columns (Columns), ending in
+// an ellipsis when cut. It cuts between grapheme clusters, so it never
+// splits a character, an emoji from its variation selector or skin tone, a
+// keycap, a ZWJ sequence or a flag pair; a wide cluster (CJK, most emoji)
+// counts as the two columns it takes. Escape sequences take no columns and
+// are kept whole.
 func Truncate(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) <= max {
+	if Columns(s) <= max {
 		return s
 	}
-	ell := []rune(theme.Glyphs().Ellipsis)
-	if max <= len(ell) {
-		return string(r[:max])
+	ell := theme.Glyphs().Ellipsis
+	if Columns(ell) >= max {
+		ell = ""
 	}
-	return string(r[:max-len(ell)]) + string(ell)
+	// The ellipsis could join the last kept cluster (after a prepended
+	// mark, say) and change its width, so check the result as a whole and
+	// keep one column fewer until it fits.
+	for room := max - Columns(ell); room > 0; room-- {
+		if out := cutColumns(s, room) + ell; Columns(out) <= max {
+			return out
+		}
+	}
+	return cutColumns(s, max)
+}
+
+// cutColumns returns the longest prefix of s made of whole grapheme
+// clusters in which no line takes more than room columns. It walks s the
+// way Columns measures it: each line on its own, escape sequences take no
+// room, and every printable cluster takes the width
+// ansi.FirstGraphemeCluster gives it. (ansi.Truncate does not: it counts
+// printable ASCII one column at a time, so it measures "#" apart from its
+// keycap sequence and over-fills a cell.)
+func cutColumns(s string, room int) string {
+	used := 0
+	state := parser.GroundState
+	for i := 0; i < len(s); {
+		if s[i] == '\n' {
+			used, state = 0, parser.GroundState
+			i++
+			continue
+		}
+		next, action := parser.Table.Transition(state, s[i])
+		if action == parser.PrintAction || next == parser.Utf8State {
+			cluster, w := ansi.FirstGraphemeCluster(s[i:], ansi.GraphemeWidth)
+			if used+w > room {
+				return s[:i]
+			}
+			used += w
+			i += len(cluster)
+			state = parser.GroundState
+			continue
+		}
+		state = next
+		i++
+	}
+	return s
+}
+
+// Columns is the number of terminal columns s takes: that of its widest
+// line, measured per grapheme cluster exactly as lipgloss.Width does;
+// escape sequences take none.
+func Columns(s string) int {
+	return lipgloss.Width(s)
 }
