@@ -3,9 +3,10 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { FileDiff, DiffSummary, DiffResponse } from '@/types';
+import type { FileDiff, DiffSummary, DiffResponse, SyncWarning } from '@/types';
 
 const PAGE_SIZE = 100;
+const NO_WARNINGS: SyncWarning[] = [];
 
 export interface ProfilePaginatedDiff {
   allFiles:      FileDiff[];
@@ -15,6 +16,8 @@ export interface ProfilePaginatedDiff {
   isLoadingMore: boolean;
   /** Request failure, or the error rclone reported while computing the diff. */
   error:         string | null;
+  /** Local names a sync cannot carry as they are (from the first page). */
+  warnings:      SyncWarning[];
   loadMore:      () => Promise<void>;
   reset:         () => void;
   removeFiles:   (paths: Set<string>) => void;
@@ -117,6 +120,7 @@ export function useProfilePaginatedDiff (slug: string, enabled = true): ProfileP
     isLoading:     query.isLoading,
     isLoadingMore: isFetchingNextPage,
     error:         query.error?.message ?? serverError,
+    warnings:      pages?.[0]?.warnings ?? NO_WARNINGS,
     loadMore,
     reset,
     removeFiles,

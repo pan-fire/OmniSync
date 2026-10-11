@@ -186,6 +186,7 @@ def test_job_lifecycle_consistency(
                 files_changed=0,
                 conflicts=0,
                 errors=0,
+                profile_id=1,  # no FK enforcement here: the profile row is not needed
             )
             session.add(job)
             await session.flush()
@@ -253,6 +254,7 @@ def test_file_change_recording_integrity(
                 files_changed=0,
                 conflicts=0,
                 errors=0,
+                profile_id=1,  # no FK enforcement here: the profile row is not needed
             )
             session.add(job)
             await session.flush()

@@ -109,6 +109,10 @@ class ChangeRecorder:
       the file was replaced, ``Moved into backup dir`` when it was deleted.
     - ``Copied (server-side copy)`` followed by ``Deleted`` is the same
       backup move on backends that cannot move server-side.
+    - A multi-thread transfer (a file above --multi-thread-cutoff, 256 MiB
+      by default, to or from most backends) logs ``Multi-thread Copied
+      (new)`` or ``Multi-thread Copied (replaced existing)``: counted as
+      the plain messages.
 
     ``object`` is the path relative to the destination root, unmodified
     (leading/trailing spaces kept). Memory stays bounded on huge trees: at
@@ -194,6 +198,7 @@ class ChangeRecorder:
         if not isinstance(obj, str) or entry.get("objectType") == "string":
             return  # stats, notices, directories
         key = (self.side, obj)
+        msg = msg.removeprefix("Multi-thread ")
         if msg in ("Moved (server-side)", "Copied (server-side copy)"):
             self._backed_up.add(key)
         elif msg == "Moved into backup dir":

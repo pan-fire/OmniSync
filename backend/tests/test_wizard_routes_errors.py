@@ -94,6 +94,17 @@ async def test_reconnect_authorize_refusals(client, rclone, section, body, statu
     assert wizard._session_manager.active_count == 0
 
 
+async def test_reconnect_authorize_without_rclone_is_503(client, monkeypatch, caplog):
+    """rclone not being wired is 503 service_unavailable, like every other wizard route, not
+    the 500 of a failed config read: the route checks for rclone before the reconnect lookup."""
+    monkeypatch.setattr(wizard, "_rclone_service", None)
+    with caplog.at_level(logging.ERROR, logger="backend.api.routes.wizard"):
+        resp = await client.post("/wizard/authorize", json={"provider_id": "drive", "remote_name": "gd"})
+    assert_error(resp, 503, "service_unavailable")
+    assert "for a reconnect failed" not in caplog.text
+    assert wizard._session_manager.active_count == 0
+
+
 # --- callback ---
 
 

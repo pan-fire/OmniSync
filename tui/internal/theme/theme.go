@@ -39,7 +39,7 @@ func (t *Theme) StatusColor(state string) color.Color {
 		return t.Success
 	case "error", "failed":
 		return t.Error
-	case "paused", "skipped", "resync required":
+	case "paused", "skipped", "resync required", "completed with warnings":
 		return t.Warning
 	}
 	return t.Muted

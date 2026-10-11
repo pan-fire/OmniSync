@@ -259,13 +259,19 @@ class RcloneBase:
         """
         logger.info("Running rclone command (timeout=%s): %s",
                     f"{timeout}s" if timeout else "none", _command_line(cmd))
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            limit=STREAM_LINE_LIMIT,
-            env=process_env(cmd),
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=STREAM_LINE_LIMIT,
+                env=process_env(cmd),
+            )
+        except OSError as exc:
+            # rclone could not be started (e.g. E2BIG: the command line is too
+            # long, or no rclone binary): a failed run, recorded as such by
+            # the callers, which handle RcloneError and not OSError.
+            raise RcloneError(f"rclone could not be started: {exc}") from exc
 
         async def pump(stream: asyncio.StreamReader | None, handler: Callable[[str], None]) -> None:
             assert stream is not None

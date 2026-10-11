@@ -32,5 +32,14 @@
     "resync": true,
     "resync_required": true,
     "error": "bisync dry run failed"
-  }
+  },
+  "warnings": [
+    {
+      "code": "symlink_shadow",
+      "count": 1,
+      "paths": [
+        "Fotos/aktuell"
+      ]
+    }
+  ]
 }

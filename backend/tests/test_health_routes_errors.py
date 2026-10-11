@@ -86,6 +86,12 @@ class FakeProc:
             await asyncio.Event().wait()  # never set: only the timeout ends it
         return self._out, self._err
 
+    def kill(self) -> None:
+        self.returncode = -9
+
+    async def wait(self) -> int:
+        return self.returncode
+
 
 @pytest.fixture
 def network(monkeypatch: pytest.MonkeyPatch):

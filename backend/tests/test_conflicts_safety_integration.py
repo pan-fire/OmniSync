@@ -591,17 +591,62 @@ async def test_names_outside_the_local_folder_are_refused(env, field, bad):
 
 
 async def test_a_symlink_out_of_the_local_folder_is_refused(env):
-    """A kept name that resolves (through a link) outside the folder is refused like '..'."""
+    """A kept name on the way through a link (here out of the folder) is refused, naming the link."""
     elsewhere = env.local.parent / "elsewhere"
     elsewhere.mkdir()
     (elsewhere / "plan.md").write_text("someone else's")
     (env.local / "linked").symlink_to(elsewhere)
     conflict_id = await env.seed(file_path="plan.md", local_kept_as="linked/plan.md", remote_kept_as="plan.md")
 
-    with pytest.raises(ConflictResolutionError, match="not inside the local folder"):
+    with pytest.raises(ConflictResolutionError, match="'linked' in the local folder is a symbolic link"):
         await env.engine.resolve_conflict(conflict_id, ConflictResolution.KEEP_LOCAL)
 
     assert (elsewhere / "plan.md").read_text() == "someone else's"
+
+
+async def test_keep_remote_never_writes_through_a_linked_local_folder(env):
+    """A conflict on ``docs/plan.md`` where ``docs`` is now a local link to a
+    folder elsewhere: copying the remote version would overwrite the file of
+    that name there. Refused, naming the link, before any job is made."""
+    elsewhere = env.local.parent / "elsewhere"
+    write(elsewhere, "plan.md", "someone else's")
+    (env.local / "docs").symlink_to(elsewhere)
+    write(env.remote, "docs/plan.md", "remote edit")
+    conflict_id = await env.seed(file_path="docs/plan.md")
+
+    with pytest.raises(ConflictResolutionError, match="'docs' in the local folder is a symbolic link"):
+        await env.engine.resolve_conflict(conflict_id, ConflictResolution.KEEP_REMOTE)
+
+    assert (elsewhere / "plan.md").read_text() == "someone else's"
+    assert await env.jobs() == []
+
+
+async def test_a_local_folder_swapped_for_a_link_during_a_two_way_resolution_is_not_followed(env, monkeypatch):
+    """The checks pass, then (while the remote side is settled) the local
+    folder is replaced by a link to another folder. The local moves follow
+    no link (local_paths.move_within): they fail, and nothing lands there."""
+    conflict_id = await env.two_way_conflict("sub/plan.md", "sub/plan.local-conflict1.md", "sub/plan.md")
+    elsewhere = env.local.parent / "elsewhere"
+    write(elsewhere, "plan.md", "someone else's")
+    move_file = env.engine._rclone.move_file
+
+    async def then_swap(source, dest):
+        result = await move_file(source, dest)
+        if not (env.local / "sub").is_symlink():
+            (env.local / "sub").rename(env.local / "sub.real")
+            (env.local / "sub").symlink_to(elsewhere)
+        return result
+
+    monkeypatch.setattr(env.engine._rclone, "move_file", then_swap)
+    with pytest.raises(ConflictResolutionError, match="'sub' in the local folder is a symbolic link"):
+        await env.engine.resolve_conflict(conflict_id, ConflictResolution.KEEP_LOCAL)
+
+    assert sorted(os.listdir(elsewhere)) == ["plan.md"] and (elsewhere / "plan.md").read_text() == "someone else's"
+    assert user_files(env.local / "sub.real") == {"plan.local-conflict1.md": "local version",
+                                                   "plan.md": "remote version"}
+    (job,) = await env.jobs()
+    assert job.status == "failed"
+    assert (await env.conflict(conflict_id)).resolved is False
 
 
 @pytest.mark.parametrize(("gone_from", "resolution"), [

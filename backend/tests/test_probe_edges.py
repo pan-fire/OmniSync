@@ -10,6 +10,7 @@ the rclone fallback runs the real binary against a `local`-type remote.
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from backend.api.errors import public_test_sync_result
 from backend.exceptions import RcloneError
 from backend.services.rclone import RcloneService
 from backend.tests.test_rclone_service import (
@@ -26,6 +28,7 @@ from backend.tests.test_rclone_service import (
     oauth_remote,
     serve_drive,
     serve_dropbox,
+    serve_onedrive,
 )
 
 if shutil.which("rclone") is None and os.environ.get("OMNISYNC_REQUIRE_RCLONE") == "1":
@@ -152,7 +155,8 @@ async def test_drive_folder_that_cannot_be_created_fails_the_upload(fake, provid
 
 
 async def test_drive_folder_lookup_failing_after_upload(fake, provider, tmp_path: Path) -> None:
-    """The folder lookup works for the upload and then fails: verify is false and no delete is sent blindly."""
+    """The folder lookup works for the upload and then fails: verify is false, no delete is sent
+    blindly, and the cleanup fails too (nothing shows the probe is gone)."""
     serve_drive(provider)
     search = provider.handlers[("GET", "https://www.googleapis.com/drive/v3/files?")]
     folder_lookups = 0
@@ -169,12 +173,13 @@ async def test_drive_folder_lookup_failing_after_upload(fake, provider, tmp_path
     fake.write_config({"gd": oauth_remote("drive")})
     result = await fake.service().test_sync(str(tmp_path), "gd:docs")
     assert result["success"] is False
-    assert steps(result) == {s: s != "remote_verify" for s in STEPS}
+    assert steps(result) == {s: s not in ("remote_verify", "remote_cleanup") for s in STEPS}
     assert not any(r.method == "DELETE" for r in provider.requests)
 
 
 async def test_drive_file_lookup_failing_after_upload(fake, provider, tmp_path: Path) -> None:
-    """The file search fails: verify is false and the cleanup deletes nothing it has not found."""
+    """The file search fails: verify is false, and the cleanup deletes nothing it has not found
+    and fails, since nothing shows the probe is gone."""
     serve_drive(provider)
     search = provider.handlers[("GET", "https://www.googleapis.com/drive/v3/files?")]
 
@@ -184,8 +189,84 @@ async def test_drive_file_lookup_failing_after_upload(fake, provider, tmp_path: 
     provider.on("GET", "https://www.googleapis.com/drive/v3/files?", files_fail)
     fake.write_config({"gd": oauth_remote("drive")})
     result = await fake.service().test_sync(str(tmp_path), "gd:docs")
-    assert steps(result)["remote_verify"] is False and result["success"] is False
+    assert steps(result) == {s: s not in ("remote_verify", "remote_cleanup") for s in STEPS}
+    assert result["success"] is False
     assert not any(r.method == "DELETE" for r in provider.requests)
+
+
+# --- the cleanup checks what the provider answers ---
+
+DROPBOX_DELETE = "https://api.dropboxapi.com/2/files/delete_v2"
+ONEDRIVE = "https://graph.microsoft.com/v1.0/me/drive/root:/"
+DRIVE_DELETE = "https://www.googleapis.com/drive/v3/files/"
+NOT_FOUND = {"error_summary": "path_lookup/not_found/..", "error": {".tag": "path_lookup"}}
+
+
+def _cleanup_failed(result: dict) -> None:
+    """Failed at the cleanup step only, with the same public message as the rclone route."""
+    assert result["success"] is False and result["error"] == "One or more steps failed"
+    assert steps(result) == {s: s != "remote_cleanup" for s in STEPS}
+    public = public_test_sync_result(result, logging.getLogger("test"))
+    assert public.error is not None and public.error.startswith("The test file could not be removed from the remote.")
+
+
+@pytest.mark.parametrize(("remote_type", "serve", "method", "url", "answer"), [
+    ("dropbox", serve_dropbox, "POST", DROPBOX_DELETE, httpx.Response(500, json={})),
+    ("dropbox", serve_dropbox, "POST", DROPBOX_DELETE,
+     httpx.Response(409, json={"error_summary": "path/restricted_content/..", "error": {}})),
+    ("onedrive", serve_onedrive, "DELETE", ONEDRIVE, httpx.Response(403, json={})),
+    ("drive", serve_drive, "DELETE", DRIVE_DELETE, httpx.Response(500, json={})),
+], ids=["dropbox-500", "dropbox-409-other", "onedrive-403", "drive-500"])
+async def test_refused_api_delete_fails_the_cleanup(
+    fake, provider, tmp_path: Path, remote_type, serve, method, url, answer,
+) -> None:
+    """The provider refuses the delete: the probe stays there, so the test must not pass."""
+    serve(provider)
+    provider.on(method, url, lambda req: answer)
+    fake.write_config({"r": oauth_remote(remote_type)})
+    result = await fake.service().test_sync(str(tmp_path / "local"), "r:docs")
+    _cleanup_failed(result)
+    cleanup = next(s for s in result["steps"] if s["step"] == "remote_cleanup")
+    assert f"HTTP {answer.status_code}" in cleanup["error"]
+
+
+@pytest.mark.parametrize(("remote_type", "serve", "method", "url", "answer"), [
+    ("dropbox", serve_dropbox, "POST", DROPBOX_DELETE, httpx.Response(409, json=NOT_FOUND)),
+    ("onedrive", serve_onedrive, "DELETE", ONEDRIVE, httpx.Response(404, json={})),
+    ("drive", serve_drive, "DELETE", DRIVE_DELETE, httpx.Response(404, json={})),
+], ids=["dropbox-not-found", "onedrive-404", "drive-404"])
+async def test_already_gone_counts_as_cleaned_up(
+    fake, provider, tmp_path: Path, remote_type, serve, method, url, answer,
+) -> None:
+    """"Not found" on delete means the probe is gone: that is what the cleanup wants."""
+    serve(provider)
+    provider.on(method, url, lambda req: answer)
+    fake.write_config({"r": oauth_remote(remote_type)})
+    result = await fake.service().test_sync(str(tmp_path / "local"), "r:docs")
+    assert result["success"] is True, result
+
+
+async def test_drive_cleanup_never_creates_folders(fake, provider, tmp_path: Path) -> None:
+    """The probe's folder vanished after the check: nothing to delete, so the cleanup succeeds,
+    and it does not create the folder again just to look into it."""
+    serve_drive(provider)
+    search = provider.handlers[("GET", "https://www.googleapis.com/drive/v3/files?")]
+    vanished_at: list[int] = []
+
+    def verify_then_vanish(req: httpx.Request) -> httpx.Response:
+        answer = search(req)
+        if FOLDER_QUERY not in req.url.params["q"] and not vanished_at:  # the verify step's file search
+            provider.folders.clear()  # e.g. removed by someone else meanwhile
+            provider.files.clear()
+            vanished_at.append(len(provider.requests))
+        return answer
+
+    provider.on("GET", "https://www.googleapis.com/drive/v3/files?", verify_then_vanish)
+    fake.write_config({"gd": oauth_remote("drive")})
+    result = await fake.service().test_sync(str(tmp_path / "local"), "gd:a/b")
+    assert result["success"] is True, result
+    after = provider.requests[vanished_at[0]:]
+    assert after and all(r.method == "GET" for r in after)  # looked, created and deleted nothing
 
 
 # --- the rclone fallback, against real rclone ---
@@ -243,22 +324,28 @@ async def test_rclone_verify_failure_fails_the_test_and_still_cleans_up(
 
 
 @needs_rclone
-async def test_rclone_cleanup_failure_is_best_effort(
+async def test_rclone_cleanup_failure_is_reported(
     local_remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failing `rclone deletefile` does not fail the test (current behaviour: the probe stays on the remote)."""
+    """A failing `rclone deletefile` fails the test, as a failed delete on a provider API does:
+    the probe is still on the remote, and the user must hear about it, with the step named."""
     service, remote = local_remote
     spy_rclone(service, monkeypatch, fail="deletefile")
     local = tmp_path / "local"
     result = await service.test_sync(str(local), "disk:remote")
-    assert result["success"] is True
-    assert [p.name.startswith(".omnisync-test-") for p in remote.iterdir()] == [True]
+    assert result["success"] is False and result["error"] == "One or more steps failed"
+    assert steps(result) == {s: s != "remote_cleanup" for s in STEPS}
+    left = [p.name for p in remote.iterdir()]
+    assert len(left) == 1 and left[0].startswith(".omnisync-test-")
+    cleanup = next(s for s in result["steps"] if s["step"] == "remote_cleanup")
+    assert cleanup["error"].startswith(f"disk:remote/{left[0]} could not be removed")
     assert list(local.iterdir()) == []
+
+    public = public_test_sync_result(result, logging.getLogger("test"))
+    assert public.error is not None and public.error.startswith("The test file could not be removed from the remote.")
 
 
 @needs_rclone
-@pytest.mark.xfail(strict=True, reason="probe.py strips the leading '/' of the remote path: "
-                   "'disk:/abs/dir' is probed as 'disk:abs/dir' (relative to the remote's home or cwd)")
 async def test_rclone_probe_goes_to_an_absolute_remote_folder(
     local_remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -272,3 +359,29 @@ async def test_rclone_probe_goes_to_an_absolute_remote_folder(
     assert result["success"] is True
     assert calls[0][0] == "copyto" and calls[0][2].startswith(f"disk:{remote}/.omnisync-test-")
     assert list(cwd.iterdir()) == []  # nothing made outside the remote folder
+    assert list(remote.iterdir()) == []  # and the probe is gone again
+
+
+@pytest.mark.parametrize(("remote_dir", "rclone_dir", "api_dir"), [
+    ("disk:/abs/dir", "disk:/abs/dir/", "abs/dir/"),  # absolute stays absolute for rclone
+    ("disk:/", "disk:/", ""),
+    ("disk:rel/dir/", "disk:rel/dir/", "rel/dir/"),
+    ("disk:", "disk:", ""),  # the remote's root (or home folder)
+])
+async def test_rclone_and_api_paths_each_keep_their_form(
+    fake, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remote_dir: str, rclone_dir: str, api_dir: str,
+) -> None:
+    """rclone gets the profile's path as written; the provider APIs get it from the drive root."""
+    seen: dict[str, tuple[str, str]] = {}
+
+    async def upload(remote_name, remote_file, local_path, rclone_target):
+        seen["upload"] = (remote_file, rclone_target)
+        return False
+
+    service = fake.service()
+    monkeypatch.setattr(service, "_test_upload", upload)
+    await service.test_sync(str(tmp_path / "local"), remote_dir)
+    remote_file, rclone_target = seen["upload"]
+    name = remote_file.rsplit("/", 1)[-1]
+    assert name.startswith(".omnisync-test-")
+    assert (remote_file, rclone_target) == (api_dir + name, rclone_dir + name)

@@ -18,7 +18,14 @@ from backend.api.schemas import RestoreScope
 from backend.db.models import BackupTarget, SyncProfile
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR, TRASH_FILTER, classify_failure, process_env
 from backend.services.sync_engine import remote_join
-from backend.services.backup_service.common import RestoreRefused, SnapshotFile, _BackupOutcome, logger, scratch_dir
+from backend.services.backup_service.common import (
+    RestoreRefused,
+    SnapshotFile,
+    _BackupOutcome,
+    logger,
+    refuse_linked_paths,
+    scratch_dir,
+)
 from backend.services.backup_service.base import BackupBase
 
 # A local archive is written under this prefix and renamed when complete, so a
@@ -152,6 +159,15 @@ def _install_archive(source: str, target_dir: str, filename: str) -> None:
         raise
 
 
+def _tree_files(root: str) -> list[str]:
+    """Relative paths (``/``-separated) of every file and link under root (blocking)."""
+    out: list[str] = []
+    for dirpath, _dirnames, filenames in os.walk(root):
+        rel = os.path.relpath(dirpath, root)
+        out += [name if rel == "." else f"{rel}/{name}".replace(os.sep, "/") for name in filenames]
+    return out
+
+
 def _extract_archive(archive_path: str, extract_dir: str) -> None:
     """Extract a tar.gz safely (runs in a thread)."""
     with tarfile.open(archive_path, "r:gz") as tar:
@@ -222,9 +238,13 @@ class ArchiveMixin(BackupBase):
             extract_dir = os.path.join(temp_dir, "extracted")
             await asyncio.to_thread(_extract_archive, archive_path, extract_dir)
 
+            files = await asyncio.to_thread(_tree_files, extract_dir)
+            safeties = {dest: self.pre_restore_dir(dest) for dest in dests}
+            for dest in dests:  # every destination before the first is written to
+                refuse_linked_paths(dest, files, safeties[dest])
             for dest in dests:
                 await self._rclone.sync_with_backup_dir(
-                    extract_dir, dest, self.pre_restore_dir(dest),
+                    extract_dir, dest, safeties[dest],
                     rclone_filter=[TRASH_FILTER, f"- /{SENTINEL_FILE}"], rclone_args=args,
                 )
 
@@ -242,6 +262,7 @@ class ArchiveMixin(BackupBase):
             if not extracted:
                 raise RestoreRefused(f"None of the selected files is in {snapshot_id}; nothing was restored.")
             safety = self.pre_restore_dir(dest)
+            refuse_linked_paths(dest, extracted, safety)
             await self._rclone.copy_files(extract_dir, dest, extracted, backup_dir=safety, rclone_args=rclone_args)
             logger.info("Restored %d file(s) of %s to %s (replaced files kept in %s)",
                         len(extracted), snapshot_id, dest, safety)

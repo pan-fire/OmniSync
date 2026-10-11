@@ -13,8 +13,11 @@ good.
 
 Paths are checked twice: an id must be a plain relative path (no ``..``,
 no absolute path, nothing outside the trash), and on the local side every
-folder on the way must be a real folder inside the profile's folder, so a
-symlink cannot lead a restore or delete elsewhere.
+folder on the way must be a real folder inside the profile's folder, not a
+symbolic link (also not one to a folder inside it), so a link cannot lead a
+restore or delete elsewhere. The moves themselves go through folder
+descriptors that follow no link (local_paths.move_within), so a link
+swapped in after the check fails the restore instead of being followed.
 """
 
 from __future__ import annotations
@@ -23,12 +26,12 @@ import asyncio
 import logging
 import os
 import posixpath
-import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from backend.api.schemas import TrashEntry, TrashItemError, TrashListResponse, TrashSide
 from backend.exceptions import RcloneAuthError, RcloneError
+from backend.services.local_paths import LinkedPathError, link_on_path, move_within
 from backend.services.rclone import TRASH_DIR, RcloneService
 from backend.services.sync_engine import TRASH_STAMP_FORMAT, SyncEngine, remote_join
 
@@ -90,16 +93,28 @@ class _Listing:
                                  total_bytes=self.total_bytes, truncated=self.total_files > len(self.entries))
 
 
+# How far past the restore's own stamp a free trash folder is looked for.
+TRASH_SLOT_SECONDS = 3600
+
+
 def _now_stamp() -> str:
     return datetime.now(timezone.utc).strftime(TRASH_STAMP_FORMAT)
 
 
+class NoFreeTrashSlotError(Exception):
+    """Every trash folder name within the hour after a restore already holds the file's path."""
+
+
 def _later_stamps(stamp: str):
-    """``stamp``, then the following seconds: trash folder names that retention still prunes."""
+    """``stamp``, then the following seconds: trash folder names that retention still prunes.
+
+    Raises NoFreeTrashSlotError when all of them are used up (before anything
+    is moved); apply_to_trash reports that as a failure of that one entry.
+    """
     start = datetime.strptime(stamp, TRASH_STAMP_FORMAT)
-    for seconds in range(3600):
+    for seconds in range(TRASH_SLOT_SECONDS):
         yield (start + timedelta(seconds=seconds)).strftime(TRASH_STAMP_FORMAT)
-    raise RuntimeError("no free trash folder name")
+    raise NoFreeTrashSlotError(f"no free trash folder name in the {TRASH_SLOT_SECONDS} s after {stamp}")
 
 
 def _fail(entry_id: str, code: str, message: str) -> TrashItemError:
@@ -166,8 +181,14 @@ class LocalTrash:
         if path.split("/", 1)[0] == TRASH_DIR:
             raise TrashPathError(f"Cannot restore into the trash: {path!r}")
         target = os.path.join(self.root, path)
-        # The deepest folder of the way that exists must be inside the
-        # profile's folder once symlinks are resolved.
+        # No folder on the way may be a symbolic link (local_paths), and
+        # the deepest one that exists must be inside the profile's folder,
+        # outside the trash, once links are resolved. The file itself may
+        # be a link: like any file in the way, it is moved to the trash.
+        parent = os.path.dirname(path)
+        link = link_on_path(self.root, parent) if parent else None
+        if link is not None:
+            raise TrashPathError(f"{link!r} on the way to {path!r} is a symbolic link")
         existing = os.path.dirname(target)
         while not os.path.lexists(existing):
             existing = os.path.dirname(existing)
@@ -194,12 +215,16 @@ class LocalTrash:
                              "(the current version is moved to the trash).")
             # Never onto a trashed file (e.g. the one being restored, when
             # its sync ran within the same second).
-            keep = next(k for k in (os.path.join(self.trash, st, path) for st in _later_stamps(stamp))
-                        if not os.path.lexists(k))
-            os.makedirs(os.path.dirname(keep), exist_ok=True)
-            os.replace(target, keep)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        shutil.move(source, target)
+            keep = next(f"{TRASH_DIR}/{st}/{path}" for st in _later_stamps(stamp)
+                        if not os.path.lexists(os.path.join(self.root, TRASH_DIR, st, path)))
+            try:
+                move_within(self.root, path, keep)
+            except LinkedPathError as exc:
+                return _fail(entry_id, "invalid", f"{exc.link!r} on the way to {path!r} is a symbolic link")
+        try:
+            move_within(self.root, f"{TRASH_DIR}/{entry_id}", path)
+        except LinkedPathError as exc:
+            return _fail(entry_id, "invalid", f"{exc.link!r} on the way to {path!r} is a symbolic link")
         self._prune_empty(os.path.dirname(source))
         return None
 
@@ -339,6 +364,13 @@ async def apply_to_trash(
         except (OSError, RcloneError) as exc:
             logger.warning("Trash %s of %r on the %s side failed: %s", action, entry_id, side.value, exc)
             error = _fail(entry_id, "failed", f"The {action} failed. The OmniSync log has the details.")
+        except NoFreeTrashSlotError as exc:
+            # Nothing was moved: the file in the way has nowhere to go in the trash.
+            logger.warning("Trash %s of %r on the %s side refused: %s", action, entry_id, side.value, exc)
+            error = _fail(entry_id, "failed",
+                          f"The {action} was not done: the trash already holds a version of this file "
+                          "for every second of the next hour, so the file in its place cannot be kept. "
+                          "Try again later.")
         if error is None:
             done.append(entry_id)
         else:

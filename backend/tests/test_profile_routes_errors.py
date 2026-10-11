@@ -96,13 +96,14 @@ async def test_trash_action_without_rclone_is_503(test_client, svc, tmp_path):
                  503, "service_unavailable")
 
 
-@pytest.mark.xfail(strict=True, reason="list_profile_trash calls _trash_rclone() inside its `except Exception`, "
-                   "so the 503 service_unavailable becomes 502 rclone_failed (and is logged as a crash)")
-async def test_trash_listing_without_rclone_is_503(test_client, svc, tmp_path):
-    """Same answer as the trash actions: rclone not available is 503, not a failed rclone call."""
+async def test_trash_listing_without_rclone_is_503(test_client, svc, tmp_path, caplog):
+    """Same answer as the trash actions: rclone not available is 503, not a failed rclone call
+    (and it is not logged as a crash of the listing)."""
     svc.get_by_slug = by_slug(row(local_dir=str(tmp_path)))
     profiles_router.set_rclone_service(None)
-    assert_error(await test_client.get("/profiles/default/trash"), 503, "service_unavailable")
+    with caplog.at_level(logging.ERROR, logger="backend.api.routes.profiles"):
+        assert_error(await test_client.get("/profiles/default/trash"), 503, "service_unavailable")
+    assert "Listing the local trash" not in caplog.text
 
 
 # --- reading ---

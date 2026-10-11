@@ -163,7 +163,7 @@ In both modes:
   **Delete** (`POST .../trash/delete`) removes trash entries for good.
   Entries are addressed by their path inside the trash and cannot reach
   outside it (no `..`, no absolute paths, no symlinked folders on the local
-  side); both actions wait for no sync of the profile to run (409
+  side, not even ones that point inside the synced folder); both actions wait for no sync of the profile to run (409
   otherwise). Trash folders older than `OMNISYNC_TRASH_DAYS` are still
   pruned automatically.
 
@@ -177,7 +177,10 @@ a schedule, as a mirror or as dated archive snapshots with a retention period,
 and restored to the local side, the remote side or both. A restore rebuilds
 the folder exactly as it was right after the chosen backup (the latest one
 included) and keeps everything it replaces or removes in
-`.omnisync-trash/pre-restore/`. A backup refuses to run on a missing, empty or
+`.omnisync-trash/pre-restore/`. A restore into a local folder never writes
+through a symbolic link there: if a file it would restore lies at or below
+a link (say `docs` is now a link to another folder), it is refused before
+anything is written, naming the link. A backup refuses to run on a missing, empty or
 unmarked local folder while the backup holds data, and a target that cannot be
 reached (a local target folder is never created) is skipped with a
 notification. A target can be encrypted with a passphrase (rclone crypt: file
@@ -234,6 +237,103 @@ OmniSync checks before every sync, in both modes, and keeps what it replaces:
   [Sync modes and when they run](#sync-modes-and-when-they-run)): a startup
   check that cannot compare pauses automatic syncing.
 - Runs one sync, per-file action, backup or restore per profile at a time.
+
+## What a sync leaves out, and the profile's filters
+
+A push or pull leaves out manually flagged files, unresolved conflicts of
+the diff and, for a pull, local symbolic links (see
+[File names and links](#file-names-and-links)). These exclusions always
+come first: rclone applies its rules by kind rather than in the order given
+(every `--include` flag, then every `--exclude` flag, then the `--filter`
+rules, then filter files), so OmniSync passes a push or pull one filter
+file that starts with its own exclusions and then holds the profile's
+filter rules and its `--include`, `--exclude` and `--filter` flags as rules
+in rclone's order. What the profile's filters select stays the same. A
+rule `!` in a profile's filters clears the rules before it; OmniSync keeps
+only the profile's rules after the last `!` (all that rclone would keep of
+them), so it never clears OmniSync's exclusions or the trash's. A two-way
+sync puts manually flagged files first in its filters file, and leaves
+local symbolic links out with a separate exclude file that rclone applies
+before the filters file: bisync checks only the filters file for changes,
+so a link added or removed needs no resync.
+
+## File names and links
+
+Most names sync byte for byte, whatever they contain: accents, right-to-left
+text, emoji, spaces, leading dashes, `#`, `%`, `*`, `[`, quotes, control
+characters, names up to the 255-byte limit. A few cases have rules of their
+own. Where a sync cannot carry a name as it is, OmniSync says so: the sync
+confirmation (`POST /profiles/{slug}/sync/preview`) and the diff list a
+**warning** first, and the job keeps it (`warnings` on the job, up to 20
+paths per kind with a count, shown as **Completed with warnings**). The log
+gets one line per kind, and the "completed" notification becomes a warning.
+OmniSync checks the local folder at the start of each preview, diff, push,
+pull and two-way sync, only among the files the profile's filters let a
+sync see. In a warning, bytes that are not UTF-8 are shown as `\xNN`, and
+control and bidi characters (such as U+202E, which can make `exe` look
+like `jpg`) as `\xNN` or `\uNNNN`.
+
+- **Symbolic links** are never followed and never copied (rclone's default
+  for a local folder): neither the link nor what it points to reaches the
+  other side, and the link and its target are left alone. If the remote
+  folder has a file or folder with the **same name** as a local link:
+  - a **pull** or **two-way sync** leaves both alone: the path is left out
+    of the run, so the remote item is not copied over the link (which would
+    replace the link) and nothing is written through a link to a folder
+    into the folder it points to. The warning names the link; the remote
+    item arrives once the link is removed or renamed.
+  - a **push** treats the link as no file, like any file missing locally:
+    the remote item is deleted into the remote trash
+    (`.omnisync-trash/<timestamp>/`), and the warning says so.
+
+  A link is only reported when the run acts on the remote item of its
+  name: a remote file (or a folder with files) that the profile's filter
+  rules and filter flags (such as `--max-size`) let the sync see, and
+  that is not manually flagged or an unresolved conflict. rclone itself
+  checks those files against the profile's rules; a link it could not
+  check is reported (a warning too many rather than one too few).
+
+  A **per-file action** (push, pull, keep both) or a **conflict
+  resolution** on a path at or below a local link, such as `ld/report.txt`
+  where `ld` is a link to a folder, is refused with a message that names
+  the link: the diff shows such a remote file as remote-only (the sync does
+  not look inside the link), but copying it would write it through the link
+  into the folder it points to, or replace the link. The check runs right
+  before the copy; OmniSync's own moves (conflict resolution, trash restore)
+  also fail rather than follow a link that appears meanwhile.
+
+  Neither a profile's filter rules nor its `--include`, `--exclude` or
+  `--filter` flags can undo this protection (see below).
+- **Names equal after Unicode normalisation.** An accented letter can be
+  stored as one character (composed, NFC: most systems) or as a letter plus
+  an accent (decomposed, NFD: files created on macOS). rclone compares names
+  after normalising them, so that a file synced from a Mac matches its
+  copy elsewhere. Two local names in one folder that differ only in this
+  way (for example both spellings of `café.txt`) are one file to rclone: it
+  syncs one of them and leaves the other behind, a folder with all its
+  content. OmniSync warns about each such name; nothing is deleted, and
+  renaming one of the two lets both sync. (OmniSync does not turn rclone's
+  normalisation off: that would make every macOS name look different from
+  its copy on other storage.)
+- **Names that are not valid UTF-8** (bytes from an old system or a broken
+  archive) are carried byte for byte by push, pull and two-way sync, and
+  reported with a warning: rclone lists such a name with U+FFFD in place of
+  the bad bytes, so a per-file action cannot name the file and fails with
+  "The file name is not valid UTF-8", and a two-way sync matches the file
+  with its record of the last run only one run late (an edit can then arrive
+  as a conflict, with both versions kept). Renaming the file is safest.
+- **Empty folders** travel only with a two-way sync (rclone bisync
+  `--create-empty-src-dirs`). A push, a pull and the per-file actions copy
+  files only: an empty folder on the source side is not created on the
+  other side.
+- **Case-only renames** (`Report.txt` to `report.txt`) are carried by push,
+  pull and two-way sync as a rename: one file under the new name on both
+  sides, the old name in the other side's trash. The per-file actions only
+  copy, never delete: the old name is copied back from the other side, so
+  both names end up on both sides. This holds where both folders tell
+  upper and lower case apart; on storage that does not (Windows and macOS
+  drives by default, several cloud providers), check the result after such
+  a rename.
 
 ---
 

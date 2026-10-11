@@ -318,8 +318,15 @@ async def test_resolving_waits_for_the_profiles_running_sync(env):
 
 
 async def test_a_conflict_of_another_profile_is_refused(env):
+    """An engine acts only on its own profile's conflicts, whatever id it is handed."""
+    now = datetime.now(timezone.utc)
     async with env.factory() as session:
-        session.add(Conflict(profile_id=None, job_id=None, file_path="plan.md", resolved=False))
+        other = SyncProfile(slug="other", name="Other", local_dir="/elsewhere", remote_dir="testremote:elsewhere",
+                            debounce_seconds=5, pull_interval_minutes=5, rclone_filter="[]", rclone_args="[]",
+                            max_retries=1, enabled=True, created_at=now, updated_at=now)
+        session.add(other)
+        await session.flush()
+        session.add(Conflict(profile_id=other.id, job_id=None, file_path="plan.md", resolved=False))
         await session.commit()
     (row,) = await env.conflicts()
 

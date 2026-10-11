@@ -150,6 +150,22 @@ class TestChangeRecorder:
             rec.feed(line)
         assert [(r.path, r.action) for r in rec.rows] == [("a.txt", "modified"), ("b.txt", "deleted")]
 
+    def test_multi_thread_transfers_count(self) -> None:
+        """rclone 1.75 logs a multi-thread transfer (files above --multi-thread-cutoff,
+        256 MiB by default, to or from most backends) as "Multi-thread Copied (...)"."""
+        rec = ChangeRecorder()
+        for line in [
+            log("Multi-thread Copied (new)", "new.iso", size=3),
+            log("Multi-thread Copied (replaced existing)", "plain.iso", size=4),
+            log("Moved (server-side)", "backed-up.iso"),
+            log("Multi-thread Copied (new)", "backed-up.iso", size=5),
+        ]:
+            rec.feed(line)
+        assert [(r.path, r.action, r.size_bytes) for r in rec.rows] == [
+            ("new.iso", "created", 3), ("plain.iso", "modified", 4), ("backed-up.iso", "modified", 5),
+        ]
+        assert (rec.created, rec.modified, rec.total) == (1, 2, 3)
+
     def test_rows_are_capped_but_all_changes_counted(self) -> None:
         rec = ChangeRecorder(max_rows=10)
         for i in range(25_000):

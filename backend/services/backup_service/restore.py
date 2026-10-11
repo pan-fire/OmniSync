@@ -21,7 +21,7 @@ from backend.services.notification_events import backup_restore_completed_event,
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR, redact_secrets
 from backend.services.sync_engine import remote_join, store_pause_reason
 from backend.services.backup_service import common
-from backend.services.backup_service.common import RestoreRefused, logger
+from backend.services.backup_service.common import RestoreRefused, logger, refuse_linked_paths
 from backend.services.backup_service.jobs import LOCK_TIMEOUT_MESSAGE, restore_error_code, set_job_end
 from backend.services.backup_service.base import BackupBase
 
@@ -282,8 +282,12 @@ class RestoreMixin(BackupBase):
         Empty folders are not part of a snapshot and are left in place.
         """
         restored = sum(len(p) for p in plan.layers.values())
+        planned = [p for paths in plan.layers.values() for p in paths]
+        safeties = {dest: self.pre_restore_dir(dest) for dest in dests}
+        for dest in dests:  # every destination before the first is written to
+            refuse_linked_paths(dest, planned, safeties[dest])
         for dest in dests:
-            safety = self.pre_restore_dir(dest)
+            safety = safeties[dest]
             try:
                 live = await self._rclone.lsjson(dest)
             except RcloneAuthError:
@@ -311,8 +315,12 @@ class RestoreMixin(BackupBase):
         Nothing else in the destination changes and nothing is deleted.
         """
         restored = sum(len(p) for p in plan.layers.values())
+        planned = [p for paths in plan.layers.values() for p in paths]
+        safeties = {dest: self.pre_restore_dir(dest) for dest in dests}
+        for dest in dests:  # every destination before the first is written to
+            refuse_linked_paths(dest, planned, safeties[dest])
         for dest in dests:
-            safety = self.pre_restore_dir(dest)
+            safety = safeties[dest]
             for layer, paths in plan.layers.items():
                 await self._rclone.copy_files(layer, dest, paths, backup_dir=safety, rclone_args=rclone_args)
             logger.info("Restored %d file(s) of snapshot %s to %s (replaced files kept in %s)",

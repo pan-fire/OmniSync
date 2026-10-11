@@ -1923,6 +1923,11 @@ export interface components {
             pagination?: components["schemas"]["DiffPagination"] | null;
             /** Error */
             error?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings?: components["schemas"]["SyncWarning"][];
         };
         /**
          * DiffSummary
@@ -3217,6 +3222,11 @@ export interface components {
             profile_slug?: string | null;
             /** Profile Name */
             profile_name?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings?: components["schemas"]["SyncWarning"][];
         };
         /**
          * SyncMode
@@ -3296,6 +3306,11 @@ export interface components {
             /** @default mirror */
             sync_mode?: components["schemas"]["SyncMode"];
             two_way?: components["schemas"]["TwoWayPreview"] | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings?: components["schemas"]["SyncWarning"][];
         };
         /**
          * SyncProgress
@@ -3442,6 +3457,39 @@ export interface components {
             /** Message */
             message: string;
         };
+        /**
+         * SyncWarning
+         * @description One kind of name problem: how many local names have it, and some of them.
+         *
+         *     ``paths`` holds at most 20 of the ``count`` paths, escaped for display:
+         *     bytes that are not UTF-8 as ``\xNN``, control and bidi characters as
+         *     ``\xNN`` or ``\uNNNN``; a folder ends with ``/``.
+         */
+        SyncWarning: {
+            code: components["schemas"]["SyncWarningCode"];
+            /** Count */
+            count: number;
+            /**
+             * Paths
+             * @default []
+             */
+            paths?: string[];
+        };
+        /**
+         * SyncWarningCode
+         * @description Why a sync left a file alone, or did something the user should know about.
+         *
+         *     name_collision: names in one local folder equal after Unicode
+         *     normalisation (e.g. ``café`` composed and decomposed); rclone treats
+         *     them as one file and syncs only one. name_not_utf8: a local name that
+         *     is not valid UTF-8; whole-folder syncs carry it, per-file actions
+         *     cannot. symlink_shadow (preview, diff): a local symbolic link has the
+         *     name of a remote file or folder. symlink_kept (pull, two-way): that
+         *     remote item was left alone so the link is not replaced. symlink_trashed
+         *     (push): that remote item was moved to the remote trash.
+         * @enum {string}
+         */
+        SyncWarningCode: "name_collision" | "name_not_utf8" | "symlink_shadow" | "symlink_kept" | "symlink_trashed";
         /**
          * SyncWindow
          * @description When automatic syncs (file watcher, interval) may run, in the server's local time.

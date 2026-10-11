@@ -8,5 +8,14 @@
   "conflicts": 1,
   "errors": 2,
   "profile_slug": "docs",
-  "profile_name": "Dokumente"
+  "profile_name": "Dokumente",
+  "warnings": [
+    {
+      "code": "name_not_utf8",
+      "count": 1,
+      "paths": [
+        "bad\\xff.txt"
+      ]
+    }
+  ]
 }

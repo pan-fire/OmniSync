@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.schemas import HealthResponse, RemoteHealth, RemoteHealthResponse
 from backend.db.database import get_session
 from backend.services import remote_auth
+from backend.services.subprocesses import communicate_or_kill
 from backend.services.sync_engine_manager import SyncEngineManager
 from backend.version import get_version
 
@@ -163,7 +164,7 @@ async def network_check() -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        stdout, _ = await communicate_or_kill(proc, timeout=5)
         version_line = stdout.decode().splitlines()[0] if stdout else "unknown"
         results["rclone_version"] = {"ok": True, "version": version_line}
     except Exception as e:
@@ -179,7 +180,8 @@ async def network_check() -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        # Killed and reaped on timeout: a hung rclone must not outlive the request.
+        _, stderr = await communicate_or_kill(proc, timeout=10)
         rc = proc.returncode
         if rc != 0:
             logger.warning("Network check rclone_network: exit %s: %s", rc, stderr.decode()[:300])

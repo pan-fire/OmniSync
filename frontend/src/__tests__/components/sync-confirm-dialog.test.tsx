@@ -80,6 +80,23 @@ describe('SyncConfirmDialog', () => {
     await waitFor(() => expect(starts).toEqual([{ direction: 'push', force: true }]));
   });
 
+  it('shows the local names the sync cannot carry as they are', async () => {
+    renderDialog('pull', preview({
+      warnings: [
+        { code: 'name_collision', count: 1, paths: ['café.txt'] },
+        { code: 'symlink_shadow', count: 3, paths: ['clash.txt', 'photos/'] },
+      ],
+    }));
+    const list = await screen.findByTestId('sync-warnings');
+    expect(list).toHaveTextContent(en.syncWarnings.name_collision_one.replace('{{count}}', '1'));
+    expect(list).toHaveTextContent('café.txt');
+    expect(list).toHaveTextContent(en.syncWarnings.symlink_shadow_other.replace('{{count}}', '3'));
+    expect(list).toHaveTextContent('photos/');
+    expect(list).toHaveTextContent(en.syncWarnings.more_one.replace('{{count}}', '1'));
+    // A warning is no reason to block the sync.
+    expect(confirmButton(en.syncConfirm.confirmPull)).toBeEnabled();
+  });
+
   it.each<[SyncDirection, Partial<SyncPreview>]>([
     ['push', { push: { ...NONE, deletes: 3 } }],
     ['pull', { pull: { ...NONE, deletes: 1 } }],

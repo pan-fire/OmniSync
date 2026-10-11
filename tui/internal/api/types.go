@@ -83,6 +83,26 @@ const (
 	JobStatusFailed    JobStatus = "failed"
 )
 
+// SyncWarningCode says why a sync left local names alone or treated them
+// specially (see the backend's SyncWarningCode).
+type SyncWarningCode string
+
+const (
+	SyncWarningNameCollision  SyncWarningCode = "name_collision"
+	SyncWarningNameNotUTF8    SyncWarningCode = "name_not_utf8"
+	SyncWarningSymlinkShadow  SyncWarningCode = "symlink_shadow"
+	SyncWarningSymlinkKept    SyncWarningCode = "symlink_kept"
+	SyncWarningSymlinkTrashed SyncWarningCode = "symlink_trashed"
+)
+
+// SyncWarning is one kind of name problem: how many local names have it,
+// and up to 20 of their paths (escaped by the backend; a folder ends with /).
+type SyncWarning struct {
+	Code  SyncWarningCode `json:"code"`
+	Count int             `json:"count"`
+	Paths []string        `json:"paths"`
+}
+
 type ChangeCategory string
 
 const (
@@ -546,6 +566,8 @@ type SyncPreviewResponse struct {
 	Error     *string        `json:"error"`
 	SyncMode  SyncMode       `json:"sync_mode"`
 	TwoWay    *TwoWayPreview `json:"two_way"`
+	// Warnings lists the local names a sync cannot carry as they are.
+	Warnings []SyncWarning `json:"warnings"`
 }
 
 // Counts returns the counts for a push or a pull (TwoWay holds the counts of
@@ -592,6 +614,7 @@ type DiffResponse struct {
 	Summary    DiffSummary     `json:"summary"`
 	Pagination *DiffPagination `json:"pagination"`
 	Error      *string         `json:"error"`
+	Warnings   []SyncWarning   `json:"warnings"`
 }
 
 // --- Selective sync ---
@@ -653,6 +676,15 @@ type SyncJobResponse struct {
 	Errors       int          `json:"errors"`
 	ProfileSlug  *string      `json:"profile_slug"`
 	ProfileName  *string      `json:"profile_name"`
+	// Warnings: what the job left alone or treated specially; a completed
+	// job with warnings did not sync everything.
+	Warnings []SyncWarning `json:"warnings"`
+}
+
+// HasWarnings reports whether the job completed but left files alone or
+// treated them specially.
+func (j SyncJobResponse) HasWarnings() bool {
+	return j.Status == JobStatusCompleted && len(j.Warnings) > 0
 }
 
 type FileChangeResponse struct {

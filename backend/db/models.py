@@ -102,9 +102,9 @@ class SyncJob(Base):
     __tablename__ = "sync_jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    # NULL only for jobs recorded before profiles existed.
-    profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("sync_profiles.id", ondelete="CASCADE"), nullable=True, index=True,
+    # Every job belongs to a profile; its history goes with it (CASCADE).
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("sync_profiles.id", ondelete="CASCADE"), index=True,
     )
     direction: Mapped[str] = mapped_column(String(10))  # a JobDirection value
     started_at: Mapped[datetime] = mapped_column(DateTime)
@@ -113,8 +113,11 @@ class SyncJob(Base):
     files_changed: Mapped[int] = mapped_column(Integer, default=0)
     conflicts: Mapped[int] = mapped_column(Integer, default=0)
     errors: Mapped[int] = mapped_column(Integer, default=0)
+    # JSON array of SyncWarning objects (api.schemas): files the job left
+    # alone or treated specially. A list per kind, so it stays small.
+    warnings: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
 
-    profile: Mapped["SyncProfile | None"] = relationship(back_populates="jobs")
+    profile: Mapped["SyncProfile"] = relationship(back_populates="jobs")
     file_changes: Mapped[list["FileChange"]] = relationship(
         back_populates="job", cascade="all, delete-orphan", passive_deletes=True,
     )
@@ -152,8 +155,9 @@ class Conflict(Base):
     __tablename__ = "conflicts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("sync_profiles.id", ondelete="CASCADE"), nullable=True, index=True,
+    # Every conflict belongs to a profile (CASCADE: deleted with it).
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("sync_profiles.id", ondelete="CASCADE"), index=True,
     )
     job_id: Mapped[int | None] = mapped_column(
         ForeignKey("sync_jobs.id", ondelete="CASCADE"), nullable=True, index=True,
@@ -166,7 +170,7 @@ class Conflict(Base):
     local_kept_as: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     remote_kept_as: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
-    profile: Mapped["SyncProfile | None"] = relationship(back_populates="profile_conflicts")
+    profile: Mapped["SyncProfile"] = relationship(back_populates="profile_conflicts")
     job: Mapped["SyncJob | None"] = relationship(back_populates="job_conflicts")
 
 

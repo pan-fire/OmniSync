@@ -10,13 +10,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from types import SimpleNamespace
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from backend.services.notification_channels.platforms.linux import LinuxNotifier
 from backend.services.notification_channels.platforms.macos import MacNotifier
 from backend.services.notification_channels.platforms.termux import TermuxNotifier
-from backend.services.notification_channels.platforms.windows import WindowsNotifier
+from backend.services.notification_channels.platforms import windows as windows_module
+from backend.services.notification_channels.platforms.windows import (
+    BODY_VAR,
+    MARKER_VAR,
+    TITLE_VAR,
+    WindowsNotifier,
+    toast_script,
+)
 from backend.services.notification_events import NotificationSeverity
 
 Notifier = TermuxNotifier | MacNotifier | WindowsNotifier | LinuxNotifier
@@ -50,12 +60,17 @@ class FakeProcess:
         self.returncode = returncode
         self._stderr = stderr
         self.killed = False
+        self.reaped = False
 
     async def communicate(self) -> tuple[bytes, bytes]:
         return b"", self._stderr
 
     def kill(self) -> None:
         self.killed = True
+
+    async def wait(self) -> int:
+        self.reaped = True
+        return self.returncode
 
 
 class Exec:
@@ -65,9 +80,11 @@ class Exec:
         self.proc = proc or FakeProcess()
         self.error = error
         self.argv: list[tuple[str, ...]] = []
+        self.kwargs: list[dict[str, object]] = []
 
-    async def __call__(self, *argv: str, **_kwargs: object) -> FakeProcess:
+    async def __call__(self, *argv: str, **kwargs: object) -> FakeProcess:
         self.argv.append(argv)
+        self.kwargs.append(kwargs)
         if self.error is not None:
             raise self.error
         return self.proc
@@ -120,24 +137,30 @@ async def test_non_zero_exit_reports_code_and_stderr(
 
 @pytest.mark.parametrize("cls, exe, failed, not_found", NOTIFIERS)
 async def test_hung_notifier_is_killed(fake_exec, monkeypatch: pytest.MonkeyPatch, cls, exe, failed, not_found) -> None:
-    """A notifier that never returns is killed, so no process is left behind per event."""
+    """A notifier that never returns is killed and reaped, so no process is left behind per event."""
     fake = fake_exec()
     monkeypatch.setattr(asyncio, "wait_for", _time_out)
 
     with pytest.raises(RuntimeError, match="timed out after 5s"):
         await cls().send("Title", "Body", NotificationSeverity.INFO)
 
-    assert fake.proc.killed
+    assert fake.proc.killed and fake.proc.reaped
 
 
-@pytest.mark.xfail(strict=True, reason="stderr is decoded as strict UTF-8; PowerShell on a non-English "
-                   "Windows writes it in the OEM code page, so the error becomes a UnicodeDecodeError")
-async def test_non_utf8_stderr_still_gives_the_failure(fake_exec) -> None:
-    """German Windows: PowerShell's error text in cp850 ('Ä' is 0x8e) must not hide the failure."""
-    fake_exec(FakeProcess(returncode=1, stderr="Modul 'BurntToast' nicht gefunden: Ä".encode("cp850")))
+ALL_NOTIFIERS = [*NOTIFIERS, pytest.param(LinuxNotifier, "notify-send", "notify-send failed",
+                                           "notify-send binary not found", id="linux")]
 
-    with pytest.raises(RuntimeError, match=r"rc=1"):
-        await WindowsNotifier().send("Title", "Body", NotificationSeverity.ERROR)
+
+@pytest.mark.parametrize("cls, exe, failed, not_found", ALL_NOTIFIERS)
+async def test_non_utf8_stderr_still_gives_the_failure(fake_exec, cls, exe, failed, not_found) -> None:
+    """German Windows: PowerShell's error text in cp850 ('\u00c4' is 0x8e) must not hide the
+    failure behind a UnicodeDecodeError; the same holds for every notifier."""
+    fake_exec(FakeProcess(returncode=1, stderr="Modul 'BurntToast' nicht gefunden: \u00c4".encode("cp850")))
+
+    with pytest.raises(RuntimeError) as raised:
+        await cls().send("Title", "Body", NotificationSeverity.ERROR)
+
+    assert str(raised.value) == f"{failed} (rc=1): Modul 'BurntToast' nicht gefunden: \ufffd"
 
 
 # --- odd titles and bodies ----------------------------------------------------
@@ -191,6 +214,20 @@ async def test_macos_script_keeps_text_inside_its_literals(fake_exec, text: str)
     assert script.endswith(' sound name "Funk"')
 
 
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(title=st.text(), body=st.text())
+async def test_macos_any_text_stays_a_literal(fake_exec, title: str, body: str) -> None:
+    """Property: in an AppleScript string literal only '"' ends it and '\\' escapes, and
+    both are escaped, so any title and body come back as exactly two literals."""
+    fake = fake_exec()
+
+    await MacNotifier().send(title, body, NotificationSeverity.INFO)
+
+    exe, flag, script = fake.argv[0]
+    assert (exe, flag) == ("osascript", "-e")
+    assert _applescript_literals(script) == [body, title]
+
+
 # PowerShell treats these four as single quotes too (language spec, verbatim strings).
 _PS_QUOTES = "'\u2018\u2019\u201a\u201b"
 
@@ -219,37 +256,114 @@ def _powershell_verbatim_literals(script: str) -> list[str]:
     return literals
 
 
+def _windows_call(fake: Exec) -> tuple[str, str, str]:
+    """The script PowerShell ran, and the title and body it got through its environment."""
+    argv = fake.argv[0]
+    assert argv[:4] == ("powershell.exe", "-NoProfile", "-NonInteractive", "-Command")
+    assert len(argv) == 5
+    env = fake.kwargs[0]["env"]
+    assert isinstance(env, dict)
+    return argv[4], env[TITLE_VAR], env[BODY_VAR]
+
+
 @pytest.mark.parametrize("text", ODD_TEXTS)
-async def test_windows_command_keeps_text_inside_its_literals(fake_exec, text: str) -> None:
-    """The toast command has exactly the title and body as its literals, plus the sound name."""
+async def test_windows_text_never_becomes_script(fake_exec, text: str) -> None:
+    """The toast command is the same whatever the text: the title and body reach
+    PowerShell as environment variables, so there is no literal for them to end."""
     fake = fake_exec()
 
     await WindowsNotifier().send(text, "body: " + text, NotificationSeverity.ERROR)
 
-    argv = fake.argv[0]
-    assert argv[:3] == ("powershell.exe", "-NoProfile", "-Command")
-    assert _powershell_verbatim_literals(argv[3]) == [text, "body: " + text, "Alarm"]
+    script, title, body = _windows_call(fake)
+    assert script == toast_script(NotificationSeverity.ERROR)
+    assert _powershell_verbatim_literals(script) == ["Alarm"]
+    assert (title, body) == (text, "body: " + text)
 
 
-@pytest.mark.xfail(strict=True, reason="_sanitize_powershell doubles only U+0027; PowerShell also ends a "
-                   "single-quoted string at U+2018..U+201B, so typographic apostrophes break out of it")
 @pytest.mark.parametrize("text", [
     "Bob\u2019s report.docx",
     "\u2019; Start-Process calc; \u2019",
 ])
 async def test_windows_typographic_quotes_stay_inside_the_literal(fake_exec, text: str) -> None:
-    """A file named with a typographic apostrophe (common in documents) must not end the
-    literal early: that breaks the toast, and lets a crafted name run PowerShell code."""
+    """A file named with a typographic apostrophe (common in documents) must not end a
+    literal early: that broke the toast, and let a crafted name run PowerShell code."""
     fake = fake_exec()
 
     await WindowsNotifier().send("Sync conflict", text, NotificationSeverity.ERROR)
 
-    assert _powershell_verbatim_literals(fake.argv[0][3]) == ["Sync conflict", text, "Alarm"]
+    script, title, body = _windows_call(fake)
+    assert _powershell_verbatim_literals(script) == ["Alarm"]
+    assert (title, body) == ("Sync conflict", text)
 
 
-@pytest.mark.xfail(strict=True, reason="notify-send gets the title and body as positional arguments with "
-                   "no '--' before them, so text starting with '-' is parsed as an option")
-@pytest.mark.parametrize("title, body", [("-draft.txt could not be synced", "Body"), ("Title", "--help")])
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(title=st.text(), body=st.text())
+async def test_windows_any_text_is_carried_verbatim(fake_exec, title: str, body: str) -> None:
+    """Property: for any title and body the script is fixed and the text arrives unchanged
+    (bar NUL, which no environment variable can hold)."""
+    fake = fake_exec()
+
+    await WindowsNotifier().send(title, body, NotificationSeverity.WARNING)
+
+    script, got_title, got_body = _windows_call(fake)
+    assert script == toast_script(NotificationSeverity.WARNING)
+    assert (got_title, got_body) == (title.replace("\0", ""), body.replace("\0", ""))
+
+
+@pytest.mark.parametrize("existing", [None, "", "WT_SESSION:USERPROFILE/p", f"{TITLE_VAR}/p:PATH/l"])
+async def test_windows_text_is_passed_on_through_wsl(fake_exec, monkeypatch, existing: str | None) -> None:
+    """Under WSL, powershell.exe is a Windows process: a Linux environment
+    variable reaches it only when WSLENV names it. Without that the toast
+    came up empty and the run still exited 0. The names already in WSLENV
+    stay (ours replace an entry of the same name)."""
+    monkeypatch.setattr(windows_module.sys, "platform", "linux")
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
+    if existing is None:
+        monkeypatch.delenv("WSLENV", raising=False)
+    else:
+        monkeypatch.setenv("WSLENV", existing)
+    fake = fake_exec()
+
+    await WindowsNotifier().send("Conflict", "report.docx", NotificationSeverity.ERROR)
+
+    env = fake.kwargs[0]["env"]
+    assert isinstance(env, dict)
+    ours = [f"{MARKER_VAR}/u", f"{TITLE_VAR}/u", f"{BODY_VAR}/u"]
+    kept = {None: [], "": [], "WT_SESSION:USERPROFILE/p": ["WT_SESSION", "USERPROFILE/p"],
+            f"{TITLE_VAR}/p:PATH/l": ["PATH/l"]}[existing]
+    assert env["WSLENV"].split(":") == kept + ours
+    assert (env[MARKER_VAR], env[TITLE_VAR], env[BODY_VAR]) == ("1", "Conflict", "report.docx")
+
+
+@pytest.mark.parametrize(("platform_name", "markers", "release", "wsl"), [
+    ("linux", {"WSL_DISTRO_NAME": "Ubuntu"}, "6.6.0", True),
+    ("linux", {"WSL_INTEROP": "/run/WSL/1_interop"}, "6.6.0", True),
+    ("linux", {}, "5.15.153.1-microsoft-standard-WSL2", True),
+    ("linux", {}, "6.8.0-generic", False),
+    ("win32", {"WSL_DISTRO_NAME": "Ubuntu"}, "10", False),
+])
+def test_wsl_detection(monkeypatch, platform_name: str, markers: dict[str, str], release: str, wsl: bool) -> None:
+    monkeypatch.setattr(windows_module.sys, "platform", platform_name)
+    for name in ("WSL_DISTRO_NAME", "WSL_INTEROP"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in markers.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(windows_module.platform, "uname", lambda: SimpleNamespace(release=release))
+    monkeypatch.setenv("WSLENV", "WT_SESSION")
+    assert windows_module.in_wsl() is wsl
+    env = windows_module.toast_env("t", "b")
+    assert env["WSLENV"] == (f"WT_SESSION:{MARKER_VAR}/u:{TITLE_VAR}/u:{BODY_VAR}/u" if wsl else "WT_SESSION")
+
+
+async def test_windows_toast_without_its_environment_fails_clearly(fake_exec) -> None:
+    """The script stops (exit 3) when its variables did not arrive, instead of a blank toast."""
+    assert toast_script(NotificationSeverity.INFO).startswith(f"if (-not $env:{MARKER_VAR}) {{ exit 3 }}; ")
+    fake_exec(FakeProcess(returncode=3))
+    with pytest.raises(RuntimeError, match="did not reach PowerShell"):
+        await WindowsNotifier().send("Title", "Body", NotificationSeverity.INFO)
+
+
+@pytest.mark.parametrize("title, body", [("-draft.txt could not be synced", "Body"), ("Title", "--help"), ("--", "-")])
 async def test_linux_text_starting_with_a_dash_is_not_an_option(fake_exec, title: str, body: str) -> None:
     """notify-send (GOption) rejects unknown options, so a title like '-draft.txt ...'
     fails the notification unless the arguments end with '--' first."""
@@ -258,5 +372,4 @@ async def test_linux_text_starting_with_a_dash_is_not_an_option(fake_exec, title
     await LinuxNotifier().send(title, body, NotificationSeverity.ERROR)
 
     argv = list(fake.argv[0])
-    assert argv[-2:] == [title, body]
-    assert "--" in argv[:-2]
+    assert argv[-3:] == ["--", title, body]

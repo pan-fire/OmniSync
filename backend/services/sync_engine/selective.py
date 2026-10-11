@@ -20,8 +20,10 @@ from backend.api.schemas import (
 )
 from backend.db.models import ManualFlag, SyncJob
 from backend.exceptions import InvalidFilePathsError, NoCachedDiffError
+from backend.services.local_paths import LinkedPathError, check_no_link, link_per_path
 from backend.services.rclone import ChangeRecorder, FileChangeRecord, generate_conflict_rename, redact_secrets
 from backend.services.sync_engine.common import ENGINE_STOPPED, logger, remote_join
+from backend.services.sync_engine.names import local_symlink
 from backend.services.sync_engine.reporting import ReportingMixin
 
 
@@ -31,6 +33,13 @@ SELECTIVE_RESULTS_KEPT = 32
 # What a file's error says when its copy failed; rclone's text goes to the log.
 COPY_FAILED = f"Copying the file failed. {SEE_LOG}"
 KEEP_BOTH_FAILED = f"Keeping both versions failed. {SEE_LOG}"
+# A per-file action on a name that is not valid UTF-8: rclone lists it with
+# U+FFFD in place of the bad bytes, so the diff's path names no file.
+NAME_NOT_UTF8 = ("The file name is not valid UTF-8 (shown with \ufffd in place of the bad bytes), so it "
+                 "cannot be copied on its own. A push, pull or two-way sync of the whole folder carries it; "
+                 "or rename the file.")
+
+
 # The job's error when launch_selective()'s run raised unexpectedly.
 SELECTIVE_CRASHED = f"The per-file actions failed unexpectedly. {SEE_LOG}"
 
@@ -282,6 +291,8 @@ class SelectiveMixin(ReportingMixin):
                     succeeded += 1
                 except asyncio.CancelledError:
                     raise
+                except LinkedPathError as exc:
+                    fail([p], local_symlink(exc.link))
                 except Exception as exc:
                     logger.error("Keep-both failed for %s: %s", p, redact_secrets(str(exc)))
                     fail([p], KEEP_BOTH_FAILED)
@@ -317,7 +328,10 @@ class SelectiveMixin(ReportingMixin):
         """
         config = self._profile
         renamed = generate_conflict_rename(path, datetime.now(timezone.utc))
-        local_copy = os.path.join(config.local_dir, renamed)
+        # Checked again right before the copies (see local_paths.py): never
+        # through a local link, also not one made since _stale_paths().
+        local_copy = check_no_link(config.local_dir, renamed)
+        check_no_link(config.local_dir, path)
         # 1. remote version -> local conflict copy
         args = self._copy_args
         await self._rclone.copyto(remote_join(config.remote_dir, path), local_copy, rclone_args=args)
@@ -357,7 +371,15 @@ class SelectiveMixin(ReportingMixin):
         The diff may be hours old. A push/pull needs the source file to
         still exist and the destination to be as the diff saw it (absent,
         or the same size and modification time), so nothing is overwritten
-        that the user has not seen. Keep-both needs both files to exist.
+        that the user has not seen. Keep-both needs both files to exist. No
+        action touches a path at or below a local symbolic link (a pull
+        would replace the link or write through it, out of the folder), and
+        a name rclone could not read (not UTF-8) is named as the reason.
+
+        The link check comes last, after the listings, right before the
+        copy: rclone follows a link on the way when it opens a path, so
+        only the time between this check and rclone's start is left for a
+        link to appear (see local_paths.py).
         """
         if not paths:
             return {}
@@ -367,10 +389,15 @@ class SelectiveMixin(ReportingMixin):
         remote = await self._rclone.lsjson_paths(self._profile.remote_dir, paths)
         rerun = "Run the diff again."
         stale: dict[str, str] = {}
+        by_key = link_per_path(self._profile.local_dir, [p.lstrip("/") for p in paths])
+        links = {p: by_key[p.lstrip("/")] for p in paths if p.lstrip("/") in by_key}
         for p in paths:
             f = by_path.get(p)
             key = p.lstrip("/")
             loc, rem = local.get(key), remote.get(key)
+            if p in links:
+                stale[p] = local_symlink(links[p])
+                continue
             if action == FileAction.KEEP_BOTH:
                 if loc is None or rem is None:
                     side = "local" if loc is None else "remote"
@@ -386,7 +413,9 @@ class SelectiveMixin(ReportingMixin):
                 expected = f is None or f.category != ChangeCategory.REMOTE_ONLY
                 size = f.local_size if f else None
                 mod = f.local_mod_time if f else None
-            if src is None:
+            if src is None and "\ufffd" in p:
+                stale[p] = NAME_NOT_UTF8
+            elif src is None:
                 stale[p] = f"The {src_side} file does not exist (any more). {rerun}"
             elif not self._as_diffed(dst, expected, size, mod):
                 stale[p] = (f"The {dst_side} file changed since the diff; not overwriting it unseen. {rerun}")

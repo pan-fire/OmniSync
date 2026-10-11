@@ -49,6 +49,7 @@ from backend.api.schemas import (
     two_way_rclone_args_error,
 )
 from backend.api.routes.conflicts import CONFLICT_PAGE_DEFAULT, CONFLICT_PAGE_MAX, page_of_conflicts
+from backend.api.routes.jobs import job_warnings
 from backend.db.database import get_session
 from backend.db.models import SyncJob
 from backend.exceptions import (
@@ -538,7 +539,7 @@ async def get_profile_diff(
     )
     return DiffResponse(
         files=page_files, summary=diff.summary,
-        pagination=pagination, error=diff.error,
+        pagination=pagination, error=diff.error, warnings=diff.warnings,
     )
 
 
@@ -673,6 +674,7 @@ async def list_profile_jobs(
             errors=j.errors,
             profile_slug=slug,
             profile_name=profile.name,
+            warnings=job_warnings(j),
         )
         for j in jobs
     ]
@@ -707,8 +709,10 @@ def _trash_rclone() -> RcloneService:
 async def list_profile_trash(slug: str, side: TrashSide = Query(TrashSide.LOCAL)) -> TrashListResponse:
     """The files in one side's .omnisync-trash, newest sync first (capped; totals count all)."""
     profile = await _get_profile_or_404(slug)
+    # Outside the try: rclone not being wired is 503, not a failed listing.
+    rclone = _trash_rclone()
     try:
-        return await list_trash(side, profile.local_dir, profile.remote_dir, _trash_rclone())
+        return await list_trash(side, profile.local_dir, profile.remote_dir, rclone)
     except Exception:
         logger.exception("Listing the %s trash of '%s' failed", side.value, slug)
         raise api_error(502, "rclone_failed", f"Could not list the trash. {SEE_LOG}")

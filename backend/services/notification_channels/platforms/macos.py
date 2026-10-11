@@ -7,6 +7,7 @@ import logging
 import shutil
 
 from backend.services.notification_events import NotificationSeverity
+from backend.services.subprocesses import communicate_or_kill
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +28,21 @@ class MacNotifier:
         script = f'display notification "{safe_body}" with title "{safe_title}"{sound_part}'
 
         cmd = ["osascript", "-e", script]
-        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            _, stderr = await communicate_or_kill(proc, timeout=5.0)
             if proc.returncode != 0:
-                msg = f"osascript failed (rc={proc.returncode}): {stderr.decode().strip()}"
+                # errors="replace": a non-UTF-8 message (e.g. a Windows OEM code page)
+                # must not turn the failure into a UnicodeDecodeError.
+                detail = stderr.decode(errors="replace").strip()
+                msg = f"osascript failed (rc={proc.returncode}): {detail}"
                 logger.warning(msg)
                 raise RuntimeError(msg)
-        except asyncio.TimeoutError:
-            if proc is not None:
-                proc.kill()
+        except asyncio.TimeoutError:  # the process is killed and reaped by then
             raise RuntimeError("osascript timed out after 5s")
         except FileNotFoundError:
             raise RuntimeError("osascript binary not found")

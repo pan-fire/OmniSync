@@ -5,12 +5,68 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import tempfile
+from datetime import datetime
 
 from backend.exceptions import RcloneAuthError, RcloneError
 from backend.services.rclone.common import TRASH_FILTER, _require_remote_name, logger
 from backend.services.rclone.errors import _command_line, classify_failure
 from backend.services.rclone.process import RcloneBase, process_env
+
+
+# Characters rclone's local backend writes or reads differently from the
+# name itself (its encoding of control characters, '/' and '.' and of
+# bytes that are not UTF-8): a scratch file of such a name would not be
+# listed under it.
+_LOCAL_ENCODED = re.compile(r"[\x00-\x1f\x7f\u2400-\u241f\u201b\uff0f\uff0e\ufffd]")
+
+
+def _entries(stdout: str) -> list[dict]:
+    try:
+        entries = json.loads(stdout)
+    except ValueError as exc:
+        raise RcloneError(f"Failed to parse lsjson output: {exc}")
+    return [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []
+
+
+def _modtime(value: object) -> float | None:
+    """An lsjson ModTime as a timestamp (rclone gives nanoseconds; Python reads six digits)."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _scratch_tree(scratch: str, files: list[dict], rules: list[str]) -> set[str]:
+    """Write ``rules`` to ``scratch``/rules.filter and make an empty file for each
+    entry under ``scratch``/tree; the paths that could not be made (blocking)."""
+    with open(os.path.join(scratch, "rules.filter"), "w", encoding="utf-8") as fh:
+        fh.write("".join(f"{rule}\n" for rule in rules))
+    root = os.path.join(scratch, "tree")
+    os.mkdir(root)
+    unchecked: set[str] = set()
+    for entry in files:
+        path: str = entry["Path"]
+        parts = path.split("/")
+        if _LOCAL_ENCODED.search(path) or any(part in ("", ".", "..") for part in parts):
+            unchecked.add(path)
+            continue
+        full = os.path.join(root, *parts)
+        try:
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "xb") as fh:
+                size = entry.get("Size")
+                if isinstance(size, int) and size > 0:
+                    fh.truncate(size)  # sparse: takes no space
+            mtime = _modtime(entry.get("ModTime"))
+            if mtime is not None:
+                os.utime(full, (mtime, mtime))
+        except (OSError, OverflowError, ValueError):
+            unchecked.add(path)
+    return unchecked
 
 
 class ListingMixin(RcloneBase):
@@ -32,15 +88,18 @@ class ListingMixin(RcloneBase):
             raise classify_failure(proc.returncode, stderr.decode("utf-8", errors="replace"))
         return stdout
 
-    async def lsjson(self, path: str, rclone_filter: list[str] | None = None) -> list[dict]:
+    async def lsjson(self, path: str, rclone_filter: list[str] | None = None,
+                     rclone_args: list[str] | None = None) -> list[dict]:
         """List files with metadata using rclone lsjson --recursive.
 
         Returns list of {Path, Size, ModTime, IsDir} dicts. The trash folder
-        is never listed; ``rclone_filter`` adds the profile's own rules.
+        is never listed; ``rclone_filter`` adds the profile's own rules,
+        ``rclone_args`` flags (only ones that filter belong here).
         """
         result = await self._run(
             ["lsjson", "--recursive"],
             rclone_filter=[TRASH_FILTER, *(rclone_filter or [])],
+            rclone_args=rclone_args,
             positional=[path],
         )
         try:
@@ -116,6 +175,54 @@ class ListingMixin(RcloneBase):
             os.unlink(list_file.name)
         # split("\n"), not splitlines(): \r and other separators are legal in names
         return {line for line in result.stdout.split("\n") if line}
+
+    async def existing_entries(self, root: str, rules: list[str]) -> list[dict]:
+        """The files and folders under root that these include rules match, as lsjson entries.
+
+        ``rules``: ``+ <pattern>`` rules; everything else is excluded, so
+        rclone descends only into the folders on the way (which are listed
+        too). A missing root gives none.
+        """
+        if not rules:
+            return []
+        filter_file = tempfile.NamedTemporaryFile(mode="w", suffix=".filter", delete=False, encoding="utf-8")
+        try:
+            filter_file.write("".join(f"{rule}\n" for rule in [*rules, "- **"]))
+            filter_file.close()
+            try:
+                result = await self._run(["lsjson", "-R", "--no-mimetype", "--filter-from", filter_file.name],
+                                         use_config_args=False, positional=[root])
+            except RcloneAuthError:
+                raise
+            except RcloneError as exc:
+                if "directory not found" in str(exc).lower():
+                    return []
+                raise
+        finally:
+            os.unlink(filter_file.name)
+        return _entries(result.stdout)
+
+    async def visible_files(self, entries: list[dict], rules: list[str], flags: list[str]) -> set[str]:
+        """Which of these files (lsjson entries) a run with these filter ``rules`` and ``flags`` sees.
+
+        rclone itself decides, on a scratch folder that holds an empty
+        (sparse) file of the same path, size and modification time for
+        each entry: the same rules, directory rules and size or age limits
+        apply as to the real files. A path that cannot be made there, or
+        whose name rclone's local backend would spell differently, counts
+        as seen. Flags that depend on more than the files themselves
+        (``--exclude-if-present``) are not reproduced.
+        """
+        files = [e for e in entries if isinstance(e, dict) and isinstance(e.get("Path"), str) and not e.get("IsDir")]
+        with tempfile.TemporaryDirectory(prefix="omnisync-filter-") as scratch:
+            unchecked = await asyncio.to_thread(_scratch_tree, scratch, files, rules)
+            filter_path = os.path.join(scratch, "rules.filter")
+            result = await self._run(
+                ["lsjson", "-R", "--files-only", "--no-mimetype", "--no-modtime", "--filter-from", filter_path,
+                 *flags],
+                use_config_args=False, positional=[os.path.join(scratch, "tree")],
+            )
+        return {e["Path"] for e in _entries(result.stdout) if isinstance(e.get("Path"), str)} | unchecked
 
     async def list_top_level(self, path: str) -> list[str]:
         """Names directly inside ``path`` (trash excluded); [] if it does not exist."""

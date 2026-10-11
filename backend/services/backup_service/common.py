@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import tempfile
 from collections.abc import AsyncIterator
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from backend.api.errors import SEE_LOG as SEE_LOG  # re-exported for the backup modules
+from backend.services.local_paths import links_on_paths
 from backend.services.rclone import TRASH_FILTER
 from backend.services.sync_engine import BISYNC_PARTIAL_FILTER
 
@@ -66,3 +68,29 @@ async def scratch_dir(prefix: str) -> AsyncIterator[str]:
         except asyncio.CancelledError:
             shutil.rmtree(path, ignore_errors=True)
             raise
+
+
+def refuse_linked_paths(dest: str, paths: list[str], safety: str | None = None) -> None:
+    """RestoreRefused, before anything is written, when a path the restore writes in a local
+    ``dest`` leads through a symbolic link there (or is one).
+
+    rclone follows a link on the way when it writes a path: a file
+    ``ld/f`` of the snapshot would land in the folder the link ``ld``
+    points to, outside ``dest``, and a link of the file's own name would
+    be replaced. The safety folder (``safety``) is checked too. Remote
+    destinations are not local paths and are not checked. Called right
+    before each copy, after the slower listings (see local_paths.py).
+    """
+    if not os.path.isabs(dest):
+        return
+    rels = [p.lstrip("/") for p in paths]
+    if safety is not None and safety.startswith(dest.rstrip("/") + "/"):
+        rels.append(safety[len(dest.rstrip("/")) + 1:])
+    linked = links_on_paths(dest, rels)
+    if linked:
+        shown = ", ".join(f"'{p}'" for p in linked[:5]) + (", ..." if len(linked) > 5 else "")
+        raise RestoreRefused(
+            f"{shown} in '{dest}' {'is a symbolic link' if len(linked) == 1 else 'are symbolic links'}: a "
+            "restore never writes through a link or replaces one (the files below a link to a folder would "
+            "land in the folder it points to). Move the link(s) away, then restore again; nothing was restored."
+        )

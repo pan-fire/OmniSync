@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { toast } from 'sonner';
 import { ProfileDiffPanel, failedFileList } from '../profile-diff-panel';
-import type { SelectiveSyncItem, SelectiveSyncResponse } from '@/types';
+import type { SelectiveSyncItem, SelectiveSyncResponse, SyncWarning } from '@/types';
 
 // t() echoes the key and its variables so the tests can see both.
 const t = (key: string, vars?: Record<string, string | number>) =>
@@ -12,6 +12,7 @@ vi.mock('@/i18n', () => ({ useTranslation: () => ({ t }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const removeFiles = vi.fn();
+let warnings: SyncWarning[] = [];
 vi.mock('@/hooks/use-profile-paginated-diff', () => ({
   useProfilePaginatedDiff: () => ({
     allFiles: [
@@ -24,6 +25,7 @@ vi.mock('@/hooks/use-profile-paginated-diff', () => ({
     isLoading:     false,
     isLoadingMore: false,
     error:         null,
+    warnings,
     loadMore:      vi.fn(),
     reset:         vi.fn(),
     removeFiles,
@@ -76,6 +78,22 @@ function response (over: Partial<SelectiveSyncResponse>): SelectiveSyncResponse 
 beforeEach(() => {
   vi.clearAllMocks();
   lastPending = new Set();
+  warnings = [];
+});
+
+describe('ProfileDiffPanel warnings', () => {
+  it('shows the local names a sync cannot carry above the files', () => {
+    warnings = [{ code: 'name_not_utf8', count: 1, paths: ['bad\\xff.txt'] }];
+    render(<ProfileDiffPanel slug="work" />);
+    const list = screen.getByTestId('sync-warnings');
+    expect(list).toHaveTextContent('syncWarnings.name_not_utf8 {"count":1}');
+    expect(list).toHaveTextContent('bad\\xff.txt');
+  });
+
+  it('shows nothing without warnings', () => {
+    render(<ProfileDiffPanel slug="work" />);
+    expect(screen.queryByTestId('sync-warnings')).toBeNull();
+  });
 });
 
 describe('ProfileDiffPanel selective sync results', () => {
