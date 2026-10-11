@@ -1,5 +1,5 @@
 # Runtime dependencies (ranges). The Docker image installs the exact pins in
-# requirements.lock; regenerate it after changing this file.
+# requirements-lock.txt; regenerate it after changing this file.
 fastapi>=0.115
 uvicorn[standard]>=0.34
 pydantic>=2.10

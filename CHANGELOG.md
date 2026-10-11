@@ -23,6 +23,11 @@ release notes.
 
 ### Changed
 
+- **`backend/requirements.lock` is now `backend/requirements-lock.txt`.**
+  Dependabot reads only requirement files named `*.txt`, so it could not
+  open the lock that `requirements-dev.txt` includes, and the backend's
+  dependency updates stopped. A non-Docker install reinstalls from the new
+  name (`pip install -r backend/requirements-lock.txt`).
 - **A differing file with a modification time on one side only is a
   conflict.** When rclone gave a readable modification time for only one
   copy of a file that differs, the diff counted it as changed on that side

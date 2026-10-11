@@ -452,7 +452,7 @@ which needs write access to the data folder and to every folder it syncs.
 sudo useradd --system --home-dir /var/lib/omnisync --create-home --shell /usr/sbin/nologin omnisync
 sudo git clone https://github.com/pan-fire/OmniSync.git /opt/omnisync   # or a release tag
 sudo python3.12 -m venv /opt/omnisync/.venv
-sudo /opt/omnisync/.venv/bin/pip install -r /opt/omnisync/backend/requirements.lock
+sudo /opt/omnisync/.venv/bin/pip install -r /opt/omnisync/backend/requirements-lock.txt
 sudo install -d -o omnisync -g omnisync -m 0700 /data/omnisync
 ```
 
@@ -570,7 +570,7 @@ journalctl -u omnisync-backend -f
 
 Then open <http://127.0.0.1:3000>. Database migrations run when the backend
 starts. To update: stop both services, `git -C /opt/omnisync pull` (or check
-out the new tag), reinstall `backend/requirements.lock` into the venv,
+out the new tag), reinstall `backend/requirements-lock.txt` into the venv,
 rebuild the web UI as in step 3, and start them again. Back up
 `/data/omnisync` as described above, with the services stopped instead of
 the container.
