@@ -38,6 +38,18 @@ test('the profile list', async ({ page }) => {
   await expectNoSeriousA11yViolations(page);
 });
 
+test('the dashboard\'s create link opens the create form', async ({ page }) => {
+  // The server renders the page without the URL's ?create=1; hydrating it
+  // must not trip over the form opening on the client (React error #418).
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+  await page.goto('/profiles?create=1');
+  await expect(page.getByRole('dialog', { name: 'Create Sync Profile' })).toBeVisible();
+  expect(consoleErrors.filter((text) => /hydrat|#418|#423|#425/i.test(text))).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
 test('a profile', async ({ page }) => {
   await page.goto(`/profiles/${PROFILE.slug}`);
   await expect(page.getByRole('heading', { level: 1, name: PROFILE.name })).toBeVisible();
