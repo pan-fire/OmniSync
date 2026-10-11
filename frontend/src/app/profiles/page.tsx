@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,7 +28,16 @@ export default function ProfilesPage () {
   const [creatingInitialBackup, setCreatingInitialBackup] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   // The switch only asks; the profile changes once the dialog is confirmed.
-  const [toggling, setToggling] = useState<ProfileToggleRequest | null>(null);
+  // Only the target (its slug) and the requested state are kept: the dialog's
+  // warnings (a running sync is stopped, a pause still holds) follow the
+  // polled profile, not the one from the moment the switch was flipped.
+  const [toggling, setToggling] = useState<{ slug: string; enabled: boolean } | null>(null);
+  const toggleRequest = useMemo<ProfileToggleRequest | null>(() => {
+    const target = toggling && profiles.data?.find((p) => p.slug === toggling.slug);
+    return toggling && target ? { profile: target, enabled: toggling.enabled } : null;
+  }, [toggling, profiles.data]);
+  // A profile deleted meanwhile closes the dialog for good, as delete's does.
+  if (toggling && profiles.data && !toggleRequest) setToggling(null);
 
   // The dashboard's "Create your first profile" links to ?create=1.
   useEffect(() => {
@@ -106,7 +115,7 @@ export default function ProfilesPage () {
           <ProfileCard
             key={profile.slug}
             profile={profile}
-            onToggle={(_slug, enabled) => setToggling({ profile, enabled })}
+            onToggle={(slug, enabled) => setToggling({ slug, enabled })}
             onDelete={(slug) => setDeletingSlug(slug)}
             onSync={(p, direction) => confirmedSync.request(direction, [{ slug: p.slug, name: p.name }])}
             onSyncNow={(p) => confirmedSync.syncNow({ slug: p.slug, name: p.name }, p.intervals_paused)}
@@ -134,7 +143,7 @@ export default function ProfilesPage () {
       </Dialog>
 
       <ProfileToggleDialog
-        request={toggling}
+        request={toggleRequest}
         onCancel={() => setToggling(null)}
         isPending={toggleProfile.isPending}
         onConfirm={({ profile, enabled }) => {

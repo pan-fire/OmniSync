@@ -94,8 +94,26 @@ _idle () {
     && [[ $(field .state) == idle || $(field .state) == error ]]
 }
 
-# wait_idle SLUG: until no sync of the profile runs.
+# wait_idle SLUG: until no sync of the profile runs. Not enough on its own
+# after an engine starts (a new profile, a restart): the engine only queues
+# its first sync, and until that creates its job the status reads idle
+# just as it does once the sync is over. See wait_engine_sync.
 wait_idle () { wait_until 120 "profile $1 to be idle" _idle "$1"; }
+
+_finished_after () {
+  call GET "/profiles/$1/jobs?limit=100"
+  [ "$status" = 200 ] \
+    && [ "$(field "[.[] | select(.id > $2 and .finished_at != null)] | length")" -ge 1 ]
+}
+
+# wait_engine_sync SLUG [AFTER]: until the sync a two-way profile's engine
+# starts with (a new profile's resync, or the sync after a restart), a job
+# newer than job AFTER (default 0: any), has finished, and the profile is
+# idle again.
+wait_engine_sync () {
+  wait_until 120 "the first sync of profile $1 after job ${2:-0}" _finished_after "$1" "${2:-0}"
+  wait_idle "$1"
+}
 
 # sync_now SLUG DIRECTION [FORCE]: starts a sync and waits for its job;
 # $body is then the finished job.

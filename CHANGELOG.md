@@ -12,6 +12,15 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **The installer uses a GitHub token when you have one.** With `GH_TOKEN`
+  or `GITHUB_TOKEN` set, its "latest release" question to `api.github.com`
+  sends it, so a shared address (a CI runner, a company network) no longer
+  runs into GitHub's 60 requests an hour. The token goes to
+  `api.github.com` only, never onto a command line or into the output.
+  See `install.sh --help` and [Operations](docs/gem/operations.md).
+
 ### Changed
 
 - **The terminal UI asks before "Stop all" and before enabling or
@@ -36,7 +45,8 @@ release notes.
   profile page's **Stop** names its profile. The on/off switch on a profile
   card says what changes: disabling stops the profile's automatic syncs
   (and a running sync), enabling starts them again (or notes that a pause of
-  yours still holds). **Cancel** or Escape sends nothing.
+  yours still holds). These notes follow the profile's current state while
+  the dialog is open. **Cancel** or Escape sends nothing.
 
 ### Fixed
 

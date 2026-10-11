@@ -4,6 +4,7 @@ import { handleAuthEndpoint, isSecureRequest, resetAuthState } from '@/lib/auth/
 import { verifyPassword } from '@/lib/auth/password';
 import type { AuthSettings } from '@/lib/auth/config';
 import { resetServerLog } from '@/lib/server-log';
+import { FREE_FAILURES, LoginThrottle, MAX_CONCURRENT_CHECKS } from '@/lib/auth/throttle';
 
 // verifyPassword is the real one unless a test makes it throw.
 vi.mock('@/lib/auth/password', async (importOriginal) => {
@@ -48,6 +49,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  // Drops queued rejections a failed test left; keeps the real check.
+  vi.mocked(verifyPassword).mockReset();
 });
 
 describe('login settings warnings', () => {
@@ -100,18 +103,32 @@ describe('login edge cases', () => {
   });
 
   // A crashing check answers 500 and logs the error kind, never its text.
+  // It must neither count as a wrong password nor keep its check slot:
+  // either would let a crashing check lock the user out.
   it('answers 500 when the password check throws, and the attempt is not counted', async () => {
-    vi.mocked(verifyPassword).mockRejectedValueOnce(new TypeError('secret detail'));
-    const res = await handleAuthEndpoint(loginRequest(JSON.stringify({ password: 'short' })), PLAIN, null, allowAll);
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({ code: 'login_failed' });
-    const line = logged().find((l) => l.fields.event === 'auth.login_error');
-    expect(line?.fields.error).toBe('TypeError');
+    const failure = vi.spyOn(LoginThrottle.prototype, 'failure');
+    const release = vi.spyOn(LoginThrottle.prototype, 'release');
+    // More than the free failures, and more than the concurrent checks:
+    // a counted failure or a kept slot would refuse a later round (429).
+    const rounds = FREE_FAILURES + MAX_CONCURRENT_CHECKS;
+    for (let i = 0; i < rounds; i++) {
+      vi.mocked(verifyPassword).mockRejectedValueOnce(new TypeError('secret detail'));
+      const res = await handleAuthEndpoint(loginRequest(JSON.stringify({ password: 'short' })), PLAIN, null, allowAll);
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ code: 'login_failed' });
+    }
+    expect(failure).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(rounds);
+    const lines = logged().filter((l) => l.fields.event === 'auth.login_error');
+    expect(lines).toHaveLength(rounds);
+    expect(lines[0]?.fields.error).toBe('TypeError');
+    expect(logged().some((l) => l.fields.event === 'auth.login_throttled')).toBe(false);
     expect(JSON.stringify(logged())).not.toContain('secret detail');
 
     // The next attempt is not throttled and succeeds.
     const ok = await handleAuthEndpoint(loginRequest(JSON.stringify({ password: 'short' })), PLAIN, null, allowAll);
     expect(ok.status).toBe(200);
+    expect(ok.headers.get('retry-after')).toBeNull();
   });
 
   it('logs the kind of a non-Error thrown by the check', async () => {

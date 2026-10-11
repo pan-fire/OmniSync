@@ -169,13 +169,20 @@ sys.exit("docker stub: unhandled " + " ".join(args))
 '''
 
 CURL_STUB = r'''
-import os, shutil, sys
+import json, os, shutil, sys
 
 args = sys.argv[1:]
 out = args[args.index("-o") + 1] if "-o" in args else None
 url = next(a for a in reversed(args) if a.startswith("http"))
 with open(os.environ["CURL_STUB_LOG"], "a") as f:
     f.write(url + "\n")
+# Every call's arguments and headers (-H VALUE, or -H @FILE as curl reads it).
+headers = []
+for flag, value in zip(args, args[1:]):
+    if flag == "-H":
+        headers += open(value[1:]).read().splitlines() if value.startswith("@") else [value]
+with open(os.environ["CURL_STUB_LOG"] + ".calls", "a") as f:
+    f.write(json.dumps({"url": url, "argv": args, "headers": headers}) + "\n")
 path = os.path.join(os.environ["FAKE_WEB"], url.split("://", 1)[1])
 if not os.path.isfile(path):
     sys.stderr.write("curl: (22) The requested URL returned error: 404\n")
@@ -232,6 +239,10 @@ class Env:
 
     def state(self) -> dict:
         return json.loads(self.state_file.read_text())
+
+    def curl_calls(self) -> list[dict]:
+        calls = Path(f"{self.curl_log}.calls")
+        return [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
 
     def docker_calls(self) -> list[list[str]]:
         return [json.loads(line) for line in self.docker_log.read_text().splitlines()]
@@ -859,3 +870,50 @@ def test_without_the_test_release_downloads_as_before(sandbox):
     assert "for CI tests only" not in result.stderr
     assert "releases/latest" in sandbox.curl_log.read_text()
     assert any(call[:1] == ["compose"] and "pull" in call for call in sandbox.docker_calls())
+
+
+# ---------------------------------------------------------------- GitHub token
+
+FAKE_TOKEN = "ghs_" + "Q7x" * 12  # not a real token: the stub never checks it
+
+
+@pytest.mark.parametrize("variable", ["GITHUB_TOKEN", "GH_TOKEN"])
+def test_github_token_goes_to_the_api_only(sandbox, variable):
+    """A token lifts the API's per-address rate limit (CI shares addresses);
+    it must reach api.github.com only, and never a command line or the output."""
+    sandbox.publish("0.12.0")
+    result = install(sandbox, extra_env={variable: FAKE_TOKEN})
+    assert result.returncode == 0, result.stderr
+
+    calls = sandbox.curl_calls()
+    api = [c for c in calls if c["url"].startswith("https://api.github.com/")]
+    assets = [c for c in calls if not c["url"].startswith("https://api.github.com/")]
+    assert api and assets
+    assert all(c["headers"] == [f"Authorization: Bearer {FAKE_TOKEN}"] for c in api)
+    assert all(c["headers"] == [] for c in assets)
+    assert not any(FAKE_TOKEN in arg for c in calls for arg in c["argv"])
+    assert FAKE_TOKEN not in result.stdout + result.stderr
+    # The header file is gone with the installer's temporary folder.
+    assert not any(FAKE_TOKEN in p.read_text(errors="ignore")
+                   for p in sandbox.tmp.glob("omnisync-install.*/**/*") if p.is_file())
+
+
+def test_without_a_github_token_no_header_is_sent(sandbox):
+    sandbox.publish("0.12.0")
+    result = install(sandbox)
+    assert result.returncode == 0, result.stderr
+    calls = sandbox.curl_calls()
+    assert any(c["url"].endswith("/releases/latest") for c in calls)
+    assert all(c["headers"] == [] for c in calls)
+
+
+def test_a_malformed_github_token_is_not_sent(sandbox):
+    """A value that is no token (here one that would add a header) is left
+    out, with a warning that does not show it."""
+    sandbox.publish("0.12.0")
+    bad = "abc\nX-Injected: 1"
+    result = install(sandbox, extra_env={"GITHUB_TOKEN": bad})
+    assert result.returncode == 0, result.stderr
+    assert "GITHUB_TOKEN does not look like a GitHub token" in result.stderr
+    assert "X-Injected" not in result.stdout + result.stderr
+    assert all(c["headers"] == [] for c in sandbox.curl_calls())

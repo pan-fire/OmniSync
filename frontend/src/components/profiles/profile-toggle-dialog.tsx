@@ -33,9 +33,12 @@ type ProfileToggleDialogProps = {
  */
 export function ProfileToggleDialog ({ request, onCancel, onConfirm, isPending }: ProfileToggleDialogProps) {
   const { t } = useTranslation();
-  // Keep showing the last request while the dialog animates closed.
-  const [shown, setShown] = useState(request);
-  if (request && request !== shown) setShown(request);
+  // Keep showing the last request while the dialog animates closed; while
+  // open, every render shows the current request (the page passes the
+  // polled profile, so the warnings below follow its live state).
+  const [last, setLast] = useState(request);
+  if (request && request !== last) setLast(request);
+  const shown = request ?? last;
 
   const profile = shown?.profile;
 

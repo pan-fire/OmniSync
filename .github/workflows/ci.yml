@@ -308,12 +308,18 @@ jobs:
   # (a sync, a conflict, the delete limit, backup and restore and the audit
   # trail through the API, checked on disk, plus the real-browser smoke
   # frontend/playwright.stack.config.ts), and scripts/test-upgrade-e2e.sh
-  # (the previous release from GitHub and ghcr.io updated to these images,
-  # then an unhealthy update rolled back).
+  # twice (a release from GitHub and ghcr.io updated to these images, then
+  # an unhealthy update rolled back): from the latest release, the update
+  # every user runs, and from 0.12.0, the last release before migration
+  # 0011.
   installer:
     name: Installer (end to end)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # The token only reads: the installer's "latest release" question
+    # counts against it instead of the runner's shared address.
+    permissions:
+      contents: read
     env:
       # A version no release has: nothing can be pulled for it by mistake.
       CI_VERSION: 9999.0.0-ci
@@ -358,7 +364,13 @@ jobs:
           WEB_PORT: "13180"
           E2E_BROWSER: "1"
         run: scripts/test-fullstack-e2e.sh "$CI_VERSION"
-      - name: Update from the previous release, and a rollback
+      - name: Update from the latest release, and a rollback
+        env:
+          API_PORT: "18280"
+          WEB_PORT: "13280"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/test-upgrade-e2e.sh "$CI_VERSION" latest
+      - name: Update from 0.12.0 (before migration 0011), and a rollback
         env:
           API_PORT: "18280"
           WEB_PORT: "13280"

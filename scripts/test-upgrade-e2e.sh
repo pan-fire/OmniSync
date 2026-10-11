@@ -1,30 +1,32 @@
 #!/usr/bin/env bash
-# The update path end to end: the previous release, installed from GitHub
-# and GHCR, updated by scripts/install.sh to the images built from this
-# checkout (CI job "installer" in .github/workflows/ci.yml); then an update
-# to a version that never becomes healthy, which must roll back. Not for
-# users.
+# The update path end to end: a release, installed from GitHub and GHCR,
+# updated by scripts/install.sh to the images built from this checkout (CI
+# job "installer" in .github/workflows/ci.yml); then an update to a version
+# that never becomes healthy, which must roll back. Not for users.
 #
 #   docker build -t ghcr.io/pan-fire/omnisync-backend:9999.0.0-ci .
 #   docker build -t ghcr.io/pan-fire/omnisync-web:9999.0.0-ci frontend
 #   scripts/test-upgrade-e2e.sh 9999.0.0-ci [FROM]
 #
-# FROM (default 0.12.0) is installed as a user would: its compose.yml from
+# FROM (X.Y.Z, or `latest`, the default: the latest release, as the
+# installer finds it) is installed as a user would: its compose.yml from
 # the GitHub release, checked against SHA256SUMS, its images pulled from
 # ghcr.io. Then, through the API: a profile between two folders, a sync, a
 # backup target and its backup, changed settings. `install.sh update` to
 # VERSION (through OMNISYNC_INSTALL_TEST_RELEASE_DIR, as in
 # scripts/test-installer-e2e.sh) must keep all of it, migrate the database
-# (0011_drop_profile_backup_dir) and come up healthy. Last, an update to a
-# broken build of VERSION (its backend exits at once) must roll back to
-# VERSION with the data intact. On non-default ports (API_PORT, WEB_PORT;
-# default 18280 and 13280). Everything it created is removed at the end
-# (the FROM images stay), also when a check fails.
+# to this checkout's head revision (from 0010_backups, as 0.12.0 has it,
+# 0011_drop_profile_backup_dir must drop sync_profiles.backup_dir) and come
+# up healthy. Last, an update to a broken build of VERSION (its backend
+# exits at once) must roll back to VERSION with the data intact. On
+# non-default ports (API_PORT, WEB_PORT; default 18280 and 13280).
+# Everything it created is removed at the end (the FROM images stay), also
+# when a check fails.
 
 set -euo pipefail
 
 version=${1:?usage: $0 VERSION [FROM] (VERSION: the tag of the locally built images)}
-from=${2:-0.12.0}
+from=${2:-latest}
 root=$(cd "$(dirname "$0")/.." && pwd)
 api_port=${API_PORT:-18280}
 web_port=${WEB_PORT:-13280}
@@ -50,6 +52,21 @@ trap cleanup EXIT
 
 installer () { bash "$root/scripts/install.sh" "$@" --dir "$dir" </dev/null; }
 
+# head_revision: the Alembic head of this checkout, the one revision of
+# backend/migrations/versions that no other revision names as its
+# down_revision.
+head_revision () {
+  local versions="$root/backend/migrations/versions" revisions downs heads
+  revisions=$(sed -n 's/^revision[^=]*= *"\([^"]*\)".*/\1/p' "$versions"/*.py | sort -u)
+  downs=$(grep -h '^down_revision' "$versions"/*.py | grep -o '"[^"]*"' | tr -d '"' | sort -u)
+  heads=$(comm -23 <(printf '%s\n' "$revisions") <(printf '%s\n' "$downs"))
+  [ -n "$heads" ] && [ "$(wc -l <<<"$heads")" = 1 ] \
+    || fail "not one head revision in $versions: ${heads//$'\n'/ }"
+  printf '%s\n' "$heads"
+}
+
+has_backup_dir () { sql 'select name from pragma_table_info("sync_profiles")' | grep -x backup_dir >/dev/null; }
+
 health () {
   body=$(curl -fsS "$api/health") || fail "/health did not answer"
   [ "$(field .status) $(field .database_ok)" = "ok true" ] || fail "/health: $body"
@@ -74,16 +91,24 @@ profile_state () {
   field .
 }
 
-# --- the previous release, as a user installs it -----------------------------------
+head=$(head_revision)
+
+# --- a release, as a user installs it ------------------------------------------------
 step "install $from from GitHub and ghcr.io"
 unset OMNISYNC_INSTALL_TEST_RELEASE_DIR
-installer install --version "$from" --yes --sync-dir "$sync" --api-port "$api_port" --web-port "$web_port" \
+from_version=()
+if [ "$from" != latest ]; then from_version=(--version "$from"); fi
+installer install "${from_version[@]}" --yes --sync-dir "$sync" --api-port "$api_port" --web-port "$web_port" \
   --project-name "$project" --no-ui-password --health-timeout 240
 read_token
-[ "$(health)" = "$from" ] || fail "/health does not report $from"
-[ "$(sql 'select version_num from alembic_version')" = 0010_backups ] || fail "$from's database is not at 0010_backups"
-sql 'select name from pragma_table_info("sync_profiles")' | grep -x backup_dir >/dev/null || fail "$from's sync_profiles has no backup_dir"
-pass "$from installed; its database is at 0010_backups"
+installed=$(health)
+if [ "$from" = latest ]; then from=$installed; fi
+[ "$installed" = "$from" ] || fail "/health reports $installed, not $from"
+from_rev=$(sql 'select version_num from alembic_version')
+[ -n "$from_rev" ] || fail "$from's database has no Alembic revision"
+# 0.12.0's revision: the one before 0011 dropped sync_profiles.backup_dir.
+if [ "$from_rev" = 0010_backups ]; then has_backup_dir || fail "$from's sync_profiles has no backup_dir"; fi
+pass "$from installed; its database is at $from_rev (this checkout's head: $head)"
 
 # --- data, profiles and settings -------------------------------------------------------
 step "data on $from"
@@ -97,7 +122,8 @@ api POST /profiles "$(jq -n --arg l "$local_dir" --arg r "e2elocal:$remote_dir" 
     pull_interval_minutes: 10080, rclone_args: ["--max-delete", "7", "--transfers", "2"],
     rclone_filter: ["- *.tmp"], max_retries: 2, bwlimit: "10M"}')" 201
 slug=$(field .slug)
-wait_idle "$slug"
+# Its engine's first sync (a resync) holds the sync lock: wait for it.
+wait_engine_sync "$slug"
 sync_now "$slug" two_way
 [ "$(field .status)" = completed ] || fail "the sync on $from: $body"
 last_job=$(field .id)
@@ -131,11 +157,9 @@ snapshot=$(find "$dir/backups" -name "omnisync-data-$from-*.tar.gz")
 [ -n "$snapshot" ] || fail "no backup of $from's data volume"
 tar tzf "$snapshot" | grep -x './omnisync.db' >/dev/null || fail "the backup $snapshot holds no database"
 [ "$(health)" = "$(cat "$root/VERSION")" ] || fail "/health does not report this checkout's version"
-[ "$(sql 'select version_num from alembic_version')" = 0011 ] || fail "the database was not migrated to 0011"
-if sql 'select name from pragma_table_info("sync_profiles")' | grep -x backup_dir >/dev/null; then
-  fail "0011_drop_profile_backup_dir did not drop sync_profiles.backup_dir"
-fi
-pass "updated; healthy; migrated to 0011 (backup_dir dropped); the volume was backed up first"
+[ "$(sql 'select version_num from alembic_version')" = "$head" ] || fail "the database was not migrated to $head"
+if has_backup_dir; then fail "sync_profiles still has backup_dir (0011_drop_profile_backup_dir)"; fi
+pass "updated; healthy; migrated from $from_rev to $head (no backup_dir); the volume was backed up first"
 
 after=$(profile_state "$last_job")
 diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") >&2 || fail "the profile, backups, jobs or settings changed"
@@ -146,7 +170,7 @@ api GET "/profiles/$slug/sync/status" 200
 [ "$(field .resync_required)" = false ] || fail "the update lost the two-way state: $body"
 printf 'written after the update\n' >"$expected/after.txt"
 cp "$expected/after.txt" "$local_dir/"
-wait_idle "$slug"
+wait_engine_sync "$slug" "$last_job"
 sync_now "$slug" two_way
 [ "$(field '"\(.direction) \(.status)"')" = "two_way completed" ] || fail "the sync after the update: $body"
 same_tree "$expected" "$remote_dir"
@@ -183,7 +207,7 @@ grep -q "$version runs again" <<<"$out" || fail "the rollback did not bring $ver
 [ "$(find "$dir/backups" -name "omnisync-data-$version-*.tar.gz" | wc -l)" = 1 ] || fail "no backup before the failed update"
 after=$(profile_state "$last_job")
 diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") >&2 || fail "the failed update changed the data"
-wait_idle "$slug"
+wait_engine_sync "$slug" "$last_job"
 sync_now "$slug" two_way
 [ "$(field .status)" = completed ] || fail "the sync after the rollback: $body"
 same_tree "$expected" "$local_dir"
