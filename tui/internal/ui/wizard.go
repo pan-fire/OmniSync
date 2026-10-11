@@ -522,7 +522,7 @@ func (m WizardModel) View() tea.View {
 		b.WriteString(headerText("  Wizard " + theme.Glyphs().EmDash + " Sign in"))
 		b.WriteString("\n\n")
 		b.WriteString("  Open this URL in a browser and allow access:\n\n")
-		b.WriteString("  " + m.authURL + "\n\n")
+		b.WriteString("  " + safeLine(m.authURL) + "\n\n")
 		if BrowserOpener != nil {
 			b.WriteString(mutedText("  o: open it in the default browser"))
 			b.WriteString("\n")

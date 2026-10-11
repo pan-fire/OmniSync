@@ -676,7 +676,7 @@ func (m DashboardModel) renderHealthPanel() string {
 	}
 
 	h := m.health
-	status := checkMark(h.Healthy()) + " " + h.Status
+	status := checkMark(h.Healthy()) + " " + safeLine(h.Status)
 	fmt.Fprintf(&b, "  status: %s  rclone: %s  database: %s  uptime: %s\n",
 		status,
 		checkMark(h.RcloneInstalled),

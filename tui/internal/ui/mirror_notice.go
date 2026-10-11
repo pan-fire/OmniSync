@@ -48,7 +48,7 @@ func renderMirrorProfilesNotice(profiles []api.ProfileStatusResponse) string {
 	var names []string
 	for _, p := range profiles {
 		if p.ShowMirrorNotice() {
-			names = append(names, p.Name)
+			names = append(names, safeLine(p.Name))
 		}
 	}
 	if len(names) == 0 {

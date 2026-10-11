@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,6 +57,7 @@ var hostileRoutes = []struct {
 	{"GET", regexp.MustCompile(`^/config$`), "GlobalConfigResponse", false},
 	{"GET", regexp.MustCompile(`^/wizard/providers$`), "ProviderResponse", true},
 	{"GET", regexp.MustCompile(`^/wizard/oauth/redirect-uri$`), "OAuthRedirectResponse", false},
+	{"POST", regexp.MustCompile(`^/wizard/authorize$`), "AuthorizeResponse", false},
 	{"GET", regexp.MustCompile(`^/browse/(local|remote)$`), "BrowseResponse", false},
 }
 
@@ -209,6 +211,15 @@ var serverTextScenes = []serverTextScene{
 	}},
 	{"config", func(t *testing.T, c *api.Client) []string { return walk(t, ui.NewConfigModel(c)) }},
 	{"wizard", func(t *testing.T, c *api.Client) []string { return walk(t, ui.NewWizardModel(c), "enter") }},
+	// The sign-in step shows the backend's auth_url. The fixture provider
+	// signs in with a key, so the scene hands the wizard the backend's
+	// answer to /wizard/authorize as an OAuth provider's form would.
+	{"wizard sign-in", func(t *testing.T, c *api.Client) []string {
+		m := open(t, ui.NewWizardModel(c))
+		resp, err := c.Authorize(context.Background(), api.AuthorizeRequest{ProviderID: "drive"})
+		m = drive(t, m, ui.ActionResultMsg{ViewID: ui.ViewWizard, Action: "authorize", Data: resp, Err: err})
+		return []string{m.View().Content}
+	}},
 	{"logs", func(t *testing.T, c *api.Client) []string { return walk(t, ui.NewLogsModel(c)) }},
 }
 

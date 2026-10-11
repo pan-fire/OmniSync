@@ -159,7 +159,7 @@ func capitalize(s string) string {
 // refusal is shown, a started job is followed.
 func (m ProfileDetailModel) handleBackupStarted(msg ActionResultMsg, doneAction string) (tea.Model, tea.Cmd) {
 	start, _ := msg.Data.(backupStart)
-	what := fmt.Sprintf("%s of %s", capitalize(start.Kind), start.Slug)
+	what := fmt.Sprintf("%s of %s", capitalize(start.Kind), safeLine(start.Slug))
 	var refresh tea.Cmd
 	if start.Kind == jobKindBackup {
 		refresh = m.fetchBackups()
@@ -182,7 +182,7 @@ func (m ProfileDetailModel) handleBackupStarted(msg ActionResultMsg, doneAction 
 func (m ProfileDetailModel) handleBackupDone(msg ActionResultMsg) (tea.Model, tea.Cmd) {
 	out, _ := msg.Data.(backupFollow)
 	m = m.withoutRunning(out.Slug, out.Kind, out.JobID)
-	what := fmt.Sprintf("%s of %s", capitalize(out.Kind), out.Slug)
+	what := fmt.Sprintf("%s of %s", capitalize(out.Kind), safeLine(out.Slug))
 	var refresh tea.Cmd
 	if out.Kind == jobKindBackup && out.Slug == m.slug {
 		refresh = m.fetchBackups()

@@ -221,7 +221,7 @@ func (m ProfileDetailModel) handleSnapshotFilesKey(msg tea.KeyPressMsg) (tea.Mod
 				Help: "An absolute local path; created if its parent exists"},
 		})
 		f.Intro = fmt.Sprintf("%d selected item(s) of snapshot %s, with their folders, into this folder.\n"+
-			"Files there with the same names are kept in its .omnisync-trash/pre-restore/.", len(b.selected), b.snapshotID)
+			"Files there with the same names are kept in its .omnisync-trash/pre-restore/.", len(b.selected), safeLine(b.snapshotID))
 		m.form = f
 		return m, nil
 	case "r":
@@ -242,11 +242,11 @@ func (m ProfileDetailModel) browseTo(path, search string) (tea.Model, tea.Cmd) {
 func (m ProfileDetailModel) renderSnapshotFiles() string {
 	var sb strings.Builder
 	b := m.files
-	where := "/" + b.path
+	where := "/" + safeLine(b.path)
 	if b.search != "" {
 		where = fmt.Sprintf("search %q", b.search)
 	}
-	sb.WriteString(headerText(fmt.Sprintf("  Snapshot %s of target %d: %s", b.snapshotID, b.targetID, where)))
+	sb.WriteString(headerText(fmt.Sprintf("  Snapshot %s of target %d: %s", safeLine(b.snapshotID), b.targetID, where)))
 	sb.WriteString("\n")
 	if b.err != nil {
 		sb.WriteString(errorLine(b.err))

@@ -77,20 +77,113 @@ var passThrough = map[string]bool{
 }
 
 // A view must not draw a string field of an API answer, or an error's
-// text, as it is: it can
-// hold a carriage return, a backspace or an escape sequence that draws
-// over or restyles the view (see components.SafeLine). This finds every
-// string field of an internal/api type (and every err.Error()) that
-// reaches fmt, a strings.Builder
-// or a lipgloss style in internal/ui without passing safeLine or
-// safeText (or a component that sanitises: a table row, a flash message,
-// a confirmation). The fuzz targets check the drawn result; this check
+// text, as it is: it can hold a carriage return, a backspace or an escape
+// sequence that draws over or restyles the view (see components.SafeLine).
+// This finds server text that reaches fmt, a strings.Builder or a lipgloss
+// style in internal/ui without passing safeLine or safeText (or a
+// component that sanitises: a table row, a flash message, a confirmation).
+// Server text is a string field (or []string) of an internal/api type,
+// err.Error(), and whatever internal/ui stores it in, followed until
+// nothing new turns up:
+//   - a local variable or a struct field (m.authURL = resp.AuthURL, a
+//     composite literal such as loadedMsg{name: p.Name}, x += ...);
+//   - a range variable over such a slice, and append to one;
+//   - a parameter of an internal/ui function called with it;
+//   - the result of an internal/ui function that returns it.
+//
+// It follows text through string concatenation, conversions and the
+// passThrough functions; a sanitiser on the way makes it safe. It does not
+// follow maps, channels, interface values (any, tea.Msg asserted back),
+// closures' results, pointers to a string taken with &, or text that
+// leaves internal/ui and comes back; a field is tainted for every value of
+// its struct type. The fuzz targets check the drawn result; this check
 // fails on the code, before a view with server text in it exists.
 func TestViews_DrawServerTextOnlyThroughSafeLine(t *testing.T) {
 	if testing.Short() {
 		t.Skip("type-checks internal/ui")
 	}
-	fset, files, info := typeCheckUI(t)
+	fset, files, info := typeCheckUI(t, nil)
+	if findings := serverTextFindings(fset, files, info); len(findings) > 0 {
+		t.Errorf("server text drawn as it is (%d):\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+// The check itself: each way server text can be stored before a view
+// draws it is found, and a sanitiser anywhere on the way clears it. The
+// source is type-checked as internal/ui, against the real internal/api.
+func TestViews_ServerTextLintFollowsStoredText(t *testing.T) {
+	if testing.Short() {
+		t.Skip("type-checks internal/ui")
+	}
+	const src = `package ui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/pan-fire/OmniSync/tui/internal/api"
+)
+
+func safeLine(s string) string { return s }
+
+type model struct {
+	authURL, safeURL string
+	names            []string
+	msg              note
+}
+
+type note struct{ text string }
+
+func (m *model) store(resp *api.AuthorizeResponse, h *api.HealthResponse) {
+	m.authURL = resp.AuthURL
+	m.safeURL = safeLine(resp.AuthURL)
+	m.names = append(m.names, h.Status)
+	m.msg = note{text: "status " + h.Status}
+}
+
+func label(s string) string { return "[" + s + "]" }
+
+func drawParam(b *strings.Builder, param string) { b.WriteString(param) } // finding: parameter
+
+func status(h *api.HealthResponse) string { return strings.TrimSpace(h.Status) }
+
+func (m model) view(h *api.HealthResponse) string {
+	var b strings.Builder
+	b.WriteString("  " + m.authURL)            // finding: field
+	b.WriteString(m.safeURL)                   // sanitised when stored
+	local := m.authURL
+	b.WriteString(local)                       // finding: local variable
+	for _, n := range m.names {
+		b.WriteString(n)                       // finding: range variable
+	}
+	b.WriteString(strings.Join(m.names, ","))  // finding: slice
+	b.WriteString(m.msg.text)                  // finding: composite literal
+	b.WriteString(label(h.Status))             // finding: result via parameter
+	b.WriteString(status(h))                   // finding: result
+	drawParam(&b, h.Status)
+	b.WriteString(safeLine(status(h)))         // sanitised
+	b.WriteString(fmt.Sprintf("%q", m.authURL)) // quoted
+	return b.String()
+}
+`
+	fset, files, info := typeCheckUI(t, map[string]string{"lint_example.go": src})
+	got := strings.Join(serverTextFindings(fset, files, info), "\n")
+	for _, want := range []string{
+		": m.authURL drawn", ": local drawn", ": n drawn", ": m.names drawn", ": m.msg.text drawn",
+		": param drawn", ": label(h.Status) drawn", ": status(h) drawn",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("no finding %q in:\n%s", want, got)
+		}
+	}
+	if n := strings.Count(got, "\n") + 1; got == "" || n != 8 {
+		t.Errorf("%d findings, want 8:\n%s", n, got)
+	}
+}
+
+// serverTextFindings lists where server text in files is drawn as it is.
+func serverTextFindings(fset *token.FileSet, files []*ast.File, info *types.Info) []string {
+	tainted := taintedObjects(info, files)
 	var findings []string
 	for _, file := range files {
 		var stack []ast.Node
@@ -101,7 +194,7 @@ func TestViews_DrawServerTextOnlyThroughSafeLine(t *testing.T) {
 			}
 			stack = append(stack, n)
 			expr, ok := n.(ast.Expr)
-			if !ok || !isServerText(info, expr) {
+			if !ok || !isServerText(info, tainted, expr) {
 				return true
 			}
 			if reachesDrawSink(info, stack) {
@@ -112,25 +205,262 @@ func TestViews_DrawServerTextOnlyThroughSafeLine(t *testing.T) {
 		})
 	}
 	sort.Strings(findings)
-	if len(findings) > 0 {
-		t.Errorf("server text drawn as it is (%d):\n%s", len(findings), strings.Join(findings, "\n"))
-	}
+	return findings
 }
 
-// isServerText reports whether expr is a string field of an API answer or
-// an error's text (which can hold the backend's detail message).
-func isServerText(info *types.Info, expr ast.Expr) bool {
+// isServerText reports whether expr is server text in its own right: a
+// string field of an API answer, an error's text, or a variable, field or
+// call result that taintedObjects found to hold one. (Parts of a larger
+// expression that carries the text are reported where they are used, by
+// reachesDrawSink.)
+func isServerText(info *types.Info, tainted map[types.Object]bool, expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.SelectorExpr:
-		return isAPIStringField(info, e)
+		if isAPIStringField(info, e) {
+			return true
+		}
+		s, ok := info.Selections[e]
+		return ok && s.Kind() == types.FieldVal && tainted[s.Obj()]
+	case *ast.Ident:
+		v, ok := info.Uses[e].(*types.Var)
+		return ok && !v.IsField() && tainted[v]
+	case *ast.IndexExpr:
+		return carriesServerText(info, tainted, e.X)
 	case *ast.CallExpr:
-		return calleeName(info, e) == "(error).Error"
+		if calleeName(info, e) == "(error).Error" {
+			return true
+		}
+		fn := calleeFunc(info, e)
+		return fn != nil && tainted[fn]
 	}
 	return false
 }
 
-// isAPIStringField reports whether sel selects a field with string, a
-// named string type or a pointer to one, of a struct in internal/api.
+// carriesServerText reports whether the value of expr holds server text:
+// it is server text, or keeps some through concatenation, a conversion, a
+// slice or index, append or a passThrough function.
+func carriesServerText(info *types.Info, tainted map[types.Object]bool, expr ast.Expr) bool {
+	expr = ast.Unparen(expr)
+	if isServerText(info, tainted, expr) {
+		return true
+	}
+	switch e := expr.(type) {
+	case *ast.BinaryExpr:
+		return e.Op == token.ADD && (carriesServerText(info, tainted, e.X) || carriesServerText(info, tainted, e.Y))
+	case *ast.SliceExpr:
+		return carriesServerText(info, tainted, e.X)
+	case *ast.StarExpr:
+		return carriesServerText(info, tainted, e.X)
+	case *ast.CallExpr:
+		if tv, ok := info.Types[e.Fun]; ok && tv.IsType() {
+			return len(e.Args) == 1 && carriesServerText(info, tainted, e.Args[0])
+		}
+		builtin := false
+		if id, ok := ast.Unparen(e.Fun).(*ast.Ident); ok {
+			b, isBuiltin := info.Uses[id].(*types.Builtin)
+			builtin = isBuiltin && b.Name() == "append"
+		}
+		if !builtin && !passThrough[calleeName(info, e)] {
+			return false
+		}
+		for _, a := range e.Args {
+			if carriesServerText(info, tainted, a) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// taintedObjects finds the variables, struct fields and functions of
+// internal/ui that hold or return server text (see the test's comment),
+// repeating the search until it finds nothing new.
+func taintedObjects(info *types.Info, files []*ast.File) map[types.Object]bool {
+	tainted := map[types.Object]bool{}
+	changed := true
+	mark := func(obj types.Object) {
+		if obj == nil || tainted[obj] || !holdsText(obj) {
+			return
+		}
+		tainted[obj] = true
+		changed = true
+	}
+	carries := func(e ast.Expr) bool { return carriesServerText(info, tainted, e) }
+	for changed {
+		changed = false
+		for _, file := range files {
+			for _, decl := range file.Decls {
+				fd, ok := decl.(*ast.FuncDecl)
+				if ok && fd.Body != nil {
+					markReturns(info, fd, carries, mark)
+				}
+			}
+			ast.Inspect(file, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.AssignStmt:
+					if len(n.Lhs) == len(n.Rhs) {
+						for i, lhs := range n.Lhs {
+							if carries(n.Rhs[i]) {
+								mark(assignedObject(info, lhs))
+							}
+						}
+					} else if len(n.Rhs) == 1 && carries(n.Rhs[0]) {
+						for _, lhs := range n.Lhs {
+							mark(assignedObject(info, lhs))
+						}
+					}
+				case *ast.ValueSpec:
+					for i, name := range n.Names {
+						if i < len(n.Values) && carries(n.Values[i]) {
+							mark(info.Defs[name])
+						}
+					}
+				case *ast.RangeStmt:
+					if n.Value != nil && carries(n.X) {
+						mark(assignedObject(info, n.Value))
+					}
+				case *ast.CompositeLit:
+					st, ok := typeUnder[*types.Struct](info.TypeOf(n))
+					if !ok {
+						return true
+					}
+					for i, elt := range n.Elts {
+						if kv, isKV := elt.(*ast.KeyValueExpr); isKV {
+							if key, isID := kv.Key.(*ast.Ident); isID && carries(kv.Value) {
+								mark(info.Uses[key])
+							}
+						} else if i < st.NumFields() && carries(elt) {
+							mark(st.Field(i))
+						}
+					}
+				case *ast.CallExpr:
+					// A sink's own parameters are not followed: the call
+					// is where the text is drawn, or made safe.
+					fn := calleeFunc(info, n)
+					if fn == nil || fn.Pkg() == nil || fn.Pkg().Path() != uiPkg ||
+						drawSinks[fn.FullName()] || safeSinks[fn.FullName()] {
+						return true
+					}
+					params := fn.Signature().Params()
+					for i, a := range n.Args {
+						if params.Len() == 0 || !carries(a) {
+							continue
+						}
+						mark(params.At(min(i, params.Len()-1)))
+					}
+				}
+				return true
+			})
+		}
+	}
+	return tainted
+}
+
+// markReturns marks fd's function when one of its return statements (not
+// those of closures inside it) carries server text.
+func markReturns(info *types.Info, fd *ast.FuncDecl, carries func(ast.Expr) bool, mark func(types.Object)) {
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			for _, r := range n.Results {
+				if carries(r) {
+					mark(info.Defs[fd.Name])
+				}
+			}
+		}
+		return true
+	})
+}
+
+// assignedObject is the variable or struct field an assignment's left side
+// names, or nil.
+func assignedObject(info *types.Info, lhs ast.Expr) types.Object {
+	switch e := ast.Unparen(lhs).(type) {
+	case *ast.Ident:
+		if obj := info.Defs[e]; obj != nil {
+			return obj
+		}
+		return info.Uses[e]
+	case *ast.SelectorExpr:
+		if s, ok := info.Selections[e]; ok && s.Kind() == types.FieldVal {
+			return s.Obj()
+		}
+	case *ast.IndexExpr:
+		return assignedObject(info, e.X)
+	}
+	return nil
+}
+
+// holdsText reports whether obj is a variable or field of a string type
+// (or a pointer to or slice of one), or a function returning one.
+func holdsText(obj types.Object) bool {
+	switch o := obj.(type) {
+	case *types.Var:
+		return isTextType(o.Type())
+	case *types.Func:
+		res := o.Signature().Results()
+		for i := 0; i < res.Len(); i++ {
+			if isTextType(res.At(i).Type()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isTextType(typ types.Type) bool {
+	switch t := typ.Underlying().(type) {
+	case *types.Pointer:
+		return isTextType(t.Elem())
+	case *types.Slice:
+		return isTextType(t.Elem())
+	case *types.Basic:
+		return t.Kind() == types.String
+	}
+	return false
+}
+
+func typeUnder[T types.Type](typ types.Type) (T, bool) {
+	var zero T
+	if typ == nil {
+		return zero, false
+	}
+	if p, ok := typ.Underlying().(*types.Pointer); ok {
+		typ = p.Elem()
+	}
+	t, ok := typ.Underlying().(T)
+	return t, ok
+}
+
+// calleeFunc is the function or method call calls, or nil.
+func calleeFunc(info *types.Info, call *ast.CallExpr) *types.Func {
+	var id *ast.Ident
+	switch f := ast.Unparen(call.Fun).(type) {
+	case *ast.Ident:
+		id = f
+	case *ast.SelectorExpr:
+		id = f.Sel
+	case *ast.IndexExpr:
+		if s, ok := f.X.(*ast.SelectorExpr); ok {
+			id = s.Sel
+		} else if i, ok := f.X.(*ast.Ident); ok {
+			id = i
+		}
+	}
+	if id == nil {
+		return nil
+	}
+	if fn, ok := info.Uses[id].(*types.Func); ok {
+		return fn.Origin()
+	}
+	return nil
+}
+
+// isAPIStringField reports whether sel selects a field of a struct in
+// internal/api whose type is a string, a named string type, or a pointer
+// to or slice of one.
 func isAPIStringField(info *types.Info, sel *ast.SelectorExpr) bool {
 	s, ok := info.Selections[sel]
 	if !ok || s.Kind() != types.FieldVal {
@@ -140,12 +470,7 @@ func isAPIStringField(info *types.Info, sel *ast.SelectorExpr) bool {
 	if field.Pkg() == nil || field.Pkg().Path() != apiPkg {
 		return false
 	}
-	typ := field.Type()
-	if p, isPtr := typ.(*types.Pointer); isPtr {
-		typ = p.Elem()
-	}
-	b, ok := typ.Underlying().(*types.Basic)
-	return ok && b.Kind() == types.String
+	return isTextType(field.Type())
 }
 
 // reachesDrawSink climbs from the selector (last in stack) through the
@@ -251,24 +576,8 @@ func typeName(t types.Type) string {
 
 // calleeName names the called function as types.Func.FullName does.
 func calleeName(info *types.Info, call *ast.CallExpr) string {
-	var id *ast.Ident
-	switch f := ast.Unparen(call.Fun).(type) {
-	case *ast.Ident:
-		id = f
-	case *ast.SelectorExpr:
-		id = f.Sel
-	case *ast.IndexExpr: // a generic function
-		if s, ok := f.X.(*ast.SelectorExpr); ok {
-			id = s.Sel
-		} else if i, ok := f.X.(*ast.Ident); ok {
-			id = i
-		}
-	}
-	if id == nil {
-		return ""
-	}
-	if fn, ok := info.Uses[id].(*types.Func); ok {
-		return fn.Origin().FullName()
+	if fn := calleeFunc(info, call); fn != nil {
+		return fn.FullName()
 	}
 	return ""
 }
@@ -279,8 +588,9 @@ func relPos(fset *token.FileSet, p token.Pos) string {
 }
 
 // typeCheckUI type-checks internal/ui from its source, with the export
-// data of its dependencies from `go list -export`.
-func typeCheckUI(t *testing.T) (*token.FileSet, []*ast.File, *types.Info) {
+// data of its dependencies from `go list -export`. With sources (file name
+// to Go source), it type-checks those as internal/ui instead.
+func typeCheckUI(t *testing.T, sources map[string]string) (*token.FileSet, []*ast.File, *types.Info) {
 	t.Helper()
 	// go test puts its own go command first on PATH.
 	cmd := exec.Command("go", "list", "-export", "-deps", "-json=ImportPath,Export,Dir,GoFiles", uiPkg)
@@ -311,8 +621,18 @@ func typeCheckUI(t *testing.T) (*token.FileSet, []*ast.File, *types.Info) {
 	}
 	fset := token.NewFileSet()
 	var files []*ast.File
+	if sources != nil {
+		goFiles = goFiles[:0]
+		for name := range sources {
+			goFiles = append(goFiles, name)
+		}
+	}
 	for _, name := range goFiles {
-		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		var src any
+		if sources != nil {
+			src = sources[name]
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), src, parser.SkipObjectResolution)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -327,6 +647,7 @@ func typeCheckUI(t *testing.T) (*token.FileSet, []*ast.File, *types.Info) {
 	})}
 	info := &types.Info{
 		Types:      map[ast.Expr]types.TypeAndValue{},
+		Defs:       map[*ast.Ident]types.Object{},
 		Uses:       map[*ast.Ident]types.Object{},
 		Selections: map[*ast.SelectorExpr]*types.Selection{},
 	}

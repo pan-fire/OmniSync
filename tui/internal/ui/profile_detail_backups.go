@@ -78,7 +78,7 @@ func (m ProfileDetailModel) handleBackupsKey(msg tea.KeyPressMsg) (tea.Model, te
 						Options: []string{string(api.RestoreScopeLocalOnly), string(api.RestoreScopeRemoteOnly), string(api.RestoreScopeBoth)}},
 				})
 				f.Intro = fmt.Sprintf("Snapshot %s of backup target %d.\nRestoring overwrites the chosen side(s) of this profile with the snapshot.\n"+
-					"Next, a preview shows what would change before anything is restored.", row.Key, m.snapshotTarget)
+					"Next, a preview shows what would change before anything is restored.", safeLine(row.Key), m.snapshotTarget)
 				m.form = f
 			}
 		default:
@@ -425,7 +425,7 @@ func (m ProfileDetailModel) previewRestore(req fullRestore) tea.Cmd {
 // restorePrompt is the confirmation text of a full restore, with its preview.
 func restorePrompt(req fullRestore, preview *api.RestorePreviewResponse, err error) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Restore snapshot %s (%s)?\n\n", req.target.snapshotID, req.scope)
+	fmt.Fprintf(&b, "Restore snapshot %s (%s)?\n\n", safeLine(req.target.snapshotID), req.scope)
 	switch {
 	case err != nil:
 		fmt.Fprintf(&b, "The preview failed (%s); what would change is unknown.\n", err)

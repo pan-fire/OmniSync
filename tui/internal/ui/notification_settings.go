@@ -202,9 +202,9 @@ func channelSettingsSummary(name string, cfg api.ChannelConfig) string {
 		}
 		var hs []string
 		for _, h := range cfg.Webhook.Headers {
-			hs = append(hs, h.Name+" ("+set(h.ValueSet)+")")
+			hs = append(hs, safeLine(h.Name)+" ("+set(h.ValueSet)+")")
 		}
-		text := "URL: " + cfg.Webhook.URL
+		text := "URL: " + safeLine(cfg.Webhook.URL)
 		if len(hs) > 0 {
 			text += "  Headers: " + strings.Join(hs, ", ")
 		}
@@ -219,7 +219,7 @@ func channelSettingsSummary(name string, cfg api.ChannelConfig) string {
 			return "Not configured — press c"
 		}
 		return fmt.Sprintf("%s:%d (%s) → %s  password: %s", safeLine(cfg.Email.Host), cfg.Email.Port, safeLine(cfg.Email.Security),
-			strings.Join(cfg.Email.To, ", "), set(cfg.Email.PasswordSet))
+			safeLine(strings.Join(cfg.Email.To, ", ")), set(cfg.Email.PasswordSet))
 	}
 	return ""
 }

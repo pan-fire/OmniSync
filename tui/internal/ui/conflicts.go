@@ -346,7 +346,7 @@ func (m ConflictsModel) View() tea.View {
 		successStyle := lipgloss.NewStyle().Foreground(theme.Current.Success)
 		b.WriteString("\n")
 		if m.filter != "" {
-			b.WriteString(successStyle.Render(fmt.Sprintf("  No conflicts for profile %s %s all clear", m.filter, theme.Glyphs().EmDash)))
+			b.WriteString(successStyle.Render(fmt.Sprintf("  No conflicts for profile %s %s all clear", safeLine(m.filter), theme.Glyphs().EmDash)))
 		} else {
 			b.WriteString(successStyle.Render(fmt.Sprintf("  No conflicts %s all clear %s", theme.Glyphs().EmDash, theme.Glyphs().Check)))
 		}
@@ -453,7 +453,7 @@ func resolutionEffect(c api.ConflictResponse, res api.ConflictResolution) string
 	case api.ConflictKeepRemote:
 		return "copy the remote file over the local one;\nthe local version is moved to .omnisync-trash in the local folder"
 	case api.ConflictKeepBoth:
-		return fmt.Sprintf("keep both versions on both sides;\nthe remote version is saved next to the local one as %s", conflictCopyName(c.FilePath))
+		return fmt.Sprintf("keep both versions on both sides;\nthe remote version is saved next to the local one as %s", safeLine(conflictCopyName(c.FilePath)))
 	case api.ConflictDismiss:
 		return "close this conflict without changing any file;\nboth versions stay as they are"
 	}
@@ -497,7 +497,7 @@ func resolutionSummary(c api.ConflictResponse, res api.ConflictResolution) strin
 	case api.ConflictKeepRemote:
 		return "copy the remote file over the local one (local version to .omnisync-trash)"
 	case api.ConflictKeepBoth:
-		return fmt.Sprintf("keep both versions on both sides (remote one as %s)", conflictCopyName(c.FilePath))
+		return fmt.Sprintf("keep both versions on both sides (remote one as %s)", safeLine(conflictCopyName(c.FilePath)))
 	case api.ConflictDismiss:
 		return "close the conflict without changing any file"
 	}
@@ -563,7 +563,7 @@ func (m ConflictsModel) filterLabel() string {
 	if m.filter == "" {
 		return "all profiles"
 	}
-	return "profile " + m.filter
+	return "profile " + safeLine(m.filter)
 }
 
 func (m ConflictsModel) fetchConflicts() tea.Cmd {

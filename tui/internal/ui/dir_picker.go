@@ -270,7 +270,7 @@ func (p *dirPicker) View() string {
 	b.WriteString(headerText(title))
 	b.WriteString("\n")
 	if p.current != "" {
-		b.WriteString(mutedText("In: ") + p.current + "\n")
+		b.WriteString(mutedText("In: ") + safeLine(p.current) + "\n")
 	}
 	if p.kind == pickLocal {
 		b.WriteString(mutedText("Folders on the machine the OmniSync backend runs on.") + "\n")
@@ -311,7 +311,7 @@ func (p *dirPicker) renderRows() string {
 	sel := lipgloss.NewStyle().Reverse(true).Bold(true)
 	g := theme.Glyphs()
 	for i := start; i < end; i++ {
-		label := components.Truncate(p.rows[i].label, 70)
+		label := components.Truncate(safeLine(p.rows[i].label), 70)
 		if i == p.cursor {
 			b.WriteString(g.Cursor + " " + sel.Render(label) + "\n")
 		} else {

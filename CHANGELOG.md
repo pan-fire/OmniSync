@@ -26,7 +26,9 @@ release notes.
   holding a carriage return, a backspace or an escape sequence could
   overwrite the start of its line, move the cursor or change the colours
   of what followed, outside the tables (which already filtered it). Every
-  view now shows such a character as `�`, and a last filter on the whole
+  view (also the wizard's sign-in URL, the files a running sync lists, a
+  remote's test result and a webhook's URL and headers) now shows such a
+  character as `�`, and a last filter on the whole
   screen lets only the views' own colours through. A multi-line log
   message shows its first line and "(+N lines)" in the Logs view.
 

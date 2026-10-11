@@ -451,13 +451,13 @@ func (m RemotesModel) View() tea.View {
 			latency = fmt.Sprintf(" (%dms)", *t.Resp.LatencyMs)
 		}
 		if t.Resp.Success {
-			b.WriteString(lipgloss.NewStyle().Foreground(theme.Current.Success).Render(fmt.Sprintf("  Test %s: PASS%s", t.Name, latency)))
+			b.WriteString(lipgloss.NewStyle().Foreground(theme.Current.Success).Render(fmt.Sprintf("  Test %s: PASS%s", safeLine(t.Name), latency)))
 		} else {
 			errTxt := ""
 			if t.Resp.Error != nil {
 				errTxt = *t.Resp.Error
 			}
-			b.WriteString(lipgloss.NewStyle().Foreground(theme.Current.Error).Render(fmt.Sprintf("  Test %s: FAIL%s %s", t.Name, latency, errTxt)))
+			b.WriteString(lipgloss.NewStyle().Foreground(theme.Current.Error).Render(fmt.Sprintf("  Test %s: FAIL%s %s", safeLine(t.Name), latency, safeLine(errTxt))))
 		}
 		b.WriteString("\n")
 	}
@@ -466,7 +466,7 @@ func (m RemotesModel) View() tea.View {
 		b.WriteString("\n")
 		infoStyle := lipgloss.NewStyle().Foreground(theme.Current.Info)
 		if !s.Resp.Supported {
-			b.WriteString(infoStyle.Render(fmt.Sprintf("  Storage %s: this remote does not report usage", s.Name)))
+			b.WriteString(infoStyle.Render(fmt.Sprintf("  Storage %s: this remote does not report usage", safeLine(s.Name))))
 		} else {
 			used, total, free := "?", "?", "?"
 			if s.Resp.UsedBytes != nil {
@@ -478,7 +478,7 @@ func (m RemotesModel) View() tea.View {
 			if s.Resp.FreeBytes != nil {
 				free = formatBytes(*s.Resp.FreeBytes)
 			}
-			b.WriteString(infoStyle.Render(fmt.Sprintf("  Storage %s: used %s  total %s  free %s", s.Name, used, total, free)))
+			b.WriteString(infoStyle.Render(fmt.Sprintf("  Storage %s: used %s  total %s  free %s", safeLine(s.Name), used, total, free)))
 		}
 		b.WriteString("\n")
 	}

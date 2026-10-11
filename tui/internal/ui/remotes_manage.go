@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -284,7 +285,7 @@ func freeRemoteName(name string, taken map[string]bool) string {
 	for i := 1; ; i++ {
 		candidate := name + "-imported"
 		if i > 1 {
-			candidate = fmt.Sprintf("%s-imported-%d", name, i)
+			candidate = name + "-imported-" + strconv.Itoa(i)
 		}
 		if !taken[candidate] {
 			return candidate
@@ -327,7 +328,7 @@ func (m RemotesModel) handleImportPreview(msg ActionResultMsg) (tea.Model, tea.C
 			// A clash starts skipped; the suggested free name is in the help.
 			value = ""
 			help = fmt.Sprintf("A remote %q exists already: enter another name, e.g. %s, or leave empty to skip.",
-				c.Name, freeRemoteName(c.Name, taken))
+				c.Name, safeLine(freeRemoteName(c.Name, taken)))
 		} else {
 			taken[c.Name] = true
 		}

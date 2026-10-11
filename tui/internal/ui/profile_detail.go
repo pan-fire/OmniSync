@@ -961,7 +961,7 @@ func resyncPrompt(req *syncRequest, required bool) string {
 // does.
 func switchTwoWayPrompt(req *syncRequest) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Switch profile %q (%s) to two-way sync?\n\n", req.name, req.slug)
+	fmt.Fprintf(&b, "Switch profile %q (%s) to two-way sync?\n\n", req.name, safeLine(req.slug))
 	b.WriteString("Two-way sync carries changes on either side to the other: edits made on\n")
 	b.WriteString("either side are kept, new files on both sides are kept, and deletions are\n")
 	b.WriteString("carried over (the deleted file goes to .omnisync-trash). A file changed on\n")
@@ -981,11 +981,11 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 	var b strings.Builder
 	arrow := theme.Glyphs().Arrow
 	verb := directionVerb(req.dir)
-	fmt.Fprintf(&b, "%s profile %q (%s)?\n\n", verb, req.name, req.slug)
+	fmt.Fprintf(&b, "%s profile %q (%s)?\n\n", verb, req.name, safeLine(req.slug))
 	if req.dir == api.SyncDirectionPush {
-		fmt.Fprintf(&b, "Direction: local %s %s remote %s\n\n", req.localDir, arrow, req.remoteDir)
+		fmt.Fprintf(&b, "Direction: local %s %s remote %s\n\n", safeLine(req.localDir), arrow, safeLine(req.remoteDir))
 	} else {
-		fmt.Fprintf(&b, "Direction: remote %s %s local %s\n\n", req.remoteDir, arrow, req.localDir)
+		fmt.Fprintf(&b, "Direction: remote %s %s local %s\n\n", safeLine(req.remoteDir), arrow, safeLine(req.localDir))
 	}
 	if req.twoWay {
 		if req.dir == api.SyncDirectionPush {
@@ -1043,8 +1043,8 @@ func syncPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr e
 func twoWayPrompt(req *syncRequest, preview *api.SyncPreviewResponse, previewErr error) string {
 	var b strings.Builder
 	warning := theme.Glyphs().Warning
-	fmt.Fprintf(&b, "Sync profile %q (%s) both ways now?\n\n", req.name, req.slug)
-	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", req.localDir, req.remoteDir)
+	fmt.Fprintf(&b, "Sync profile %q (%s) both ways now?\n\n", req.name, safeLine(req.slug))
+	fmt.Fprintf(&b, "Local:  %s\nRemote: %s\n\n", safeLine(req.localDir), safeLine(req.remoteDir))
 
 	maxDelete := req.maxDelete
 	var tw *api.TwoWayPreview
@@ -1106,9 +1106,9 @@ func (m ProfileDetailModel) View() tea.View {
 
 	var b strings.Builder
 
-	name := m.slug
+	name := safeLine(m.slug)
 	if m.profile != nil {
-		name = fmt.Sprintf("%s (%s)", safeLine(m.profile.Name), m.slug)
+		name = fmt.Sprintf("%s (%s)", safeLine(m.profile.Name), safeLine(m.slug))
 	}
 	b.WriteString(headerText("  " + name))
 	b.WriteString("\n  ")
