@@ -574,9 +574,13 @@ async def test_rclone_decides_which_files_a_run_sees(env: Env):
         {"Path": "keep/ctrl\x01.txt", "Size": 1},                  # spelled differently by rclone: counted
         {"Path": "keep/dir", "IsDir": True},
         {"Path": "keep/no-time.txt", "Size": -1, "ModTime": "garbage"},
+        {"Path": "keep/none.txt"},
+        {"Path": "keep/a.txt/x"},                                   # cannot be made: counted
+        {"Path": "skip/../x"},
     ]
     seen = await rclone.visible_files(files, ["- /skip/**"], ["--max-size", "1M", "--max-age", "2000d"])
-    assert seen == {"keep/a.txt", "keep/ctrl\x01.txt", "keep/no-time.txt"}
+    assert seen == {"keep/a.txt", "keep/ctrl\x01.txt", "keep/no-time.txt", "keep/none.txt", "keep/a.txt/x",
+                    "skip/../x"}
 
 
 @pytest.mark.slow
