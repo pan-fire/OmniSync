@@ -105,7 +105,8 @@ release notes.
   target was untouched), and a remote folder with that name was written
   through the link into the folder it points to, outside the synced
   folder. Both paths are now left out of the run, and the job says so; a
-  per-file pull onto a link is refused. A push still moves such a remote
+  per-file action on a link, or on a path below a link to a folder, is
+  refused. A push still moves such a remote
   item to the remote trash, as for any file missing locally, and now
   reports it.
 - **Two spellings of one name no longer sync silently as one.** rclone
@@ -123,6 +124,17 @@ release notes.
 
 ### Security
 
+- **Nothing is written through a local symbolic link any more.** A
+  per-file pull, keep both or conflict resolution of a path below a local
+  link to a folder (`ld/report.txt`, where `ld` points elsewhere) wrote the
+  file into the folder the link points to, outside the synced folder,
+  replacing a file of that name there. A backup restore did the same for a
+  snapshot's files below such a link, and a trash restore went through a
+  link to a folder inside the synced folder. Each of them now checks every
+  part of the path (and where it resolves to) right before writing, and
+  refuses with a message that names the link; a restore refuses before it
+  writes anything. OmniSync's own file moves follow no link, so a link
+  swapped in after the check makes them fail instead.
 - **Windows toasts no longer build PowerShell code from file names.** The
   title and body used to be pasted into the PowerShell command as quoted
   text, with only `'` escaped. PowerShell also ends a quoted string at the

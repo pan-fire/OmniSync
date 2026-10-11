@@ -33,7 +33,7 @@ from backend.api.schemas import ChangeCategory, FileAction, SelectiveSyncItem, S
 from backend.services.rclone import PARTIAL_NAME, SENTINEL_FILE, TRASH_DIR
 from backend.services.rclone.bisync_names import LONGEST_SUFFIX, NAME_MAX, bisync_names_fit, bisync_session_name
 from backend.services.sync_engine import SyncEngine, bisync_workdir
-from backend.services.sync_engine.selective import LOCAL_SYMLINK, NAME_NOT_UTF8
+from backend.services.sync_engine.selective import NAME_NOT_UTF8, local_symlink
 from backend.tests.real_rclone import Env, empty_dirs, make_env, needs_rclone, partials, tree, write
 
 pytestmark = needs_rclone
@@ -516,9 +516,93 @@ async def test_per_file_pull_never_replaces_a_local_symlink(env: Env, tmp_path: 
 
     result = await engine.selective_sync([SelectiveSyncItem(path="clash.txt", action=FileAction.PULL)])
 
-    assert (result.failed, result.errors[0].error) == (1, LOCAL_SYMLINK)
+    assert (result.failed, result.errors[0].error) == (1, local_symlink("clash.txt"))
     assert (env.local / "clash.txt").is_symlink()
     assert (tmp_path / "outside" / "t.txt").read_text() == "target"
+
+
+def linked_folder(env: Env, tmp_path: Path) -> Path:
+    """A local link ``ld`` to a folder outside the profile that holds ``f``; the remote has ``ld/f``."""
+    outside = tmp_path / "outside"
+    write(outside, "f", "precious outside data")
+    os.symlink(outside, env.local / "ld")
+    write(env.remote, "ld/f", "remote")
+    return outside
+
+
+async def test_per_file_pull_never_writes_through_a_linked_parent_folder(env: Env, tmp_path: Path):
+    """rclone does not list the linked folder, so the diff shows ``ld/f`` as
+    remote-only; a copy of that path follows the link and would overwrite
+    the file of that name in the folder it points to, outside the profile."""
+    outside = linked_folder(env, tmp_path)
+    engine = env.engine()
+    diff = await engine.enhanced_diff()
+    assert [(f.path, f.category) for f in diff.files] == [("ld/f", ChangeCategory.REMOTE_ONLY)]
+
+    result = await engine.selective_sync([SelectiveSyncItem(path="ld/f", action=FileAction.PULL)])
+
+    assert (result.failed, result.errors[0].error) == (1, local_symlink("ld"))
+    assert (outside / "f").read_text() == "precious outside data"
+    assert sorted(os.listdir(outside)) == ["f"]
+    assert (env.local / "ld").is_symlink()
+
+
+@pytest.mark.parametrize("action", [FileAction.PUSH, FileAction.KEEP_BOTH])
+async def test_push_and_keep_both_never_go_through_a_linked_parent_folder(
+        env: Env, tmp_path: Path, action: FileAction):
+    """A push would read ``f`` from the folder outside; keep-both would also
+    write its conflict copy there. Both are refused, naming the link."""
+    outside = linked_folder(env, tmp_path)
+    engine = env.engine()
+    await engine.enhanced_diff()
+
+    result = await engine.selective_sync([SelectiveSyncItem(path="ld/f", action=action)])
+
+    assert (result.failed, result.errors[0].error) == (1, local_symlink("ld"))
+    assert sorted(os.listdir(outside)) == ["f"] and (outside / "f").read_text() == "precious outside data"
+    assert tree(env.remote) == {"ld/f": hashlib.blake2b(b"remote", digest_size=16).hexdigest()}
+
+
+async def test_per_file_pull_never_replaces_a_link_to_a_folder(env: Env, tmp_path: Path):
+    """A remote file named like a local link to a folder: the link stays, nothing lands in its folder."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.symlink(outside, env.local / "lf")
+    write(env.remote, "lf", "remote file")
+    engine = env.engine()
+    await engine.enhanced_diff()
+
+    result = await engine.selective_sync([SelectiveSyncItem(path="lf", action=FileAction.PULL)])
+
+    assert (result.failed, result.errors[0].error) == (1, local_symlink("lf"))
+    assert (env.local / "lf").is_symlink() and list(outside.iterdir()) == []
+
+
+async def test_a_link_made_while_the_pull_lists_the_files_is_caught(env: Env, tmp_path: Path, monkeypatch):
+    """The link check runs after the (slow) listings, right before the copy:
+    a real folder swapped for a link while rclone lists is refused too.
+    What is left is the moment between the check and rclone's start (see
+    local_paths.py)."""
+    outside = tmp_path / "outside"
+    write(outside, "f", "precious outside data")
+    (env.local / "ld").mkdir()
+    write(env.remote, "ld/f", "remote")
+    engine = env.engine()
+    await engine.enhanced_diff()
+    listing = engine._rclone.lsjson_paths
+
+    async def swap_while_listing(root, paths):
+        result = await listing(root, paths)
+        if root == str(env.local) and not (env.local / "ld").is_symlink():
+            (env.local / "ld").rmdir()
+            os.symlink(outside, env.local / "ld")
+        return result
+
+    monkeypatch.setattr(engine._rclone, "lsjson_paths", swap_while_listing)
+    result = await engine.selective_sync([SelectiveSyncItem(path="ld/f", action=FileAction.PULL)])
+
+    assert (result.failed, result.errors[0].error) == (1, local_symlink("ld"))
+    assert (outside / "f").read_text() == "precious outside data"
 
 
 # --- Empty files and folders ---

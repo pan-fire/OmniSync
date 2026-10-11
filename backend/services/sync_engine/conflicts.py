@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shutil
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -12,7 +11,9 @@ from sqlalchemy import select
 from backend.api.schemas import ConflictResolution, FileDiff
 from backend.db.models import Conflict, SyncJob
 from backend.exceptions import ConflictResolutionError, RcloneError
+from backend.services.local_paths import LinkedPathError, check_no_link, link_on_path, move_within
 from backend.services.rclone import TRASH_DIR, ChangeRecorder, FileChangeRecord
+from backend.services.sync_engine.names import local_symlink
 from backend.services.sync_engine.common import ENGINE_STOPPED, TRASH_STAMP_FORMAT, _utc, logger, remote_join
 from backend.services.sync_engine.reporting import ReportingMixin
 
@@ -147,6 +148,9 @@ class ConflictsMixin(ReportingMixin):
             raise ConflictResolutionError(
                 f"The {replaced} file changed since the conflict was found; not overwriting it unseen. {rerun}"
             )
+        # Last, right before the copy: never through a local link (local_paths.py).
+        if (link := link_on_path(config.local_dir, key)) is not None:
+            raise ConflictResolutionError(local_symlink(link))
 
         async with self._db_session_factory() as session:
             job = SyncJob(
@@ -278,10 +282,14 @@ class ConflictsMixin(ReportingMixin):
         root = os.path.realpath(config.local_dir)
 
         def inside(rel: str) -> str:
-            full = os.path.realpath(os.path.join(root, rel))
-            if os.path.commonpath([root, full]) != root or full == root:
-                raise ConflictResolutionError(f"'{rel}' is not inside the local folder.")
-            return full
+            # A plain path below the folder, with no symbolic link on it (the
+            # file itself included): a link would lead the moves elsewhere.
+            try:
+                return check_no_link(root, rel.lstrip("/"))
+            except LinkedPathError as exc:
+                if exc.link == rel.lstrip("/") and not os.path.islink(os.path.join(root, exc.link)):
+                    raise ConflictResolutionError(f"'{rel}' is not inside the local folder.") from None
+                raise ConflictResolutionError(local_symlink(exc.link)) from None
 
         keep_file, drop_file, target = inside(keep), inside(drop), inside(path)
         side_name = "local" if resolution == ConflictResolution.KEEP_LOCAL else "remote"
@@ -323,27 +331,29 @@ class ConflictsMixin(ReportingMixin):
             await self._finish_job(job_id, "failed", extra=changes, errors=1)
             raise
 
-        trash = os.path.join(root, TRASH_DIR, stamp)
+        def to_trash(rel: str) -> None:
+            move_within(root, rel.lstrip("/"), f"{TRASH_DIR}/{stamp}/{rel.lstrip('/')}")
 
-        def to_trash(full: str, rel: str) -> None:
-            dest = os.path.join(trash, rel)
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.move(full, dest)
-
+        # Moved through folder descriptors that follow no link (move_within),
+        # so a link swapped in after the checks above fails the move.
         def apply() -> None:
             if drop_file != keep_file and os.path.isfile(drop_file):
-                to_trash(drop_file, drop)
+                to_trash(drop)
                 changes.append(FileChangeRecord(drop, "deleted", side="local"))
             if keep_file != target:
                 existed = os.path.exists(target)
                 if existed:
-                    to_trash(target, path)
-                os.replace(keep_file, target)
+                    to_trash(path)
+                move_within(root, keep.lstrip("/"), path.lstrip("/"))
                 changes.append(FileChangeRecord(keep, "deleted", side="local"))
                 changes.append(FileChangeRecord(path, "modified" if existed else "created", side="local"))
 
         try:
             await asyncio.to_thread(apply)
+        except LinkedPathError as exc:
+            await self._record_error(job_id, str(exc), 0)
+            await self._finish_job(job_id, "failed", extra=changes, errors=1)
+            raise ConflictResolutionError(local_symlink(exc.link))
         except OSError as exc:
             await self._record_error(job_id, str(exc), 0)
             await self._finish_job(job_id, "failed", extra=changes, errors=1)

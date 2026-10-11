@@ -163,7 +163,7 @@ In both modes:
   **Delete** (`POST .../trash/delete`) removes trash entries for good.
   Entries are addressed by their path inside the trash and cannot reach
   outside it (no `..`, no absolute paths, no symlinked folders on the local
-  side); both actions wait for no sync of the profile to run (409
+  side, not even ones that point inside the synced folder); both actions wait for no sync of the profile to run (409
   otherwise). Trash folders older than `OMNISYNC_TRASH_DAYS` are still
   pruned automatically.
 
@@ -177,7 +177,10 @@ a schedule, as a mirror or as dated archive snapshots with a retention period,
 and restored to the local side, the remote side or both. A restore rebuilds
 the folder exactly as it was right after the chosen backup (the latest one
 included) and keeps everything it replaces or removes in
-`.omnisync-trash/pre-restore/`. A backup refuses to run on a missing, empty or
+`.omnisync-trash/pre-restore/`. A restore into a local folder never writes
+through a symbolic link there: if a file it would restore lies at or below
+a link (say `docs` is now a link to another folder), it is refused before
+anything is written, naming the link. A backup refuses to run on a missing, empty or
 unmarked local folder while the backup holds data, and a target that cannot be
 reached (a local target folder is never created) is skipped with a
 notification. A target can be encrypted with a passphrase (rclone crypt: file
@@ -275,11 +278,19 @@ like `jpg`) as `\xNN` or `\uNNNN`.
     of the run, so the remote item is not copied over the link (which would
     replace the link) and nothing is written through a link to a folder
     into the folder it points to. The warning names the link; the remote
-    item arrives once the link is removed or renamed. A per-file pull onto
-    a link is refused.
+    item arrives once the link is removed or renamed.
   - a **push** treats the link as no file, like any file missing locally:
     the remote item is deleted into the remote trash
     (`.omnisync-trash/<timestamp>/`), and the warning says so.
+
+  A **per-file action** (push, pull, keep both) or a **conflict
+  resolution** on a path at or below a local link, such as `ld/report.txt`
+  where `ld` is a link to a folder, is refused with a message that names
+  the link: the diff shows such a remote file as remote-only (the sync does
+  not look inside the link), but copying it would write it through the link
+  into the folder it points to, or replace the link. The check runs right
+  before the copy; OmniSync's own moves (conflict resolution, trash restore)
+  also fail rather than follow a link that appears meanwhile.
 
   Neither a profile's filter rules nor its `--include`, `--exclude` or
   `--filter` flags can undo this protection (see below).

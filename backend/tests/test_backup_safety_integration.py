@@ -739,3 +739,40 @@ def test_clients_get_a_code_and_a_fixed_message(record, expected):
 ])
 def test_restore_failures_map_to_codes(exc, code):
     assert restore_error_code(exc) == code
+
+
+# ── Local symbolic links in the destination ──────────────────────────
+
+
+@pytest.mark.parametrize("mode", [BackupMode.MIRROR.value, BackupMode.ARCHIVE.value])
+@pytest.mark.parametrize("how", ["full", "selected"])
+async def test_a_restore_never_writes_through_a_local_symlink(env, tmp_path: Path, mode: str, how: str):
+    """After the backup, the folder ``docs`` became a link to a folder elsewhere.
+    rclone would write the snapshot's ``docs/a.txt`` through it, over the
+    file of that name there. The restore is refused before anything is
+    written, naming the link."""
+    target_id = await env.add_target(str(env.backups), mode=mode)
+    write(env.local, "docs/a.txt", "backed up")
+    write(env.local, "b.txt", "b")
+    snapshot = await env.backup(target_id)
+    elsewhere = tmp_path / "elsewhere"
+    write(elsewhere, "a.txt", "someone else's")
+    shutil.rmtree(env.local / "docs")
+    (env.local / "docs").symlink_to(elsewhere)
+    (env.local / "b.txt").unlink()
+
+    if how == "full":
+        job = await env.service.restore(target_id, snapshot, RestoreScope.LOCAL_ONLY)
+    else:
+        job = await env.service.restore_files(target_id, snapshot, ["docs/a.txt", "b.txt"])
+
+    assert job.status == BackupJobStatus.FAILED.value
+    assert "'docs' in '" in (job.error_message or "") and "is a symbolic link" in (job.error_message or "")
+    assert sorted(os.listdir(elsewhere)) == ["a.txt"] and (elsewhere / "a.txt").read_text() == "someone else's"
+    assert not (env.local / "b.txt").exists()  # nothing was restored at all
+    assert (env.local / "docs").is_symlink()
+
+
+def test_a_remote_destination_is_not_checked_for_links():
+    """Only a local folder has links rclone would follow; a remote path is left to rclone."""
+    backup_common.refuse_linked_paths("backupremote:docs", ["../x", "a"])

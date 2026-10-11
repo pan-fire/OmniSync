@@ -64,6 +64,17 @@ def display_path(path: str) -> str:
     return "".join(out)
 
 
+def local_symlink(link: str) -> str:
+    """Why a per-file action on a path at or below a local symbolic link (``link``) is refused.
+
+    A pull would replace a link of that name, or write through a link to a
+    folder into the folder it points to, outside the synced folder; a push
+    or keep-both would read through it. rclone skips links in every sync.
+    """
+    return (f"'{display_path(link)}' in the local folder is a symbolic link; OmniSync does not replace a link or "
+            "read or write through one. Rename or remove the link to act on this file.")
+
+
 def is_utf8(name: str) -> bool:
     """Whether a name from the file system (os.fsdecode) is valid UTF-8."""
     try:

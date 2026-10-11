@@ -214,6 +214,39 @@ async def test_restore_through_a_symlink_out_of_the_folder_is_refused(local: Pat
     assert list(outside.iterdir()) == [] and trash_files(local) == {entry: "x"}
 
 
+async def test_restore_through_a_symlink_to_a_folder_inside_is_refused(local: Path) -> None:
+    """Also a link that stays inside the synced folder: a restore never writes through a link."""
+    (local / "real").mkdir()
+    (local / "alias").symlink_to(local / "real")
+    entry = trashed(local, "alias/x.txt", "x")
+    done, failed = await act("restore", TrashSide.LOCAL, [entry], local)
+    assert failed == {entry: "invalid"}
+    assert list((local / "real").iterdir()) == [] and trash_files(local) == {entry: "x"}
+
+
+async def test_a_folder_swapped_for_a_symlink_after_the_check_is_not_followed(
+        local: Path, tmp_path: Path, monkeypatch) -> None:
+    """The path checks pass, then the folder becomes a link out of the synced
+    folder: the move follows no link (local_paths.move_within) and fails;
+    the trashed file stays where it was."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (local / "docs").mkdir()
+    entry = trashed(local, "docs/x.txt", "x")
+    target = LocalTrash._target
+
+    def then_swap(self, path):
+        checked = target(self, path)
+        (local / "docs").rmdir()
+        (local / "docs").symlink_to(outside)
+        return checked
+
+    monkeypatch.setattr(LocalTrash, "_target", then_swap)
+    done, failed = await act("restore", TrashSide.LOCAL, [entry], local)
+    assert failed == {entry: "invalid"}
+    assert list(outside.iterdir()) == [] and trash_files(local) == {entry: "x"}
+
+
 async def test_restore_through_a_symlink_into_the_trash_is_refused(local: Path) -> None:
     """A symlink to the trash folder cannot be used to restore onto trashed files."""
     victim = trashed(local, "a.txt", "old version")
