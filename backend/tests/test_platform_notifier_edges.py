@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from types import SimpleNamespace
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -18,8 +19,10 @@ from hypothesis import strategies as st
 from backend.services.notification_channels.platforms.linux import LinuxNotifier
 from backend.services.notification_channels.platforms.macos import MacNotifier
 from backend.services.notification_channels.platforms.termux import TermuxNotifier
+from backend.services.notification_channels.platforms import windows as windows_module
 from backend.services.notification_channels.platforms.windows import (
     BODY_VAR,
+    MARKER_VAR,
     TITLE_VAR,
     WindowsNotifier,
     toast_script,
@@ -305,6 +308,59 @@ async def test_windows_any_text_is_carried_verbatim(fake_exec, title: str, body:
     script, got_title, got_body = _windows_call(fake)
     assert script == toast_script(NotificationSeverity.WARNING)
     assert (got_title, got_body) == (title.replace("\0", ""), body.replace("\0", ""))
+
+
+@pytest.mark.parametrize("existing", [None, "", "WT_SESSION:USERPROFILE/p", f"{TITLE_VAR}/p:PATH/l"])
+async def test_windows_text_is_passed_on_through_wsl(fake_exec, monkeypatch, existing: str | None) -> None:
+    """Under WSL, powershell.exe is a Windows process: a Linux environment
+    variable reaches it only when WSLENV names it. Without that the toast
+    came up empty and the run still exited 0. The names already in WSLENV
+    stay (ours replace an entry of the same name)."""
+    monkeypatch.setattr(windows_module.sys, "platform", "linux")
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
+    if existing is None:
+        monkeypatch.delenv("WSLENV", raising=False)
+    else:
+        monkeypatch.setenv("WSLENV", existing)
+    fake = fake_exec()
+
+    await WindowsNotifier().send("Conflict", "report.docx", NotificationSeverity.ERROR)
+
+    env = fake.kwargs[0]["env"]
+    assert isinstance(env, dict)
+    ours = [f"{MARKER_VAR}/u", f"{TITLE_VAR}/u", f"{BODY_VAR}/u"]
+    kept = {None: [], "": [], "WT_SESSION:USERPROFILE/p": ["WT_SESSION", "USERPROFILE/p"],
+            f"{TITLE_VAR}/p:PATH/l": ["PATH/l"]}[existing]
+    assert env["WSLENV"].split(":") == kept + ours
+    assert (env[MARKER_VAR], env[TITLE_VAR], env[BODY_VAR]) == ("1", "Conflict", "report.docx")
+
+
+@pytest.mark.parametrize(("platform_name", "markers", "release", "wsl"), [
+    ("linux", {"WSL_DISTRO_NAME": "Ubuntu"}, "6.6.0", True),
+    ("linux", {"WSL_INTEROP": "/run/WSL/1_interop"}, "6.6.0", True),
+    ("linux", {}, "5.15.153.1-microsoft-standard-WSL2", True),
+    ("linux", {}, "6.8.0-generic", False),
+    ("win32", {"WSL_DISTRO_NAME": "Ubuntu"}, "10", False),
+])
+def test_wsl_detection(monkeypatch, platform_name: str, markers: dict[str, str], release: str, wsl: bool) -> None:
+    monkeypatch.setattr(windows_module.sys, "platform", platform_name)
+    for name in ("WSL_DISTRO_NAME", "WSL_INTEROP"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in markers.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(windows_module.platform, "uname", lambda: SimpleNamespace(release=release))
+    monkeypatch.setenv("WSLENV", "WT_SESSION")
+    assert windows_module.in_wsl() is wsl
+    env = windows_module.toast_env("t", "b")
+    assert env["WSLENV"] == (f"WT_SESSION:{MARKER_VAR}/u:{TITLE_VAR}/u:{BODY_VAR}/u" if wsl else "WT_SESSION")
+
+
+async def test_windows_toast_without_its_environment_fails_clearly(fake_exec) -> None:
+    """The script stops (exit 3) when its variables did not arrive, instead of a blank toast."""
+    assert toast_script(NotificationSeverity.INFO).startswith(f"if (-not $env:{MARKER_VAR}) {{ exit 3 }}; ")
+    fake_exec(FakeProcess(returncode=3))
+    with pytest.raises(RuntimeError, match="did not reach PowerShell"):
+        await WindowsNotifier().send("Title", "Body", NotificationSeverity.INFO)
 
 
 @pytest.mark.parametrize("title, body", [("-draft.txt could not be synced", "Body"), ("Title", "--help"), ("--", "-")])

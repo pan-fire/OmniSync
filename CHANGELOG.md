@@ -152,7 +152,10 @@ release notes.
   typographic quotes `‘ ’ ‚ ‛`, so a file named `Bob’s report.docx` broke
   the toast, and a crafted file name could run PowerShell commands on the
   Windows host. The command is now fixed text, and the title and body
-  reach it as environment variables, so they are only ever data.
+  reach it as environment variables, so they are only ever data. Under
+  WSL they are added to `WSLENV`, which a Windows process needs to receive
+  them, and a toast whose text did not arrive fails with an error instead
+  of showing up empty.
 
 ## [0.13.0] - 2026-10-04
 

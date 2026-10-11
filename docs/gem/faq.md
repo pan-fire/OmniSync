@@ -235,7 +235,10 @@ Host Native is off by default: switch it on on the Notifications page. In
 Docker it needs the D-Bus override:
 `docker compose -f docker-compose.yml -f docker-compose.dbus.yml up -d`.
 The card lists what is missing when it cannot deliver, and **Test** checks
-it. Web Push works without it.
+it. Web Push works without it. Run outside Docker inside WSL with
+`OMNISYNC_HOST_OS=windows`, OmniSync shows Windows toasts through
+`powershell.exe` (it needs the BurntToast PowerShell module); it passes the
+toast's text on through `WSLENV`, keeping what that variable already holds.
 
 ### Where are the logs?
 On the **Logs** page, or in `/data/omnisync/omnisync.log` in the
