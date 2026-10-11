@@ -66,82 +66,91 @@ const nonEmptyFilesArb = fc
   .array(fileChangeArb, { minLength: 1, maxLength: 5 })
   .map((files) => files.map((file, i) => ({ ...file, id: i + 1 })));
 
+// The render properties mount once and rerender per run, and read each row
+// once, cell by cell: a fresh mount and a text query per field made 100 runs
+// take over 5 s under coverage on a loaded machine. Comparing cells is also
+// stricter (a value must sit in its own row and column). 50 runs of up to 5
+// jobs or files still hit every direction/status/action/side combination.
+const RENDER_RUNS = 50;
+
+/** The text of each body row's cells, in order. */
+function bodyRows (container: HTMLElement): string[][] {
+  return Array.from(container.querySelectorAll('tbody tr'), (row) =>
+    Array.from((row as HTMLTableRowElement).cells, (cell) => cell.textContent ?? ''));
+}
+
+function JobTable ({ jobs }: { jobs: SyncJob[] }) {
+  return (
+    <I18nProvider>
+      <JobHistoryTable jobs={jobs} isError={false} refetch={() => {}} page={1} onPageChange={() => {}} />
+    </I18nProvider>
+  );
+}
+
 describe('Job history table rendering completeness', () => {
   it('for any non-empty SyncJob array, the rendered table contains all required fields for each job', () => {
+    const { container, rerender } = render(<JobTable jobs={[]} />);
     fc.assert(
       fc.property(nonEmptyJobsArb, (jobs: SyncJob[]) => {
-        const { unmount, container } = render(
-          <I18nProvider>
-            <JobHistoryTable
-              jobs={jobs}
-              isError={false}
-              refetch={() => {}}
-              page={1}
-              onPageChange={() => {}}
-            />
-          </I18nProvider>
-        );
+        rerender(<JobTable jobs={jobs} />);
 
-        const view = within(container);
-
+        expect(bodyRows(container)).toEqual(jobs.map((job) => [
+          String(job.id),
+          '—', // no profile in the arbitrary
+          DIRECTION_LABELS[job.direction],
+          formatDateTime(job.started_at, 'en'),
+          STATUS_LABELS[job.status],
+          String(job.files_changed),
+          String(job.conflicts),
+          String(job.errors),
+        ]));
         for (const job of jobs) {
           // ID, as a link to the job (keyboard accessible)
-          expect(view.getAllByText(String(job.id)).length).toBeGreaterThanOrEqual(1);
           expect(container.querySelector(`a[href="/jobs/${job.id}"]`)).toHaveAttribute('aria-label', `Open job ${job.id}`);
-          // direction (translated)
-          expect(view.getAllByText(DIRECTION_LABELS[job.direction]).length).toBeGreaterThanOrEqual(1);
-          // started_at, formatted in the app locale
-          expect(view.getAllByText(formatDateTime(job.started_at, 'en')).length).toBeGreaterThanOrEqual(1);
-          // status (translated)
-          expect(view.getAllByText(STATUS_LABELS[job.status]).length).toBeGreaterThanOrEqual(1);
-          // files_changed
-          expect(view.getAllByText(String(job.files_changed)).length).toBeGreaterThanOrEqual(1);
-          // conflicts
-          expect(view.getAllByText(String(job.conflicts)).length).toBeGreaterThanOrEqual(1);
-          // errors
-          expect(view.getAllByText(String(job.errors)).length).toBeGreaterThanOrEqual(1);
         }
-
-        unmount();
       }),
-      { numRuns: 100 }
+      { numRuns: RENDER_RUNS }
     );
   });
 });
 
+function Detail ({ job, files }: { job: SyncJob; files: FileChange[] }) {
+  return <I18nProvider><JobDetail job={job} files={files} /></I18nProvider>;
+}
+
 describe('Job detail rendering completeness', () => {
   it('for any SyncJob and FileChange array, the rendered view contains all metadata and file change fields', () => {
+    const first = fc.sample(syncJobArb, 1)[0];
+    const { container, rerender } = render(<Detail job={first} files={[]} />);
     fc.assert(
       fc.property(syncJobArb, nonEmptyFilesArb, (job: SyncJob, files: FileChange[]) => {
-        const { unmount, container } = render(
-          <I18nProvider>
-            <JobDetail job={job} files={files} />
-          </I18nProvider>
-        );
+        rerender(<Detail job={job} files={files} />);
 
         const view = within(container);
+        /** The value printed next to a metadata label. */
+        const meta = (label: string) => view.getByText(label, { selector: 'span' }).nextElementSibling?.textContent;
 
         // Job metadata
-        expect(view.getAllByText(String(job.id)).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(DIRECTION_LABELS[job.direction]).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(formatDateTime(job.started_at, 'en')).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(STATUS_LABELS[job.status]).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(String(job.files_changed)).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(String(job.conflicts)).length).toBeGreaterThanOrEqual(1);
-        expect(view.getAllByText(String(job.errors)).length).toBeGreaterThanOrEqual(1);
+        expect(meta('ID')).toBe(String(job.id));
+        expect(meta('Direction')).toBe(DIRECTION_LABELS[job.direction]);
+        expect(meta('Started')).toBe(formatDateTime(job.started_at, 'en'));
+        expect(meta('Status')).toBe(STATUS_LABELS[job.status]);
+        expect(meta('Files changed')).toBe(String(job.files_changed));
+        expect(meta('Conflicts')).toBe(String(job.conflicts));
+        expect(meta('Errors')).toBe(String(job.errors));
 
-        // File changes
-        for (const file of files) {
-          expect(view.getAllByText(file.file_path).length).toBeGreaterThanOrEqual(1);
-          expect(view.getAllByText(ACTION_LABELS[file.action]).length).toBeGreaterThanOrEqual(1);
-          if (file.side) {
-            expect(view.getAllByText(SIDE_LABELS[file.side]).length).toBeGreaterThanOrEqual(1);
-          }
-        }
-
-        unmount();
+        // File changes: path, side (a column only once any row has one), action
+        const showSide = files.some((f) => f.side);
+        const rows = bodyRows(container);
+        expect(rows).toHaveLength(files.length);
+        files.forEach((file, i) => {
+          const expected = [file.file_path];
+          if (showSide) expected.push(file.side ? SIDE_LABELS[file.side] : '—');
+          expected.push(ACTION_LABELS[file.action]);
+          expect(rows[i].slice(0, -1)).toEqual(expected);
+        });
       }),
-      { numRuns: 100 }
+      { numRuns: RENDER_RUNS }
     );
   });
 });

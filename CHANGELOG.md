@@ -12,6 +12,13 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Snapshot browser: "Next page" no longer jumps back to page 1.** The
+  search debounce also fired 300 ms after the dialog opened and reset the
+  page, so paging right after opening a snapshot was undone. Only a changed
+  search now goes back to the first page.
+
 ## [0.13.0] - 2026-10-04
 
 ### Changed
