@@ -2,6 +2,7 @@ package ui_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,17 +15,45 @@ import (
 // TestScreenshot_Dashboard writes the dashboard of `osync`, with its ANSI
 // colours, to the file OMNISYNC_TUI_SCREENSHOT names, for the README
 // screenshot (frontend: `pnpm screenshots` renders it to a PNG). Without
-// the variable it is skipped. The data is the made-up install of the web
-// UI screenshots (frontend/e2e/mock-backend.ts).
+// the variable it is skipped.
 func TestScreenshot_Dashboard(t *testing.T) {
 	out := os.Getenv("OMNISYNC_TUI_SCREENSHOT")
 	if out == "" {
 		t.Skip("set OMNISYNC_TUI_SCREENSHOT to write the dashboard capture")
 	}
+	if err := os.WriteFile(out, []byte(screenshotDashboard(t)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The capture shows the fixed clock, not the time it was taken, so
+// regenerating the README images leaves docs/images/tui-dashboard.png alone
+// unless the dashboard itself changed. Runs without the variable, in CI.
+func TestScreenshot_DashboardUsesFixedClock(t *testing.T) {
+	view := stripANSI(screenshotDashboard(t))
+	for _, want := range []string{
+		"[SYNCING]  12:10:00",            // top bar clock
+		"Last sync: 2026-09-30 12:04:00", // newest last sync, Projects
+		"2026-09-30 11:56:00",            // Documents, 14 minutes before
+		"2026-09-30 08:50:00",            // Music, 200 minutes before
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("capture lacks %q:\n%s", want, view)
+		}
+	}
+}
+
+// screenshotDashboard renders the dashboard on the made-up install of the
+// web UI screenshots (frontend/e2e/mock-backend.ts), at their fixed time.
+func screenshotDashboard(t *testing.T) string {
+	t.Helper()
 	theme.Set("dark")
 	t.Cleanup(func() { theme.Set("dark") })
 
-	now := time.Now().UTC()
+	// NOW of mock-backend.ts (2026-09-30T12:10:00Z), the time of the web
+	// UI captures. The TUI shows times in the local zone; built in it, the
+	// picture reads 12:10 whatever zone or day the capture is made in.
+	now := time.Date(2026, 9, 30, 12, 10, 0, 0, time.Local)
 	ago := func(minutes int) string {
 		return now.Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339)
 	}
@@ -89,9 +118,6 @@ func TestScreenshot_Dashboard(t *testing.T) {
 	}
 	pump(append([]tea.Msg{tea.WindowSizeMsg{Width: 110, Height: 22}}, runAll(app.Init())...)...)
 	pump(ui.ConnectionStatusMsg{Connected: true, Healthy: true, LatencyMs: 4, OverallState: "syncing"})
-	pump(ui.TickMsg{Time: now.Local()})
-
-	if err := os.WriteFile(out, []byte(app.View().Content), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	pump(ui.TickMsg{Time: now})
+	return app.View().Content
 }
