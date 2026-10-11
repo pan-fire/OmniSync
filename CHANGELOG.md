@@ -237,6 +237,11 @@ release notes.
 
 ### Security
 
+- **The backend image holds exactly the locked Python packages.** It
+  installs `requirements-lock.txt` with `--no-deps` and runs `pip check`,
+  so a lock that misses a dependency fails the build; before, pip quietly
+  added it unpinned (FastAPI 0.142's new `opentelemetry-api` dependency was
+  the case that showed it).
 - **Nothing is written through a local symbolic link any more.** A
   per-file pull, keep both or conflict resolution of a path below a local
   link to a folder (`ld/report.txt`, where `ld` points elsewhere) wrote the
