@@ -79,6 +79,8 @@ release notes.
   yours still holds). These notes follow the profile's current state while
   the dialog is open. **Cancel** or Escape sends nothing.
 
+- **The web UI runs on Next.js 16.4.0.**
+
 ### Fixed
 
 - **A failed desktop notification shows its real error.** The notifiers
@@ -273,6 +275,13 @@ release notes.
 - **source-map-js 1.2.2 in the web UI** (GHSA-68fv-2mgg-jv7q, a denial of
   service through crafted source maps; it comes in through Next.js's
   PostCSS).
+
+- **proxy-addr 2.0.8 and @modelcontextprotocol/sdk 1.32.1 in the web UI's
+  development tools.** GHSA-jqcg-44mw-7w3h (IP spoofing through an
+  IPv4-mapped IPv6 trust subnet) and GHSA-6qxp-vccf-f47h (the MCP OAuth
+  client could send credentials to a server-chosen authorization server).
+  Both come in only through the shadcn CLI, and the image does not ship
+  them. From Dependabot pull requests #39 and #40.
 
 
 ## [0.13.0] - 2026-10-04
