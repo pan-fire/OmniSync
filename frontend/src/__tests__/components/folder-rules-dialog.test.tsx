@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nProvider, type Locale } from '@/i18n';
@@ -97,5 +97,44 @@ describe('FolderRulesDialog', () => {
     renderDialog('fa');
     expect(screen.getByRole('dialog', { name: 'انتخاب پوشه‌ها برای همگام‌سازی' })).toBeInTheDocument();
     expect(await screen.findByText('کل پوشه')).toBeInTheDocument();
+  });
+});
+
+describe('FolderRulesDialog reopened', () => {
+  function Wrapper ({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={new QueryClient()}><I18nProvider initialLocale="en">{children}</I18nProvider></QueryClientProvider>;
+  }
+
+  it('drops unapplied choices and reads the typed rules again', async () => {
+    // The reset happens when the dialog opens: a choice made and cancelled
+    // must not come back, and rules typed meanwhile must be picked up.
+    const user = userEvent.setup();
+    const props = { onOpenChange: vi.fn(), localDir: '/sync', syncMode: 'mirror' as const, onApply: vi.fn() };
+    const { rerender } = render(<FolderRulesDialog open rules="" {...props} />, { wrapper: Wrapper });
+    await user.click(await screen.findByRole('checkbox', { name: 'Big' }));
+    expect(screen.getByTestId('folder-rules-preview')).toHaveTextContent('/Big/**');
+
+    rerender(<FolderRulesDialog open={false} rules="- /Docs/**" {...props} />);
+    rerender(<FolderRulesDialog open rules="- /Docs/**" {...props} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+    const big = await screen.findByRole('checkbox', { name: 'Big' });
+    expect(big).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Docs' })).toHaveAttribute('aria-checked', 'false');
+    expect(within(screen.getByTestId('folder-rules-preview')).getByText(/Docs/)).toBeInTheDocument();
+    expect(screen.getByTestId('folder-rules-preview')).not.toHaveTextContent('/Big/**');
+    expect(vi.mocked(globalThis.fetch).mock.calls.filter(([url]) => String(url).endsWith('path=%2Fsync'))).toHaveLength(2);
+  });
+
+  it('clears an earlier listing error', async () => {
+    failPaths.add('/sync');
+    const props = { onOpenChange: vi.fn(), localDir: '/sync', rules: '', syncMode: 'mirror' as const, onApply: vi.fn() };
+    const { rerender } = render(<FolderRulesDialog open {...props} />, { wrapper: Wrapper });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied: /sync');
+
+    failPaths.clear();
+    rerender(<FolderRulesDialog open={false} {...props} />);
+    rerender(<FolderRulesDialog open {...props} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(await screen.findByRole('checkbox', { name: 'Big' })).toBeInTheDocument();
   });
 });

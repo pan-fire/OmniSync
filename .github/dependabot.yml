@@ -56,6 +56,13 @@ updates:
     groups:
       images-minor-patch:
         update-types: [minor, patch]
+    # The web UI's image (frontend/Dockerfile, the only one on node) stays
+    # on the Node.js LTS line (24): an odd-numbered or not yet LTS major
+    # would run it on a short-lived release. Move this together with the
+    # @types/node rule above and CI's Node version.
+    ignore:
+      - dependency-name: "node"
+        update-types: [version-update:semver-major]
 
   # The workflows pin every action to a commit SHA with the release in a
   # comment; Dependabot updates both. Before merging an action update, check

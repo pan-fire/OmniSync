@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,6 +17,10 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import type { ProfileCreateRequest } from '@/types';
 
+// The page reads its URL once per render and never needs to be told of changes.
+const subscribeToNothing = () => () => {};
+const createRequestedInUrl = () => new URLSearchParams(window.location.search).get('create') === '1';
+
 export default function ProfilesPage () {
   const { t } = useTranslation();
   const profiles = useProfiles();
@@ -24,7 +28,12 @@ export default function ProfilesPage () {
   const deleteProfile = useDeleteProfile();
   const toggleProfile = useToggleProfile();
   const confirmedSync = useConfirmedSync();
-  const [showCreate, setShowCreate] = useState(false);
+  // The dashboard's "Create your first profile" links to ?create=1: the form
+  // starts open then, until the user opens or closes it. The URL is read as
+  // an external store so the server's render (no URL) hydrates cleanly.
+  const createLinked = useSyncExternalStore(subscribeToNothing, createRequestedInUrl, () => false);
+  const [createChoice, setShowCreate] = useState<boolean | null>(null);
+  const showCreate = createChoice ?? createLinked;
   const [creatingInitialBackup, setCreatingInitialBackup] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   // The switch only asks; the profile changes once the dialog is confirmed.
@@ -38,11 +47,6 @@ export default function ProfilesPage () {
   }, [toggling, profiles.data]);
   // A profile deleted meanwhile closes the dialog for good, as delete's does.
   if (toggling && profiles.data && !toggleRequest) setToggling(null);
-
-  // The dashboard's "Create your first profile" links to ?create=1.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('create') === '1') setShowCreate(true);
-  }, []);
 
   const handleCreate = async ({ profile, initialBackupTarget }: ProfileFormSubmission) => {
     try {
