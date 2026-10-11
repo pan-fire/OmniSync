@@ -28,6 +28,20 @@ release notes.
   open the lock that `requirements-dev.txt` includes, and the backend's
   dependency updates stopped. A non-Docker install reinstalls from the new
   name (`pip install -r backend/requirements-lock.txt`).
+- **The backend image's Python dependencies are updated.** FastAPI
+  0.141.1 → 0.143.0, Pydantic 2.13.5 → 2.14.1 (pydantic-core 2.50.1),
+  SQLAlchemy 2.1.1 → 2.1.4, cryptography 50.0.1 → 50.0.2 (wheels built
+  with OpenSSL 4.0.3), uvloop 0.22.1 → 0.23.0, websockets 17.1 → 17.2,
+  httptools 0.8.0 → 0.9.0, aiohttp 3.14.3 → 3.14.5 with multidict 6.9.1 →
+  7.1.0, and patch releases of charset-normalizer, MarkupSafe, pycparser
+  and python-dotenv. FastAPI 0.142 added a dependency on
+  opentelemetry-api, which the lock now pins (1.45.1) instead of letting
+  the image build pick any version; FastAPI sets up no telemetry exporter
+  unless asked to (`FASTAPI_OTEL_AUTO_CONFIGURE`), and OmniSync does not
+  ask. aiohttp comes in only through pywebpush, whose synchronous sender
+  OmniSync uses. `requirements.txt` now requires FastAPI 0.143, Pydantic
+  2.14 and SQLAlchemy 2.1.4 or newer. From Dependabot pull requests #56
+  and #60.
 - **A differing file with a modification time on one side only is a
   conflict.** When rclone gave a readable modification time for only one
   copy of a file that differs, the diff counted it as changed on that side
