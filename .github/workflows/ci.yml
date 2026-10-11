@@ -59,8 +59,8 @@ jobs:
       # checksum-verified release as the Dockerfile).
       - name: Install rclone
         env:
-          RCLONE_VERSION: "1.75.1"
-          RCLONE_SHA256: 982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab
+          RCLONE_VERSION: "1.75.2"
+          RCLONE_SHA256: 349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702
         run: |
           set -eu
           zip="rclone-v${RCLONE_VERSION}-linux-amd64.zip"
@@ -192,7 +192,7 @@ jobs:
   tui:
     name: TUI (fmt, vet, lint, tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: tui
@@ -207,11 +207,70 @@ jobs:
       - name: go.mod is tidy
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
       - run: go vet ./...
-      - run: go test -race ./...
+      # The tests live in test/, outside the packages they test, so each
+      # package's own coverage reads 0%: -coverpkg=./... counts the
+      # statements of every package, whichever test binary runs them.
+      - name: go test (race, coverage)
+        run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+      # Fails below MIN, the total measured when it was set (94.6% on
+      # 2026-10-05) less 1.5 for runs that take another path through a
+      # timing-dependent branch. Raise it with the coverage, never lower it
+      # to let a change in. Per file: go tool cover -func=coverage.out.
+      - name: Coverage of the whole TUI
+        env:
+          MIN: "93.1"
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '$1 == "total:" { sub("%", "", $NF); print $NF }')
+          echo "TUI statement coverage: ${total}% (minimum ${MIN}%)"
+          awk -v total="$total" -v min="$MIN" 'BEGIN { exit !(total >= min) }'
+      # Every fuzz target (func FuzzXxx under test/) for 10 seconds, to find
+      # what its seed corpus (testdata/fuzz) does not hold yet; go test
+      # above already ran the seeds. A failure writes the input to
+      # testdata/fuzz/<target>/, which the next step keeps: commit it as a
+      # new seed with the fix.
+      - name: Fuzz (10 s per target)
+        run: |
+          set -euo pipefail
+          grep -o '^func Fuzz[A-Za-z0-9_]*' test/*/*_test.go | while IFS=: read -r file decl; do
+            target=${decl#func }
+            echo "::group::$target ($(dirname "$file"))"
+            go test "./$(dirname "$file")" -run '^$' -fuzz "^${target}\$" -fuzztime 10s
+            echo "::endgroup::"
+          done
+      - name: Upload the failing fuzz input
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: tui-fuzz-failures
+          path: tui/test/*/testdata/fuzz/
+          retention-days: 7
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.14.0
           working-directory: tui
+
+  # osync is released for macOS and Windows too (release.yml), and its
+  # config directory, paths, file modes and browser opener differ there.
+  # The same tests on those systems; the race detector and the coverage
+  # gate stay in the Linux job above.
+  tui-cross-os:
+    name: TUI tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    defaults:
+      run:
+        working-directory: tui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - run: go test ./...
 
   # Syntax, expressions, runner labels and action inputs of every workflow.
   actionlint:
@@ -259,10 +318,22 @@ jobs:
   # folder on non-default ports, checks /health, /healthz, the API token and
   # the web UI's /api path, runs status and a second (up to date) run, and
   # uninstalls with --purge --yes.
+  # Then the same images doing their job: scripts/test-fullstack-e2e.sh
+  # (a sync, a conflict, the delete limit, backup and restore and the audit
+  # trail through the API, checked on disk, plus the real-browser smoke
+  # frontend/playwright.stack.config.ts), and scripts/test-upgrade-e2e.sh
+  # twice (a release from GitHub and ghcr.io updated to these images, then
+  # an unhealthy update rolled back): from the latest release, the update
+  # every user runs, and from 0.12.0, the last release before migration
+  # 0011.
   installer:
     name: Installer (end to end)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # The token only reads: the installer's "latest release" question
+    # counts against it instead of the runner's shared address.
+    permissions:
+      contents: read
     env:
       # A version no release has: nothing can be pulled for it by mistake.
       CI_VERSION: 9999.0.0-ci
@@ -288,6 +359,44 @@ jobs:
           API_PORT: "18080"
           WEB_PORT: "13080"
         run: scripts/test-installer-e2e.sh "$CI_VERSION"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install Playwright for the real-browser smoke
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps --only-shell chromium
+      - name: Full stack (sync, conflict, delete limit, backup, restore, audit, browser)
+        env:
+          API_PORT: "18180"
+          WEB_PORT: "13180"
+          E2E_BROWSER: "1"
+        run: scripts/test-fullstack-e2e.sh "$CI_VERSION"
+      - name: Update from the latest release, and a rollback
+        env:
+          API_PORT: "18280"
+          WEB_PORT: "13280"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/test-upgrade-e2e.sh "$CI_VERSION" latest
+      - name: Update from 0.12.0 (before migration 0011), and a rollback
+        env:
+          API_PORT: "18280"
+          WEB_PORT: "13280"
+        run: scripts/test-upgrade-e2e.sh "$CI_VERSION" 0.12.0
+      - name: Upload the Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: playwright-stack-traces
+          path: frontend/test-results/stack/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Each image is built and scanned in its own job, in parallel.
   docker:

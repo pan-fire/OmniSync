@@ -18,9 +18,12 @@ import (
 
 func isolate(t *testing.T) {
 	t.Helper()
+	// os.UserConfigDir: XDG_CONFIG_HOME on Linux, $HOME/Library/Application
+	// Support on macOS, %AppData% on Windows. None may be the user's own.
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("HOME", t.TempDir())
-	for _, k := range []string{"OMNISYNC_URL", "OMNISYNC_API_KEY", "OMNISYNC_THEME", "OMNISYNC_ASCII_MODE"} {
+	t.Setenv("AppData", t.TempDir())
+	for _, k := range []string{"OMNISYNC_URL", "OMNISYNC_API_KEY", "OMNISYNC_THEME", "OMNISYNC_ASCII_MODE", "OMNISYNC_LOG_FILE", "OMNISYNC_NO_MOUSE"} {
 		t.Setenv(k, "")
 	}
 }

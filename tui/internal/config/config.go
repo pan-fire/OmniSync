@@ -37,8 +37,9 @@ type Config struct {
 	// NoMouse leaves the mouse to the terminal (no clickable tabs).
 	NoMouse bool `mapstructure:"no_mouse"`
 
-	// Warnings about how the API key is kept or sent, for the user to see
-	// once at startup (not read from the config file).
+	// Warnings about how the API key is kept or sent, or a config file that
+	// could not be read, for the user to see once at startup (not read from
+	// the config file).
 	Warnings []string `mapstructure:"-"`
 }
 
@@ -52,6 +53,11 @@ const configFileMode os.FileMode = 0o600
 // -> <os.UserConfigDir()>/osync/tui.toml (lowest). The working directory is
 // never searched, so a tui.toml lying around in some project cannot change
 // where the TUI connects or which API key it sends.
+//
+// A layer that cannot be used does not stop the others: a tui.toml that is
+// not valid TOML is skipped, and a setting with a value of the wrong type
+// keeps its default; both come back as Warnings. The error is for the
+// caller's sake only; Load currently always returns a usable Config.
 func Load(cmd *cobra.Command) (*Config, error) {
 	v := viper.New()
 
@@ -63,6 +69,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	v.SetDefault("no_mouse", false)
 
 	configPath := ""
+	var warnings []string
 	if dir, err := Dir(); err == nil {
 		configPath = filepath.Join(dir, "tui.toml")
 		v.SetConfigFile(configPath)
@@ -70,7 +77,9 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
 			var notFound viper.ConfigFileNotFoundError
 			if !errors.As(err, &notFound) {
-				return nil, err
+				// The file is the lowest layer: a broken one must not
+				// discard the flags and environment variables above it.
+				warnings = append(warnings, fmt.Sprintf("%s is not used: %v", configPath, err))
 			}
 		}
 	}
@@ -97,10 +106,18 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		}
 	}
 
+	// Each setting is decoded on its own: a value of the wrong type (say
+	// no_mouse = "yes" in tui.toml, or OMNISYNC_ASCII_MODE=on) is dropped
+	// with a warning and its default used, so it cannot take the other
+	// settings, the flags or the environment down with it.
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, err
-	}
+	decodeKey(v, "url", &cfg.URL, DefaultURL, &warnings)
+	decodeKey(v, "api_key", &cfg.APIKey, "", &warnings)
+	decodeKey(v, "theme", &cfg.Theme, "dark", &warnings)
+	decodeKey(v, "ascii_mode", &cfg.ASCIIMode, false, &warnings)
+	decodeKey(v, "log_file", &cfg.LogFile, "", &warnings)
+	decodeKey(v, "no_mouse", &cfg.NoMouse, false, &warnings)
+	cfg.Warnings = warnings
 	if cfg.URL == "" {
 		cfg.URL = DefaultURL
 	}
@@ -114,6 +131,23 @@ func Load(cmd *cobra.Command) (*Config, error) {
 			"the API key is sent unencrypted to %s; use https:// or a loopback address (127.0.0.1, localhost)", cfg.URL))
 	}
 	return &cfg, nil
+}
+
+// decodeKey sets *dst to the value of key, or to def with a warning that
+// names the key when the value does not decode as a T. The warning gives
+// the decoder's reason, which quotes the value, except for api_key: a
+// mistyped key is still a secret and must not reach the terminal or a log.
+func decodeKey[T any](v *viper.Viper, key string, dst *T, def T, warnings *[]string) {
+	var val T
+	if err := v.UnmarshalKey(key, &val); err != nil {
+		reason := err.Error()
+		if key == "api_key" {
+			reason = fmt.Sprintf("it is not a %T", val)
+		}
+		*warnings = append(*warnings, fmt.Sprintf("the %s setting is not used, the default is: %s", key, reason))
+		val = def
+	}
+	*dst = val
 }
 
 // permissionWarning describes a config file other users can read, or "".

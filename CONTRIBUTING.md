@@ -170,6 +170,17 @@ golangci-lint run               # make lint (CI uses v2.14.0)
 make install                    # ~/.local/bin/osync-tui and the alias osync
 ```
 
+The tests live in `tui/test/`, outside the packages they test, so measure
+coverage across packages; CI fails below the minimum in `ci.yml`. Fuzz
+targets (`func FuzzXxx`) keep their seeds in `testdata/fuzz/`, and
+`go test` runs those seeds; CI also fuzzes each target for 10 seconds:
+
+```bash
+go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out | tail -1
+go test ./test/cli -run '^$' -fuzz '^FuzzTerminalSafeOutput$' -fuzztime 30s
+```
+
 ## Workflows and images
 
 Workflow changes must pass actionlint, as CI runs it:
@@ -200,6 +211,25 @@ switch: a folder with `VERSION`, `compose.yml` and `SHA256SUMS` stands in
 for the GitHub release, and the images are not pulled. It is for CI and
 this script only, never for an install.
 
+The same job then runs more scripts against these images:
+
+```bash
+# A sync, a conflict, the delete limit, backup and restore and the audit
+# trail through the API, checked on disk. E2E_BROWSER=1 adds the
+# real-browser smoke (frontend/playwright.stack.config.ts; run
+# `pnpm install` and `pnpm exec playwright install chromium` in frontend/).
+E2E_BROWSER=1 scripts/test-fullstack-e2e.sh 9999.0.0-ci
+# A release from GitHub and ghcr.io, updated to these images (the
+# database to this checkout's head revision); then an update that never
+# becomes healthy, rolled back. CI runs it from the latest release (the
+# default) and from 0.12.0, the last release before migration 0011.
+scripts/test-upgrade-e2e.sh 9999.0.0-ci latest
+scripts/test-upgrade-e2e.sh 9999.0.0-ci 0.12.0
+```
+
+They need `jq`, use their own ports (`API_PORT`, `WEB_PORT`) and compose
+project (`PROJECT_NAME`), and remove what they create.
+
 ## Pull requests
 
 - **Changelog.** Add each user-visible change under `## [Unreleased]` in
@@ -219,9 +249,10 @@ this script only, never for an install.
 
 ## CI
 
-Every workflow runs on GitHub-hosted runners (`ubuntu-24.04`, and
-`ubuntu-24.04-arm` for the arm64 release images), so CI needs nothing but
-the repository. [`ci.yml`](.github/workflows/ci.yml) is the gate for every
+Every workflow runs on GitHub-hosted runners (`ubuntu-24.04`,
+`ubuntu-24.04-arm` for the arm64 release images, and `macos-15` and
+`windows-2025` for the TUI's tests on the other systems it ships for), so
+CI needs nothing but the repository. [`ci.yml`](.github/workflows/ci.yml) is the gate for every
 push and pull request: backend, web UI, TUI, actionlint, and both image
 builds with a Trivy scan. Vulnerability scans (pip-audit, pnpm audit,
 govulncheck, Trivy) run weekly in

@@ -11,7 +11,8 @@
 # SHA256SUMS, its signature and, with --osync, the osync binary); the images
 # come from ghcr.io through `docker compose pull`. compose.yml is checked
 # against SHA256SUMS before it is used, and SHA256SUMS against its Sigstore
-# signature when cosign is installed.
+# signature when cosign is installed. GH_TOKEN or GITHUB_TOKEN, when set,
+# is sent to api.github.com only (see github_auth).
 #
 # Nothing downloaded is executed or evaluated, .env is never sourced, and
 # the API token and the web UI password are never printed. Prompts read
@@ -113,6 +114,12 @@ Other options:
   -y, --yes              do not ask; take the defaults (needed without a terminal)
   -n, --dry-run          print what would be done, change nothing
   -h, --help             this text
+
+Environment:
+  GH_TOKEN, GITHUB_TOKEN a GitHub token (GH_TOKEN first): sent, to
+                         api.github.com only, when asking for the latest
+                         release, so shared addresses (CI) are not limited
+                         to 60 requests an hour; never printed
 
 Files: DIR/compose.yml (from the release), DIR/.env (settings, mode 0600),
 DIR/backups/ (data volume backups taken before updates).
@@ -241,18 +248,47 @@ make_tmp () {
   fi
 }
 
+# github_auth FILE: when GH_TOKEN or GITHUB_TOKEN is set (GH_TOKEN first,
+# as for the gh CLI), writes its "Authorization: Bearer" header into FILE
+# (mode 0600) and succeeds; it then counts against the token's API rate
+# limit instead of the address's 60 requests an hour. The token goes into
+# a file, never onto a command line (other users can read those) or into
+# the output, and is sent to api.github.com only.
+github_auth () {
+  local token=${GH_TOKEN:-${GITHUB_TOKEN:-}} name=GITHUB_TOKEN
+  [ -n "${GH_TOKEN:-}" ] && name=GH_TOKEN
+  [ -n "$token" ] || return 1
+  if ! [[ $token =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    warn "$name does not look like a GitHub token: asking GitHub without it"
+    return 1
+  fi
+  (umask 077 && printf 'Authorization: Bearer %s\n' "$token" >"$1")
+}
+
 # download URL OUT: only release assets of this repository and its API.
 download () {
-  local url=$1 out=$2
+  local url=$1 out=$2 auth=()
   case $url in
     "$RELEASES_URL"/download/*|"$API_URL"/releases/*) ;;
     *) die "refusing to download from an unexpected address: $url" ;;
   esac
   if test_release_active; then test_release_download "$url" "$out"; return; fi
+  case $url in
+    "$API_URL"/*)
+      make_tmp
+      if github_auth "$TMP/github-auth"; then
+        if [ "$DOWNLOADER" = curl ]; then
+          auth=(-H "@$TMP/github-auth")
+        else
+          (umask 077 && sed 's/^/header = /' "$TMP/github-auth" >"$TMP/github-auth.wgetrc")
+          auth=(--config "$TMP/github-auth.wgetrc")
+        fi
+      fi ;;
+  esac
   if [ "$DOWNLOADER" = curl ]; then
-    curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 -o "$out" "$url" </dev/null
+    curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 ${auth[@]+"${auth[@]}"} -o "$out" "$url" </dev/null
   else
-    wget -q --https-only -O "$out" "$url" </dev/null
+    wget -q --https-only ${auth[@]+"${auth[@]}"} -O "$out" "$url" </dev/null
   fi
 }
 

@@ -165,7 +165,7 @@ func (m NotificationsModel) handleActionResult(msg ActionResultMsg) (tea.Model, 
 	}
 	if msg.Action == "test_notification" {
 		if result, ok := msg.Data.(*api.TestNotificationResponse); ok {
-			text := fmt.Sprintf("Delivered: %s", strings.Join(result.ChannelsDelivered, ", "))
+			text := fmt.Sprintf("Delivered: %s", safeLine(strings.Join(result.ChannelsDelivered, ", ")))
 			if len(result.Errors) > 0 {
 				var failed []string
 				for ch := range result.Errors {
@@ -253,7 +253,7 @@ func (m NotificationsModel) View() tea.View {
 
 	if m.err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(theme.Current.Error)
-		b.WriteString(errStyle.Render(fmt.Sprintf("  Error: %s", m.err.Error())))
+		b.WriteString(errStyle.Render(fmt.Sprintf("  Error: %s", safeLine(m.err.Error()))))
 		b.WriteString("\n\n")
 	}
 
@@ -286,14 +286,14 @@ func (m NotificationsModel) renderChannels() string {
 		if configurableChannel(row.Key) {
 			hint = "  Selected: %s  e:toggle  s:cycle severity  c:configure  t:test  T:test all"
 		}
-		b.WriteString(muted.Render(fmt.Sprintf(hint, row.Key)))
+		b.WriteString(muted.Render(fmt.Sprintf(hint, safeLine(row.Key))))
 		if configurableChannel(row.Key) {
 			b.WriteString("\n")
 			b.WriteString(muted.Render("  " + channelSettingsSummary(row.Key, m.currentChannelConfig(row.Key))))
 		}
 		if info, ok := m.channelsOrEmpty()[row.Key]; ok && !info.Available && len(info.MissingDependencies) > 0 {
 			b.WriteString("\n")
-			b.WriteString(muted.Render("  Missing: " + strings.Join(info.MissingDependencies, ", ")))
+			b.WriteString(muted.Render("  Missing: " + safeLine(strings.Join(info.MissingDependencies, ", "))))
 		}
 	}
 	return b.String()

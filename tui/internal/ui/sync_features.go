@@ -73,7 +73,7 @@ func progressFiles(p *api.SyncProgress, indent string) string {
 	}
 	var b strings.Builder
 	for _, f := range p.CurrentFiles {
-		line := indent + "  " + f.Name
+		line := indent + "  " + safeLine(f.Name)
 		if f.Percentage != nil {
 			line += fmt.Sprintf("  %d%%", *f.Percentage)
 		}
@@ -155,7 +155,7 @@ func formatSyncWindow(w *api.SyncWindow) string {
 	if w == nil {
 		return ""
 	}
-	times := w.Start + "-" + w.End
+	times := safeLine(w.Start + "-" + w.End)
 	if len(w.Days) == 7 || len(w.Days) == 0 {
 		return times
 	}

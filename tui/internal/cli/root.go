@@ -19,6 +19,12 @@ import (
 // version is the client version sent in the User-Agent header.
 var version = "dev"
 
+// TUIProgramOptions are passed to the TUI's Bubble Tea program after its
+// defaults. Empty in osync, so the program uses the terminal; tests replace
+// it to run the TUI against an in-memory input and output (tea.WithInput,
+// tea.WithOutput).
+var TUIProgramOptions []tea.ProgramOption
+
 // NewRootCommand returns the root command. invoked is the program name used
 // in usage text.
 func NewRootCommand(invoked, ver, commit string) *cobra.Command {
@@ -58,6 +64,14 @@ func NewRootCommand(invoked, ver, commit string) *cobra.Command {
 	rootCmd.AddCommand(backupsCmd())
 	rootCmd.AddCommand(logsCmd())
 	rootCmd.AddCommand(notificationsCmd())
+
+	// Server text never reaches the terminal as control sequences
+	// (terminalSafeWriter); the TUI writes to the terminal itself.
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
+		root := cmd.Root()
+		root.SetOut(newTerminalSafeWriter(root.OutOrStdout()))
+		root.SetErr(newTerminalSafeWriter(root.ErrOrStderr()))
+	}
 
 	// A wrong flag is a usage error (exit status 2), like wrong arguments.
 	rootCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
@@ -118,6 +132,6 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}()
 
 	guard := logging.NewPanicGuard(app)
-	_, err := tea.NewProgram(guard).Run()
+	_, err := tea.NewProgram(guard, TUIProgramOptions...).Run()
 	return guard.Report(err, cfg.LogFile, os.Stderr)
 }

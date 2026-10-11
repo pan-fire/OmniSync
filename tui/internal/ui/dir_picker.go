@@ -151,7 +151,7 @@ func (p *dirPicker) handleAnswer(msg ActionResultMsg) {
 		p.current, p.parent = "", nil
 		p.rows = nil
 		for _, r := range ans.remotes {
-			p.rows = append(p.rows, pickerRow{label: fmt.Sprintf("%s:  (%s)", r.Name, r.Type), path: r.Name + ":"})
+			p.rows = append(p.rows, pickerRow{label: fmt.Sprintf("%s:  (%s)", safeLine(r.Name), safeLine(r.Type)), path: r.Name + ":"})
 		}
 	default:
 		p.current, p.parent = ans.listing.Current, ans.listing.Parent
@@ -270,7 +270,7 @@ func (p *dirPicker) View() string {
 	b.WriteString(headerText(title))
 	b.WriteString("\n")
 	if p.current != "" {
-		b.WriteString(mutedText("In: ") + p.current + "\n")
+		b.WriteString(mutedText("In: ") + safeLine(p.current) + "\n")
 	}
 	if p.kind == pickLocal {
 		b.WriteString(mutedText("Folders on the machine the OmniSync backend runs on.") + "\n")
@@ -311,7 +311,7 @@ func (p *dirPicker) renderRows() string {
 	sel := lipgloss.NewStyle().Reverse(true).Bold(true)
 	g := theme.Glyphs()
 	for i := start; i < end; i++ {
-		label := components.Truncate(p.rows[i].label, 70)
+		label := components.Truncate(safeLine(p.rows[i].label), 70)
 		if i == p.cursor {
 			b.WriteString(g.Cursor + " " + sel.Render(label) + "\n")
 		} else {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ import { useProfiles, useCreateProfile, useDeleteProfile, useToggleProfile } fro
 import { ProfileCard } from '@/components/profiles/profile-card';
 import { ProfileForm, type ProfileFormSubmission } from '@/components/profiles/profile-form';
 import { ProfileDeleteDialog } from '@/components/profiles/profile-delete-dialog';
+import { ProfileToggleDialog, type ProfileToggleRequest } from '@/components/profiles/profile-toggle-dialog';
 import { PageHelp } from '@/components/layout/page-help';
 import { PageHeader } from '@/components/layout/page-header';
 import { useConfirmedSync } from '@/components/sync/sync-confirm-dialog';
@@ -26,6 +27,17 @@ export default function ProfilesPage () {
   const [showCreate, setShowCreate] = useState(false);
   const [creatingInitialBackup, setCreatingInitialBackup] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
+  // The switch only asks; the profile changes once the dialog is confirmed.
+  // Only the target (its slug) and the requested state are kept: the dialog's
+  // warnings (a running sync is stopped, a pause still holds) follow the
+  // polled profile, not the one from the moment the switch was flipped.
+  const [toggling, setToggling] = useState<{ slug: string; enabled: boolean } | null>(null);
+  const toggleRequest = useMemo<ProfileToggleRequest | null>(() => {
+    const target = toggling && profiles.data?.find((p) => p.slug === toggling.slug);
+    return toggling && target ? { profile: target, enabled: toggling.enabled } : null;
+  }, [toggling, profiles.data]);
+  // A profile deleted meanwhile closes the dialog for good, as delete's does.
+  if (toggling && profiles.data && !toggleRequest) setToggling(null);
 
   // The dashboard's "Create your first profile" links to ?create=1.
   useEffect(() => {
@@ -103,7 +115,7 @@ export default function ProfilesPage () {
           <ProfileCard
             key={profile.slug}
             profile={profile}
-            onToggle={(slug, enabled) => toggleProfile.mutate({ slug, enabled })}
+            onToggle={(slug, enabled) => setToggling({ slug, enabled })}
             onDelete={(slug) => setDeletingSlug(slug)}
             onSync={(p, direction) => confirmedSync.request(direction, [{ slug: p.slug, name: p.name }])}
             onSyncNow={(p) => confirmedSync.syncNow({ slug: p.slug, name: p.name }, p.intervals_paused)}
@@ -129,6 +141,16 @@ export default function ProfilesPage () {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProfileToggleDialog
+        request={toggleRequest}
+        onCancel={() => setToggling(null)}
+        isPending={toggleProfile.isPending}
+        onConfirm={({ profile, enabled }) => {
+          toggleProfile.mutate({ slug: profile.slug, enabled });
+          setToggling(null);
+        }}
+      />
 
       <ProfileDeleteDialog
         profile={profiles.data?.find((p) => p.slug === deletingSlug) ?? null}

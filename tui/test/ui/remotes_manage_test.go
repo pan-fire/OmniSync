@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -206,9 +207,15 @@ func TestRemotes_ImportRefusesMissingFile(t *testing.T) {
 	b := manageBackend(t)
 	m := open(t, ui.NewRemotesModel(b.client()))
 	m = drive(t, m, press("I"), ctrlU)
-	m = drive(t, m, tea.PasteMsg{Content: filepath.Join(t.TempDir(), "missing.conf")})
+	missing := filepath.Join(t.TempDir(), "missing.conf")
+	m = drive(t, m, tea.PasteMsg{Content: missing})
 	m = drive(t, m, press("enter"))
-	if !strings.Contains(content(m), "no such file") || len(b.matching("POST /remotes/import")) != 0 {
+	// The operating system's own words: "no such file or directory" on
+	// Linux and macOS, "The system cannot find the file specified." on
+	// Windows. Their start fits on the line on every platform.
+	_, statErr := os.Stat(missing)
+	reason := errors.Unwrap(statErr).Error()
+	if !strings.Contains(content(m), reason[:12]) || len(b.matching("POST /remotes/import")) != 0 {
 		t.Errorf("missing file not reported:\n%s", content(m))
 	}
 }

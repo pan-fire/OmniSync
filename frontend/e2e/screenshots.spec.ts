@@ -133,7 +133,8 @@ test.describe('on a phone', () => {
 });
 
 // The terminal UI: its Go test writes the dashboard's ANSI output (same
-// made-up data), rendered here as a terminal window. Skipped without Go.
+// made-up data, at the same fixed NOW), rendered here as a terminal window.
+// Skipped without Go.
 test('terminal UI dashboard', async ({ page }) => {
   const ansiFile = resolve(OUT, 'tui-dashboard.ansi');
   mkdirSync(OUT, { recursive: true });

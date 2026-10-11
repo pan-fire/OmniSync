@@ -54,6 +54,16 @@ same check as the README's "Verify a release"), which is what ties the
 file to the release workflow. It installs 0.12.0 and later, the releases
 that attach `compose.yml`.
 
+**A GitHub token (optional).** GitHub answers 60 API requests an hour per
+address without one, which a shared address (a CI runner, a company NAT)
+can use up. With `GH_TOKEN` or `GITHUB_TOKEN` set (`GH_TOKEN` first, as for
+the `gh` CLI), the installer sends it as `Authorization: Bearer` with the
+"latest release" question, to `api.github.com` only: never with the
+release's assets, never on a command line (it passes curl or wget a 0600
+file in its temporary folder) and never in its output. A value that does
+not look like a token is left out, with a warning. No permissions are
+needed; a read-only token is enough.
+
 **Updating.** `update` (or running the installer again) shows the installed
 and the latest version and the release notes link, asks, and then:
 
@@ -165,7 +175,15 @@ Logs view and `osync logs` read. Both get the same lines:
   HTTP client, file watcher, migrations);
 - every unhandled exception, with its traceback: in a request, in a
   background task or in a thread. On the Logs page the traceback is under
-  the entry's **Details**.
+  the entry's **Details**. The terminal UI's Logs view shows one line per
+  entry, the first line of its message, ending in "(+N lines)" when the
+  message or its traceback has more; `osync logs` prints them in full.
+
+A log line can quote a file or remote name, which anyone who can write to
+a synced folder chooses. The terminal UI shows a control character in any
+text from the server (a carriage return, a backspace, an escape sequence)
+as `�`, and `osync` commands print it as an escape such as `\u001b`, so
+such a name cannot draw over, recolour or hide what the screen shows.
 
 The access log (one line per HTTP request, including the container health
 check every 30 s) goes to `docker compose logs backend` only;
@@ -424,7 +442,7 @@ sketch for a Linux host with systemd; adapt the paths to taste.
 
 You need Python 3.12, Node.js 24 (LTS) with pnpm 10 (only to build the web UI),
 and [rclone](https://rclone.org/install/) on the `PATH` (the images use
-rclone 1.75.1). For native desktop notifications also `notify-send`
+rclone 1.75.2). For native desktop notifications also `notify-send`
 (`libnotify-bin`).
 
 **1. A user, the code and the data folder.** OmniSync runs as its own user,
