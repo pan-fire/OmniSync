@@ -20,7 +20,7 @@ from backend.api.schemas import (
 )
 from backend.db.models import ManualFlag, SyncJob
 from backend.exceptions import InvalidFilePathsError, NoCachedDiffError
-from backend.services.local_paths import LinkedPathError, check_no_link, link_on_path
+from backend.services.local_paths import LinkedPathError, check_no_link, link_per_path
 from backend.services.rclone import ChangeRecorder, FileChangeRecord, generate_conflict_rename, redact_secrets
 from backend.services.sync_engine.common import ENGINE_STOPPED, logger, remote_join
 from backend.services.sync_engine.names import local_symlink
@@ -389,7 +389,8 @@ class SelectiveMixin(ReportingMixin):
         remote = await self._rclone.lsjson_paths(self._profile.remote_dir, paths)
         rerun = "Run the diff again."
         stale: dict[str, str] = {}
-        links = {p: link for p in paths if (link := link_on_path(self._profile.local_dir, p.lstrip("/")))}
+        by_key = link_per_path(self._profile.local_dir, [p.lstrip("/") for p in paths])
+        links = {p: by_key[p.lstrip("/")] for p in paths if p.lstrip("/") in by_key}
         for p in paths:
             f = by_path.get(p)
             key = p.lstrip("/")

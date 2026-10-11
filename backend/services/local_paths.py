@@ -84,17 +84,22 @@ def link_on_path(root: str, rel: str) -> str | None:
 
 
 def links_on_paths(root: str, rels: Iterable[str]) -> list[str]:
-    """link_on_path() for many paths at once: each link (or bad path) found, once, sorted.
+    """link_on_path() for many paths at once: each link (or bad path) found, once, sorted."""
+    return sorted(set(link_per_path(root, rels).values()))
+
+
+def link_per_path(root: str, rels: Iterable[str]) -> dict[str, str]:
+    """link_on_path() for many paths at once: path -> its link (or itself), for the paths that have one.
 
     Each folder on the way is looked at once, however many paths share it.
     """
     real_root = os.path.realpath(root)
-    seen: dict[str, str] = {}  # relative prefix -> "dir", "link", "missing" or "file"
-    found: set[str] = set()
+    seen: dict[str, str] = {}  # relative prefix -> "dir", "link", "missing", "file" or "outside"
+    found: dict[str, str] = {}
     for rel in rels:
         parts = _parts(rel)
         if parts is None:
-            found.add(rel)
+            found[rel] = rel
             continue
         for i in range(len(parts)):
             prefix = "/".join(parts[:i + 1])
@@ -110,12 +115,12 @@ def links_on_paths(root: str, rels: Iterable[str]) -> list[str]:
                     kind = "outside"  # swapped meanwhile: the defence in depth of link_on_path()
                 seen[prefix] = kind
             if kind == "link":
-                found.add(prefix)
-            if kind == "outside":
-                found.add(rel)
+                found[rel] = prefix
+            elif kind == "outside":
+                found[rel] = rel
             if kind != "dir":
                 break
-    return sorted(found)
+    return found
 
 
 def check_no_link(root: str, rel: str) -> str:
