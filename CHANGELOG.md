@@ -18,6 +18,9 @@ release notes.
   from Node 20's types to Node 24's (`^24`), matching the Node 24 LTS the
   image, CI and the development setup run on, so the compiler knows the
   APIs the server actually has.
+- **Building osync from source needs Go 1.26 or newer.** bubbletea 2.0.10
+  requires it; `go` fetches the pinned 1.27.1 toolchain by itself, and the
+  released binaries and images are unaffected.
 - **The web UI asks before Stop and before enabling or disabling a
   profile,** as the terminal UI does. The Dashboard's **Stop** names every
   profile whose sync is running and stops only those once you confirm; the
