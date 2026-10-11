@@ -24,7 +24,7 @@ osync --theme light                    # light theme
 | `--json` | JSON output for every CLI subcommand |
 | `--version`, `--help` | Version and help |
 
-Settings can also live in `tui.toml` in the `osync` folder of the user config directory (`~/.config/osync/tui.toml` on Linux). Keys: `url`, `api_key`, `theme`, `ascii_mode`, `log_file`, `no_mouse`. Flags override environment variables, which override the file. The working directory is never searched.
+Settings can also live in `tui.toml` in the `osync` folder of the user config directory (`~/.config/osync/tui.toml` on Linux). Keys: `url`, `api_key`, `theme`, `ascii_mode`, `log_file`, `no_mouse`. Flags override environment variables, which override the file. The working directory is never searched. A file that is not valid TOML is skipped, and a setting with a value of the wrong type (`no_mouse = "yes"`, `OMNISYNC_ASCII_MODE=on`) keeps its default; `osync` warns about either at startup and keeps the other settings, the environment and the flags.
 
 If the token is missing or wrong, the backend answers 401 and the TUI shows: "the backend refused the request (401 Unauthorized): set --api-key or OMNISYNC_API_KEY to the backend's API token". `GET /health` works without a token, so the TUI connects and then shows this error in each view.
 

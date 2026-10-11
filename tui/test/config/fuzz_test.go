@@ -11,8 +11,8 @@ import (
 )
 
 // Whatever tui.toml holds (hand-edited, truncated, another program's
-// file), Load does not panic, and the flags still win: a --url given on the
-// command line is the URL used.
+// file, a value of the wrong type), Load does not panic or fail, and the
+// flags still win: a --url given on the command line is the URL used.
 func FuzzLoad(f *testing.F) {
 	base := f.TempDir()
 	switch runtime.GOOS {
@@ -40,8 +40,10 @@ func FuzzLoad(f *testing.F) {
 		if err := os.WriteFile(path, content, 0o600); err != nil {
 			t.Fatal(err)
 		}
+		// A value of the wrong type is dropped with a warning; it must
+		// never make Load fail, which used to discard the flags too.
 		if _, err := config.Load(nil); err != nil {
-			return // a value of the wrong type: Load says so, the caller warns
+			t.Fatalf("Load failed: %v", err)
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("url", "", "")
@@ -50,7 +52,7 @@ func FuzzLoad(f *testing.F) {
 		}
 		cfg, err := config.Load(cmd)
 		if err != nil {
-			t.Fatalf("Load with --url failed where Load without did not: %v", err)
+			t.Fatalf("Load with --url failed: %v", err)
 		}
 		if cfg.URL != flagURL {
 			t.Errorf("URL = %q, want the flag's %q", cfg.URL, flagURL)

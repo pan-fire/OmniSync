@@ -305,3 +305,26 @@ func TestTUI_UnopenableLogFile(t *testing.T) {
 		t.Errorf("exit %d, stderr %q", cli.ExitCode(err), errOut)
 	}
 }
+
+// A config file that parses but holds a value of the wrong type is reported
+// key by key, and the command still runs with its flags. It used to fail
+// the whole load, so the CLI fell back to the default URL without the key.
+func TestConfig_WrongTypeInFileWarnsAndKeepsFlags(t *testing.T) {
+	f := newFakeAPI(t)
+	f.on("GET /health", 200, map[string]any{"status": "ok", "rclone_installed": true, "database_ok": true, "uptime_seconds": 1})
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "osync"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "osync", "tui.toml"), []byte("no_mouse = \"yes\"\nascii_mode = \"on\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut, code := f.run("health")
+	if code != cli.ExitOK || !strings.Contains(errOut, "no_mouse setting is not used") ||
+		!strings.Contains(errOut, "ascii_mode setting is not used") || strings.Contains(errOut, "using defaults") {
+		t.Errorf("exit %d, stderr %q", code, errOut)
+	}
+}

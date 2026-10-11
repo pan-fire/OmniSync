@@ -56,7 +56,10 @@ release notes.
 - **A `tui.toml` that cannot be read no longer overrides `--url`,
   `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
   to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
-  the file is not used and keeps the flags and environment.
+  the file is not used and keeps the flags and environment. A setting
+  with a value of the wrong type (`no_mouse = "yes"` in the file, or
+  `OMNISYNC_ASCII_MODE=on`) did the same; now only that setting keeps its
+  default, with a warning that names it.
 
 ## [0.13.0] - 2026-10-04
 

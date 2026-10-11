@@ -386,3 +386,75 @@ func TestLoad_BrokenFileKeepsEnvAndFlags(t *testing.T) {
 		t.Errorf("warnings = %q", cfg.Warnings)
 	}
 }
+
+// A value of the wrong type in tui.toml drops only that setting, with a
+// warning; the file's other settings, the environment and the flags still
+// apply. It used to make Load fail, and the CLI then used the defaults.
+func TestLoad_WrongTypeDropsOnlyThatSetting(t *testing.T) {
+	dir := isolate(t)
+	writeConfig(t, dir, `no_mouse = "yes"
+ascii_mode = "on"
+theme = "light"
+log_file = ["a"]
+`)
+	t.Setenv("OMNISYNC_API_KEY", "env-secret")
+	cmd := newCmd()
+	if err := cmd.Flags().Set("url", "https://flag.example.org"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cmd)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.URL != "https://flag.example.org" || cfg.APIKey != "env-secret" || cfg.Theme != "light" ||
+		cfg.NoMouse || cfg.ASCIIMode || cfg.LogFile != "" {
+		t.Errorf("config = %+v", cfg)
+	}
+	for _, key := range []string{"no_mouse", "ascii_mode", "log_file"} {
+		if !hasWarning(cfg, "the "+key+" setting is not used") {
+			t.Errorf("no warning for %s: %q", key, cfg.Warnings)
+		}
+	}
+	if hasWarning(cfg, "theme") {
+		t.Errorf("warned about a valid setting: %q", cfg.Warnings)
+	}
+}
+
+// A bad value from the environment is dropped the same way.
+func TestLoad_WrongTypeInEnvKeepsTheRest(t *testing.T) {
+	dir := isolate(t)
+	writeConfig(t, dir, `url = "https://file.example.org"`)
+	t.Setenv("OMNISYNC_NO_MOUSE", "sometimes")
+	cfg, err := config.Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.URL != "https://file.example.org" || cfg.NoMouse || !hasWarning(cfg, "the no_mouse setting is not used") {
+		t.Errorf("config = %+v", cfg)
+	}
+}
+
+// A mistyped API key is still a secret: the warning names the setting but
+// never quotes its value, and the default URL and theme stay usable.
+func TestLoad_WrongTypeAPIKeyIsNotQuoted(t *testing.T) {
+	dir := isolate(t)
+	writeConfig(t, dir, `api_key = ["hunter2-secret"]
+url = {host = "x"}
+theme = 3.5
+`)
+	cfg, err := config.Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.APIKey != "" || cfg.URL != config.DefaultURL {
+		t.Errorf("config = %+v", cfg)
+	}
+	if !hasWarning(cfg, "the api_key setting is not used") || !hasWarning(cfg, "the url setting is not used") {
+		t.Errorf("warnings = %q", cfg.Warnings)
+	}
+	for _, w := range cfg.Warnings {
+		if strings.Contains(w, "hunter2") {
+			t.Errorf("warning quotes the API key: %q", w)
+		}
+	}
+}
