@@ -12,9 +12,12 @@ FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609
 WORKDIR /build
 
 # Exact pins (see backend/requirements-lock.txt) so a rebuild never picks up
-# an untested dependency release.
+# an untested dependency release. --no-deps installs the lock and nothing
+# else, and pip check then fails the build when the lock misses a
+# dependency, instead of pip quietly adding an unpinned one.
 COPY backend/requirements-lock.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements-lock.txt
+RUN pip install --no-cache-dir --no-deps --prefix=/install -r requirements-lock.txt \
+    && PYTHONPATH=/install/lib/python3.12/site-packages python -m pip check
 
 # ---- Runtime stage ----
 FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016
