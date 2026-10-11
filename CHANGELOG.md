@@ -12,6 +12,15 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **The installer uses a GitHub token when you have one.** With `GH_TOKEN`
+  or `GITHUB_TOKEN` set, its "latest release" question to `api.github.com`
+  sends it, so a shared address (a CI runner, a company network) no longer
+  runs into GitHub's 60 requests an hour. The token goes to
+  `api.github.com` only, never onto a command line or into the output.
+  See `install.sh --help` and [Operations](docs/gem/operations.md).
+
 ### Changed
 
 - **The web UI asks before Stop and before enabling or disabling a

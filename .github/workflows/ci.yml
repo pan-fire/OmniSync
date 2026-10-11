@@ -253,6 +253,10 @@ jobs:
     name: Installer (end to end)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # The token only reads: the installer's "latest release" question
+    # counts against it instead of the runner's shared address.
+    permissions:
+      contents: read
     env:
       # A version no release has: nothing can be pulled for it by mistake.
       CI_VERSION: 9999.0.0-ci
@@ -301,6 +305,7 @@ jobs:
         env:
           API_PORT: "18280"
           WEB_PORT: "13280"
+          GITHUB_TOKEN: ${{ github.token }}
         run: scripts/test-upgrade-e2e.sh "$CI_VERSION" latest
       - name: Update from 0.12.0 (before migration 0011), and a rollback
         env:
