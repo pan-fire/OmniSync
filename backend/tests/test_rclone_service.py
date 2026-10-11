@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import configparser
+import errno
 import json
 import os
 import stat
@@ -58,6 +59,10 @@ if "--files-from-raw" in args:
     with open(args[args.index("--files-from-raw") + 1]) as fh:
         with open(os.environ["FAKE_RCLONE_LOG"], "a") as log:
             log.write(json.dumps({{"files_from": fh.read()}}) + "\\n")
+if "--exclude-from" in args:
+    with open(args[args.index("--exclude-from") + 1]) as fh:
+        with open(os.environ["FAKE_RCLONE_LOG"], "a") as log:
+            log.write(json.dumps({{"exclude_from": fh.read()}}) + "\\n")
 if "obscure" in args:
     sys.stdout.write("OBSCURED-" + sys.stdin.read()[::-1] + "\\n")
 sys.stdout.write(spec.get("stdout", ""))
@@ -104,6 +109,10 @@ class FakeRclone:
     @property
     def files_from(self) -> list[str]:
         return [r["files_from"] for r in self._records() if "files_from" in r]
+
+    @property
+    def exclude_from(self) -> list[str]:
+        return [r["exclude_from"] for r in self._records() if "exclude_from" in r]
 
     def service(self, **kw) -> RcloneService:
         return RcloneService(rclone_config_path=str(self.config), **kw)
@@ -238,15 +247,41 @@ class TestBisyncCommand:
         assert argv[argv.index("--bwlimit") + 1] == "1M"
         assert after_double_dash(argv) == ["/data/docs", "r:docs"]
 
-    async def test_exclude_rules_are_filter_flags_outside_the_filters_file(self, fake: FakeRclone) -> None:
-        """rclone applies --filter rules before the filters file (FilterFrom), and
-        bisync hashes only the file: the rules win and need no resync."""
+    async def test_exclude_patterns_go_into_an_exclude_file(self, fake: FakeRclone) -> None:
+        """rclone applies --exclude-from patterns before the filters file, and
+        bisync hashes only the filters file: the patterns win and need no
+        resync. In a file, not on the command line, and removed after the run."""
+        patterns = ["/a\\[1\\].txt", "/a\\[1\\].txt/**"]
         await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),
-                                    exclude_rules=["- /a\\[1\\].txt", "- /a\\[1\\].txt/**"])
+                                    exclude_patterns=patterns)
         (argv,) = fake.calls
-        assert [a for a in argv if a.startswith("--filter=")] == ["--filter=- /a\\[1\\].txt",
-                                                                   "--filter=- /a\\[1\\].txt/**"]
-        assert argv.index("--filter=- /a\\[1\\].txt") < argv.index("--")
+        assert not [a for a in argv if a.startswith("--filter=")]
+        assert argv.index("--exclude-from") < argv.index("--")
+        assert fake.exclude_from == ["/a\\[1\\].txt\n/a\\[1\\].txt/**\n"]
+        assert not os.path.exists(argv[argv.index("--exclude-from") + 1])
+
+    async def test_thousands_of_links_keep_the_command_line_short(self, fake: FakeRclone) -> None:
+        """One pattern pair per link on the command line overflowed the
+        system's limit (ARG_MAX): rclone could not even be started (E2BIG)."""
+        arg_max = os.sysconf("SC_ARG_MAX")
+        name = "node_modules/.pnpm/some-package@1.2.3/node_modules/" + "d" * 60
+        count = arg_max // len(name) + 1000  # more pattern bytes than the whole limit
+        patterns = [f"/{name}{i}" for i in range(count)]
+        await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),
+                                    exclude_patterns=patterns)
+        (argv,) = fake.calls
+        assert sum(len(a) + 1 for a in argv) < 4096
+        assert fake.exclude_from[0].count("\n") == count
+
+    async def test_a_command_that_cannot_start_is_an_rclone_error(self, fake: FakeRclone, monkeypatch) -> None:
+        """An OSError at the start (E2BIG, no binary) is a failed run that the callers record."""
+        async def too_long(*_args, **_kwargs):
+            raise OSError(errno.E2BIG, "Argument list too long")
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", too_long)
+        with pytest.raises(RcloneError, match="rclone could not be started: .*Argument list too long"):
+            await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),
+                                        exclude_patterns=["/a"])
 
     async def test_minimal_run_has_no_optional_flags(self, fake: FakeRclone) -> None:
         await fake.service().bisync("/l", "r:x", workdir="/wd", filters_file="/f", recorder=BisyncRecorder(),

@@ -108,7 +108,14 @@ release notes.
   per-file action on a link, or on a path below a link to a folder, is
   refused. A push still moves such a remote
   item to the remote trash, as for any file missing locally, and now
-  reports it.
+  reports it. The exclusions reach rclone in a file, one pattern per
+  folder's links: a folder with thousands of links (such as a pnpm
+  `node_modules`) neither overflows the command line of a two-way sync
+  (rclone could not start: "Argument list too long") nor slows a run down.
+- **A sync whose rclone cannot be started fails like any other.** An error
+  starting rclone for a push, pull or two-way sync (such as a command line
+  too long for the system) escaped the job's error handling: the job was
+  not marked failed and no notification was sent. It is now a failed run.
 - **Two spellings of one name no longer sync silently as one.** rclone
   matches names after Unicode normalisation, so of `café.txt` written
   composed and decomposed (as macOS writes it) only one was synced, with a

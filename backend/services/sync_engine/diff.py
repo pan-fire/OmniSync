@@ -20,7 +20,7 @@ from backend.api.schemas import (
 )
 from backend.db.models import ManualFlag
 from backend.services.sync_engine.common import logger
-from backend.services.sync_engine.names import link_filter_rules
+from backend.services.sync_engine.names import link_exclude_patterns
 from backend.services.sync_engine.reporting import ReportingMixin
 
 
@@ -64,7 +64,7 @@ class DiffMixin(ReportingMixin):
         max_delete = self.max_delete
         mode = SyncMode(config.sync_mode)
         warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW)
-        two_way = await self._two_way_preview(link_filter_rules(links)) if config.two_way else None
+        two_way = await self._two_way_preview(link_exclude_patterns(links)) if config.two_way else None
         result = await self._rclone.check_diff(
             config.local_dir, config.remote_dir,
             rclone_filter=config.rclone_filter, rclone_args=config.rclone_args,

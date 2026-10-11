@@ -162,18 +162,59 @@ def only_listed(found: LocalNames, listed: set[str]) -> LocalNames:
                       symlinks=found.symlinks)
 
 
-def link_filter_rules(symlinks: list[str]) -> list[str]:
-    """rclone filter rules that leave each link's path (and anything below
-    it, for a link to a folder) out of a sync. A link whose name is not
-    UTF-8 or holds a line break cannot be named in a rule (rclone skips the
-    link itself anyway)."""
-    rules: list[str] = []
+# The longest pattern link_exclude_patterns() writes on one line: rclone
+# reads filter files line by line and refuses a line of 64 KiB or more.
+MAX_PATTERN_BYTES = 32 * 1024
+
+
+def _nameable(path: str) -> bool:
+    """Whether a path can be named in a filter rule (rclone reads rules as
+    UTF-8 lines; rclone skips such a link itself anyway)."""
+    return is_utf8(path) and "\n" not in path and "\r" not in path
+
+
+def link_exclude_patterns(symlinks: list[str]) -> list[str]:
+    """rclone exclude patterns (as for ``--exclude-from``) that leave each
+    link's path, and anything below it for a link to a folder, out of a
+    sync. A link that cannot be named in a pattern is left out.
+
+    The links of one folder share a pattern, ``/<folder>/{a,b,c}`` (and
+    ``/<folder>/{a,b,c}/**``), up to MAX_PATTERN_BYTES each: rclone checks
+    every path against every rule in turn, so a pattern per link made a
+    folder with 17,000 links take over a minute per run (rclone 1.75.1),
+    and a few hundred grouped patterns take about two seconds.
+    """
+    by_folder: dict[str, list[str]] = {}
     for path in symlinks:
-        if not is_utf8(path) or "\n" in path or "\r" in path:
-            continue
-        escaped = filter_escape(path)
-        rules += [f"- /{escaped}", f"- /{escaped}/**"]
-    return rules
+        if _nameable(path):
+            folder, _, name = path.rpartition("/")
+            by_folder.setdefault(folder, []).append(name)
+    patterns: list[str] = []
+    for folder in sorted(by_folder):
+        prefix = f"/{filter_escape(folder)}/" if folder else "/"
+        group: list[str] = []
+        size = len(prefix.encode("utf-8")) + 5  # the braces and "/**"
+        for name in sorted(by_folder[folder]):
+            # In a {...} group a comma separates names: a literal one is escaped.
+            alternative = filter_escape(name).replace(",", "\\,")
+            length = len(alternative.encode("utf-8")) + 1
+            if group and size + length > MAX_PATTERN_BYTES:
+                patterns += _group_patterns(prefix, group)
+                group, size = [], len(prefix.encode("utf-8")) + 5
+            group.append(alternative)
+            size += length
+        patterns += _group_patterns(prefix, group)
+    return patterns
+
+
+def _group_patterns(prefix: str, group: list[str]) -> list[str]:
+    body = group[0] if len(group) == 1 else "{" + ",".join(group) + "}"
+    return [f"{prefix}{body}", f"{prefix}{body}/**"]
+
+
+def link_filter_rules(symlinks: list[str]) -> list[str]:
+    """link_exclude_patterns() as filter rules (``- <pattern>``), for a filter file."""
+    return [f"- {pattern}" for pattern in link_exclude_patterns(symlinks)]
 
 
 def _warning(code: SyncWarningCode, paths: list[str]) -> SyncWarning:

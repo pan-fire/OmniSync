@@ -521,6 +521,37 @@ async def test_per_file_pull_never_replaces_a_local_symlink(env: Env, tmp_path: 
     assert (tmp_path / "outside" / "t.txt").read_text() == "target"
 
 
+@pytest.mark.slow
+async def test_two_way_with_more_links_than_a_command_line_holds(env: Env):
+    """A pnpm project's node_modules is full of links. One exclusion pair per
+    link on bisync's command line overflowed the system's limit (ARG_MAX):
+    rclone could not start, and every two-way run failed. The exclusions are
+    a file now, grouped per folder (one pattern per link took minutes), and
+    still leave each link and the remote item of its name alone."""
+    folder = "app/node_modules/.pnpm/node_modules"
+    padding = "p" * 150
+    count = os.sysconf("SC_ARG_MAX") // (2 * len(f"--filter=- /{folder}/{padding}00000/**")) + 500
+    (env.local / folder).mkdir(parents=True)
+    for i in range(count):
+        os.symlink("../../../nowhere", env.local / folder / f"{padding}{i:05d}")
+    os.symlink("../../../nowhere", env.local / folder / "a,b")
+    clash = f"{folder}/{padding}{count // 2:05d}"
+    write(env.remote, clash, "remote file")
+    write(env.remote, f"{folder}/a,b/inside.txt", "remote folder")
+    write(env.local, "a.txt", "a")
+    engine = env.engine(sync_mode="two_way")
+
+    for _ in range(2):
+        job = await env.completed(await engine.two_way_sync())
+        assert job_warnings(job)[0].code == SyncWarningCode.SYMLINK_KEPT and job_warnings(job)[0].count == 2
+
+    assert (env.local / clash).is_symlink() and (env.local / folder / "a,b").is_symlink()
+    assert (env.remote / clash).read_text() == "remote file"
+    assert (env.remote / folder / "a,b" / "inside.txt").read_text() == "remote folder"
+    assert (env.remote / "a.txt").read_text() == "a"
+    assert not any(p.is_symlink() for p in (env.remote / folder).iterdir())
+
+
 def linked_folder(env: Env, tmp_path: Path) -> Path:
     """A local link ``ld`` to a folder outside the profile that holds ``f``; the remote has ``ld/f``."""
     outside = tmp_path / "outside"

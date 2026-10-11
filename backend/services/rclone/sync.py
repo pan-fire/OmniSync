@@ -89,15 +89,21 @@ class SyncMixin(RcloneBase):
         rclone_args: list[str] | None = None,
         backup_dirs: tuple[str, str] | None = None,
         resync: bool = False, dry_run: bool = False, check_access: bool = True,
-        short_names: int | None = None, exclude_rules: list[str] | None = None,
+        short_names: int | None = None, exclude_patterns: list[str] | None = None,
     ) -> RcloneResult:
         """Run ``rclone bisync local remote`` (Path1 is always the local folder).
 
-        ``exclude_rules``: filter rules for this run only (``--filter``, which
-        rclone applies before the filters file), outside the filters file
-        and so its hash: OmniSync leaves local symbolic links alone this way.
-        bisync sees a path that disappears from both listings at once as
-        deleted on both sides and changes nothing.
+        ``exclude_patterns``: exclude patterns for this run only, outside the
+        filters file and so its hash: OmniSync leaves local symbolic links
+        alone this way. They go into a temporary ``--exclude-from`` file,
+        not onto the command line (one pattern pair per link: a folder with
+        thousands of links would exceed the system's limit on the length of
+        a command line). Verified with rclone 1.75.1: bisync hashes only the
+        ``--filters-file``, so a changed exclude file needs no resync, and
+        rclone applies ``--exclude-from`` patterns before the filters file
+        (a ``--filter-from`` file would come after it, where the profile's
+        own ``+`` rules could win). bisync sees a path that disappears from
+        both listings at once as deleted on both sides and changes nothing.
 
         ``short_names`` (a profile id): run on that profile's short-name
         remotes instead of the real paths (see bisync_names.py), for paths
@@ -169,14 +175,23 @@ class SyncMixin(RcloneBase):
             args += ["--resync", "--resync-mode", "newer"]
         if dry_run:
             args.append("--dry-run")
-        args += [f"--filter={rule}" for rule in exclude_rules or []]
-        cmd = self._build_command([*args, *json_log_args(profile_args)], rclone_args=profile_args,
-                                  positional=list(paths))
-        logger.info("Starting two-way sync%s: %s <-> %s%s", " (resync)" if resync else "", local, remote,
-                    f" (as {paths[0]} <-> {paths[1]})" if short_names is not None else "")
-        start = time.monotonic()
-        rc = await self._stream(cmd, lambda _line: None, recorder.feed, timeout=None,
-                                stop_signal=signal.SIGINT, stop_grace=BISYNC_STOP_GRACE)
+        exclude_file: str | None = None
+        try:
+            if exclude_patterns:
+                fd, exclude_file = tempfile.mkstemp(prefix="omnisync_links_", suffix=".exclude", text=True)
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write("".join(f"{pattern}\n" for pattern in exclude_patterns))
+                args += ["--exclude-from", exclude_file]
+            cmd = self._build_command([*args, *json_log_args(profile_args)], rclone_args=profile_args,
+                                      positional=list(paths))
+            logger.info("Starting two-way sync%s: %s <-> %s%s", " (resync)" if resync else "", local, remote,
+                        f" (as {paths[0]} <-> {paths[1]})" if short_names is not None else "")
+            start = time.monotonic()
+            rc = await self._stream(cmd, lambda _line: None, recorder.feed, timeout=None,
+                                    stop_signal=signal.SIGINT, stop_grace=BISYNC_STOP_GRACE)
+        finally:
+            if exclude_file is not None:
+                os.unlink(exclude_file)
         stderr = recorder.failure_text()
         if rc != 0:
             raise classify_failure(rc, stderr)

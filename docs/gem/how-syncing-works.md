@@ -252,7 +252,10 @@ in rclone's order. What the profile's filters select stays the same. A
 rule `!` in a profile's filters clears the rules before it; OmniSync keeps
 only the profile's rules after the last `!` (all that rclone would keep of
 them), so it never clears OmniSync's exclusions or the trash's. A two-way
-sync puts the same exclusions first in its filters file.
+sync puts manually flagged files first in its filters file, and leaves
+local symbolic links out with a separate exclude file that rclone applies
+before the filters file: bisync checks only the filters file for changes,
+so a link added or removed needs no resync.
 
 ## File names and links
 

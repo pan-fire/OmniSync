@@ -22,11 +22,13 @@ from backend.db.models import SyncJob
 from backend.exceptions import RcloneError
 from backend.services.notification_events import NotificationEventType, NotificationSeverity, sync_completed_event
 from backend.services.rclone import SENTINEL_FILE, TRASH_DIR
+from backend.services.sync_engine import names as names_module
 from backend.services.sync_engine.names import (
     WARNING_PATHS_SHOWN,
     LocalNames,
     describe,
     display_path,
+    link_exclude_patterns,
     link_filter_rules,
     name_warnings,
     only_listed,
@@ -150,6 +152,23 @@ def test_link_rules_name_each_link_and_what_is_below_it():
     assert link_filter_rules(["a[1].txt", "dir/l*nk", BAD, "line\nbreak", "cr\r"]) == [
         "- /a\\[1\\].txt", "- /a\\[1\\].txt/**", "- /dir/l\\*nk", "- /dir/l\\*nk/**",
     ]
+
+
+def test_links_of_one_folder_share_a_pattern(monkeypatch):
+    """rclone checks each path against each rule in turn: one pattern per
+    link made a folder of 17,000 links take over a minute per run."""
+    assert link_exclude_patterns(["b", "a,1", "dir/x", "dir/y{z}", "dir/sub/w"]) == [
+        "/{a\\,1,b}", "/{a\\,1,b}/**",                          # a literal comma is escaped in a group
+        "/dir/{x,y\\{z\\}}", "/dir/{x,y\\{z\\}}/**",
+        "/dir/sub/w", "/dir/sub/w/**",
+    ]
+    # Long groups are split: rclone refuses a filter file line of 64 KiB or more.
+    monkeypatch.setattr(names_module, "MAX_PATTERN_BYTES", 40)
+    links = [f"many/n{i:03d}" for i in range(20)]
+    patterns = link_exclude_patterns(links)
+    assert all(len(p.encode()) <= 40 for p in patterns) and len(patterns) > 2
+    named = {n for p in patterns[::2] for n in p.removeprefix("/many/").strip("{}").split(",")}
+    assert named == {f"n{i:03d}" for i in range(20)}
 
 
 # --- The warnings ---
