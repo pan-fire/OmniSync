@@ -20,7 +20,8 @@ release notes.
   profile page's **Stop** names its profile. The on/off switch on a profile
   card says what changes: disabling stops the profile's automatic syncs
   (and a running sync), enabling starts them again (or notes that a pause of
-  yours still holds). **Cancel** or Escape sends nothing.
+  yours still holds). These notes follow the profile's current state while
+  the dialog is open. **Cancel** or Escape sends nothing.
 
 ### Fixed
 
