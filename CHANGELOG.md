@@ -42,13 +42,15 @@ release notes.
 
 ### Security
 
-- **rclone's bundled gRPC (CVE-2026-84445) stays accepted until
-  2027-01-15.** rclone 1.75.1, the latest release, still ships a gRPC with
-  this advisory; rclone's development branch has the fix, which comes with
-  its next release. The flaw crashes gRPC *servers* built for xDS, and the
-  image runs none: rclone uses gRPC only as a client and OmniSync runs it
-  only as a one-shot command. The image scan's exception now records this
-  and moves its expiry from 2026-11-15 to 2027-01-15 (`.trivyignore`).
+- **rclone 1.75.2 in the backend image.** It fixes the advisories in
+  rclone's compiled-in dependencies that the image scan reports: gRPC
+  (CVE-2026-84445), Go's net/http and crypto/tls (CVE-2026-78667,
+  CVE-2026-97031, built with Go 1.26.9) and golang.org/x/net's HTTP/2
+  (CVE-2026-78669). The scan's exception for the gRPC advisory is removed:
+  the image has no accepted findings.
+- **source-map-js 1.2.2 in the web UI** (GHSA-68fv-2mgg-jv7q, a denial of
+  service through crafted source maps; it comes in through Next.js's
+  PostCSS).
 
 ## [0.13.0] - 2026-10-04
 
