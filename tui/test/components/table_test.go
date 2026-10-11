@@ -165,3 +165,66 @@ func TestTable_ServerNamesStayOnTheirRow(t *testing.T) {
 		t.Errorf("control characters row = %q", lines[2])
 	}
 }
+
+// Emoji sequences are grapheme clusters the per-rune count got wrong: a
+// variation selector (❤️, ☺️, keycaps) made it count too little, so the cell
+// wrapped, and a ZWJ family or a flag pair was cut in the middle. Each name
+// must keep its row to one line, fill its column exactly and keep whole
+// clusters.
+func TestTable_EmojiNamesFillTheirCell(t *testing.T) {
+	cases := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{"❤️❤️❤️❤️❤️❤️", 5, "❤️❤️…"},
+		{"☺️☺️☺️abc", 6, "☺️☺️…"},
+		{"✔️ done.txt", 6, "✔️ do…"},
+		{"#️⃣#️⃣#️⃣", 4, "#️⃣…"},
+		{"👨‍👩‍👧‍👦 family.jpg", 4, "👨‍👩‍👧‍👦 …"},
+		{"🇩🇪🇫🇷🇮🇹", 4, "🇩🇪…"},
+		{"0000000🏽", 8, "0000000🏽"},
+		{"00000ꢶ", 5, "00000ꢶ"},
+	}
+	for _, c := range cases {
+		table := components.NewTable([]components.Column{{Title: "Name", Width: c.width}, {Title: "Size", Width: 4}}, 10)
+		table.SetRows([]components.Row{{Key: "a", Values: []string{c.name, "1 KB"}}, {Key: "b", Values: []string{"x", "y"}}})
+		lines := strings.Split(strings.TrimRight(table.View(), "\n"), "\n")
+		if len(lines) != 3 {
+			t.Errorf("%q in %d columns: %d lines, want 3:\n%s", c.name, c.width, len(lines), strings.Join(lines, "\n"))
+			continue
+		}
+		row := stripANSI(lines[1])
+		if got, want := lipgloss.Width(row), 3+1+c.width+1+4; got != want {
+			t.Errorf("%q in %d columns: row is %d columns, want %d: %q", c.name, c.width, got, want, row)
+		}
+		if !strings.Contains(row, c.want) {
+			t.Errorf("%q in %d columns: row %q does not show %q", c.name, c.width, row, c.want)
+		}
+	}
+}
+
+// Truncate cuts between grapheme clusters and stays within max columns.
+func TestTruncate_GraphemeClusters(t *testing.T) {
+	cases := []struct {
+		s    string
+		max  int
+		want string
+	}{
+		{"❤️❤️❤️❤️", 5, "❤️❤️…"},
+		{"☺️☺️☺️", 4, "☺️…"},
+		{"👩‍👩‍👧 family", 3, "👩‍👩‍👧…"},
+		{"🇩🇪🇫🇷", 3, "🇩🇪…"},
+		{"👍🏽👍🏽", 3, "👍🏽…"},
+		{"0000000🏽", 8, "0000000🏽"},
+	}
+	for _, c := range cases {
+		got := components.Truncate(c.s, c.max)
+		if got != c.want {
+			t.Errorf("Truncate(%q, %d) = %q, want %q", c.s, c.max, got, c.want)
+		}
+		if n := lipgloss.Width(got); n > c.max {
+			t.Errorf("Truncate(%q, %d) = %q: %d columns", c.s, c.max, got, n)
+		}
+	}
+}

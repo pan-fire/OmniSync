@@ -49,7 +49,10 @@ release notes.
 - **Tables in the terminal UI keep each file on one row.** A name with
   Chinese, Japanese or Korean characters (or wide emoji) wrapped onto a
   second line and pushed the next column; it is now cut at the column's
-  width. A newline, tab or escape sequence in a name shows as `�`.
+  width, between whole characters: an emoji with a variation selector
+  (❤️, ✔️), a skin tone, a keycap, a family (ZWJ) sequence or a flag is
+  kept or cut as one. A newline, tab or escape sequence in a name shows
+  as `�`.
 - **A `tui.toml` that cannot be read no longer overrides `--url`,
   `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
   to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
