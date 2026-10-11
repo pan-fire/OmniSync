@@ -97,7 +97,8 @@ api POST /profiles "$(jq -n --arg l "$local_dir" --arg r "e2elocal:$remote_dir" 
     pull_interval_minutes: 10080, rclone_args: ["--max-delete", "7", "--transfers", "2"],
     rclone_filter: ["- *.tmp"], max_retries: 2, bwlimit: "10M"}')" 201
 slug=$(field .slug)
-wait_idle "$slug"
+# Its engine's first sync (a resync) holds the sync lock: wait for it.
+wait_engine_sync "$slug"
 sync_now "$slug" two_way
 [ "$(field .status)" = completed ] || fail "the sync on $from: $body"
 last_job=$(field .id)
@@ -146,7 +147,7 @@ api GET "/profiles/$slug/sync/status" 200
 [ "$(field .resync_required)" = false ] || fail "the update lost the two-way state: $body"
 printf 'written after the update\n' >"$expected/after.txt"
 cp "$expected/after.txt" "$local_dir/"
-wait_idle "$slug"
+wait_engine_sync "$slug" "$last_job"
 sync_now "$slug" two_way
 [ "$(field '"\(.direction) \(.status)"')" = "two_way completed" ] || fail "the sync after the update: $body"
 same_tree "$expected" "$remote_dir"
@@ -183,7 +184,7 @@ grep -q "$version runs again" <<<"$out" || fail "the rollback did not bring $ver
 [ "$(find "$dir/backups" -name "omnisync-data-$version-*.tar.gz" | wc -l)" = 1 ] || fail "no backup before the failed update"
 after=$(profile_state "$last_job")
 diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") >&2 || fail "the failed update changed the data"
-wait_idle "$slug"
+wait_engine_sync "$slug" "$last_job"
 sync_now "$slug" two_way
 [ "$(field .status)" = completed ] || fail "the sync after the rollback: $body"
 same_tree "$expected" "$local_dir"

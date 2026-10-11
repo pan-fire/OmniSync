@@ -76,7 +76,8 @@ api POST /profiles "$(jq -n --arg l "$local_dir" --arg r "e2elocal:$remote_dir" 
 slug=$(field .slug)
 [ "$(field .sync_mode)" = two_way ] || fail "a new profile is not two-way: $body"
 # A new profile's engine starts with a resync (the union of both folders).
-wait_idle "$slug"
+# It is only queued when POST /profiles answers: wait for its job itself.
+wait_engine_sync "$slug"
 api GET "/profiles/$slug/jobs" 200
 [ "$(field '[.[] | select(.direction == "resync" and .status == "completed")] | length')" = 1 ] \
   || fail "no completed first resync: $body"
