@@ -24,9 +24,9 @@ LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
       org.opencontainers.image.title="OmniSync backend"
 
 # Pinned rclone release, verified against the published SHA256SUMS.
-ARG RCLONE_VERSION=1.75.1
-ARG RCLONE_SHA256_AMD64=982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab
-ARG RCLONE_SHA256_ARM64=03f2504174034b6d004152ed7369251c9a9ec1f7e0836eda420f5c7a5ec0dff9
+ARG RCLONE_VERSION=1.75.2
+ARG RCLONE_SHA256_AMD64=349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702
+ARG RCLONE_SHA256_ARM64=7e1e8d69654941b7b7df84ee74c5f7fb09cce7d5496947fb7bf16b55ff427d10
 # Set by BuildKit for each target platform; the default serves the legacy
 # builder. Only amd64 and arm64 are supported: rclone ships linux/arm-v7 too,
 # but several Python dependencies (uvloop, httptools) have no armv7 wheels and

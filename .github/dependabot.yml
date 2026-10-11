@@ -28,6 +28,12 @@ updates:
     groups:
       frontend-minor-patch:
         update-types: [minor, patch]
+    # @types/node follows the Node.js the web UI runs on (24 LTS: the image,
+    # CI): its types for a newer Node would let code use APIs the runtime
+    # lacks. Move this together with the Node version.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: gomod
     directory: /tui

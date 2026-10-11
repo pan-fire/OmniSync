@@ -59,8 +59,8 @@ jobs:
       # checksum-verified release as the Dockerfile).
       - name: Install rclone
         env:
-          RCLONE_VERSION: "1.75.1"
-          RCLONE_SHA256: 982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab
+          RCLONE_VERSION: "1.75.2"
+          RCLONE_SHA256: 349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702
         run: |
           set -eu
           zip="rclone-v${RCLONE_VERSION}-linux-amd64.zip"
