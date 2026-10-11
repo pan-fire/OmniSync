@@ -434,7 +434,7 @@ sketch for a Linux host with systemd; adapt the paths to taste.
 
 You need Python 3.12, Node.js 24 (LTS) with pnpm 10 (only to build the web UI),
 and [rclone](https://rclone.org/install/) on the `PATH` (the images use
-rclone 1.75.1). For native desktop notifications also `notify-send`
+rclone 1.75.2). For native desktop notifications also `notify-send`
 (`libnotify-bin`).
 
 **1. A user, the code and the data folder.** OmniSync runs as its own user,
