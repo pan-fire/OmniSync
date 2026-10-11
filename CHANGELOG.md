@@ -19,7 +19,7 @@ release notes.
   image, CI and the development setup run on, so the compiler knows the
   APIs the server actually has.
 - **Building osync from source needs Go 1.26 or newer.** bubbletea 2.0.10
-  requires it; `go` fetches the pinned 1.27.1 toolchain by itself, and the
+  requires it; `go` fetches the pinned 1.27.2 toolchain by itself, and the
   released binaries and images are unaffected.
 - **The web UI asks before Stop and before enabling or disabling a
   profile,** as the terminal UI does. The Dashboard's **Stop** names every
@@ -48,6 +48,10 @@ release notes.
   CVE-2026-97031, built with Go 1.26.9) and golang.org/x/net's HTTP/2
   (CVE-2026-78669). The scan's exception for the gRPC advisory is removed:
   the image has no accepted findings.
+- **`osync` is built with Go 1.27.2.** It fixes denial-of-service
+  advisories in Go 1.27.1's `net/http` and HTTP/2 (GO-2026-6608,
+  GO-2026-6610, GO-2026-6611, GO-2026-6613, GO-2026-6617) that reach the
+  client's API calls.
 - **source-map-js 1.2.2 in the web UI** (GHSA-68fv-2mgg-jv7q, a denial of
   service through crafted source maps; it comes in through Next.js's
   PostCSS).
