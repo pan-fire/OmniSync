@@ -200,7 +200,7 @@ switch: a folder with `VERSION`, `compose.yml` and `SHA256SUMS` stands in
 for the GitHub release, and the images are not pulled. It is for CI and
 this script only, never for an install.
 
-The same job then runs two more scripts against these images:
+The same job then runs more scripts against these images:
 
 ```bash
 # A sync, a conflict, the delete limit, backup and restore and the audit
@@ -208,8 +208,11 @@ The same job then runs two more scripts against these images:
 # real-browser smoke (frontend/playwright.stack.config.ts; run
 # `pnpm install` and `pnpm exec playwright install chromium` in frontend/).
 E2E_BROWSER=1 scripts/test-fullstack-e2e.sh 9999.0.0-ci
-# Release 0.12.0 from GitHub and ghcr.io, updated to these images; then
-# an update that never becomes healthy, rolled back.
+# A release from GitHub and ghcr.io, updated to these images (the
+# database to this checkout's head revision); then an update that never
+# becomes healthy, rolled back. CI runs it from the latest release (the
+# default) and from 0.12.0, the last release before migration 0011.
+scripts/test-upgrade-e2e.sh 9999.0.0-ci latest
 scripts/test-upgrade-e2e.sh 9999.0.0-ci 0.12.0
 ```
 
