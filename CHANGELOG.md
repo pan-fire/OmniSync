@@ -12,6 +12,58 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The terminal UI asks before "Stop all" and before enabling or
+  disabling a profile.** On the Dashboard, `s` lists the running syncs and
+  stops exactly those after `y`; in Profiles, `t` says whether it will
+  enable or disable the profile and what that does. `n` or `Esc` sends
+  nothing, as in the other prompts. The flash now says "Profile enabled"
+  or "Profile disabled" instead of "Profile toggled".
+
+- **The web UI asks before Stop and before enabling or disabling a
+  profile,** as the terminal UI does. The Dashboard's **Stop** names every
+  profile whose sync is running and stops only those once you confirm; the
+  profile page's **Stop** names its profile. The on/off switch on a profile
+  card says what changes: disabling stops the profile's automatic syncs
+  (and a running sync), enabling starts them again (or notes that a pause of
+  yours still holds). **Cancel** or Escape sends nothing.
+
+### Fixed
+
+- **The terminal UI's Dashboard shows when the sync status cannot be
+  read**, also when the profile list can; before, the list's answer hid
+  the error and the panel just said "No data".
+
+- **The terminal UI's Conflicts view no longer says "all clear" when the
+  conflicts could not be read**; it shows only the error.
+
+- **Tables in the terminal UI keep each file on one row.** A name with
+  Chinese, Japanese or Korean characters (or wide emoji) wrapped onto a
+  second line and pushed the next column; it is now cut at the column's
+  width, between whole characters: an emoji with a variation selector
+  (❤️, ✔️), a skin tone, a keycap, a family (ZWJ) sequence or a flag is
+  kept or cut as one. A newline, tab or escape sequence in a name shows
+  as `�`.
+
+- **A `tui.toml` that cannot be read no longer overrides `--url`,
+  `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
+  to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
+  the file is not used and keeps the flags and environment. A setting
+  with a value of the wrong type (`no_mouse = "yes"` in the file, or
+  `OMNISYNC_ASCII_MODE=on`) did the same; now only that setting keeps its
+  default, with a warning that names it.
+
+- **Persian: Pause and Stop have different names.** Both buttons read
+  "توقف", so on a profile page with a running sync two buttons with the
+  same name did different things. Pause (and every paused or resumed
+  message, banner and help text) now says "مکث"; Stop keeps "توقف".
+
+- **Snapshot browser: "Next page" no longer jumps back to page 1.** The
+  search debounce also fired 300 ms after the dialog opened and reset the
+  page, so paging right after opening a snapshot was undone. Only a changed
+  search now goes back to the first page.
+
 ### Security
 
 - **`osync` commands no longer pass control sequences from server text to
@@ -21,6 +73,7 @@ release notes.
   cursor over the output. The commands now print every control character
   as a visible `\u001b`-style escape. `--json` output decodes to exactly
   the same text as before.
+
 - **The terminal UI no longer lets server text draw over or restyle a
   view.** A log message, file, remote or profile name or error detail
   holding a carriage return, a backspace or an escape sequence could
@@ -32,36 +85,6 @@ release notes.
   screen lets only the views' own colours through. A multi-line log
   message shows its first line and "(+N lines)" in the Logs view.
 
-### Changed
-
-- **The terminal UI asks before "Stop all" and before enabling or
-  disabling a profile.** On the Dashboard, `s` lists the running syncs and
-  stops exactly those after `y`; in Profiles, `t` says whether it will
-  enable or disable the profile and what that does. `n` or `Esc` sends
-  nothing, as in the other prompts. The flash now says "Profile enabled"
-  or "Profile disabled" instead of "Profile toggled".
-
-### Fixed
-
-- **The terminal UI's Dashboard shows when the sync status cannot be
-  read**, also when the profile list can; before, the list's answer hid
-  the error and the panel just said "No data".
-- **The terminal UI's Conflicts view no longer says "all clear" when the
-  conflicts could not be read**; it shows only the error.
-- **Tables in the terminal UI keep each file on one row.** A name with
-  Chinese, Japanese or Korean characters (or wide emoji) wrapped onto a
-  second line and pushed the next column; it is now cut at the column's
-  width, between whole characters: an emoji with a variation selector
-  (❤️, ✔️), a skin tone, a keycap, a family (ZWJ) sequence or a flag is
-  kept or cut as one. A newline, tab or escape sequence in a name shows
-  as `�`.
-- **A `tui.toml` that cannot be read no longer overrides `--url`,
-  `--api-key` and the `OMNISYNC_*` variables.** `osync` used to fall back
-  to all defaults (and so to `http://127.0.0.1:8000`); it now warns that
-  the file is not used and keeps the flags and environment. A setting
-  with a value of the wrong type (`no_mouse = "yes"` in the file, or
-  `OMNISYNC_ASCII_MODE=on`) did the same; now only that setting keeps its
-  default, with a warning that names it.
 
 ## [0.13.0] - 2026-10-04
 

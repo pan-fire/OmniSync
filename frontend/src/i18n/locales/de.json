@@ -254,7 +254,7 @@
     },
     "profiles": {
       "title": "Profile-Hilfe",
-      "content": "Sync-Profile ermöglichen Ihnen die Verwaltung mehrerer unabhängiger Sync-Konfigurationen.\n\n**Jedes Profil** hat sein eigenes lokales Verzeichnis, Remote-Verzeichnis und Sync-Einstellungen. Profile synchronisieren unabhängig voneinander — Sie können jedes separat pushen/pullen.\n\n**Erstellen Sie ein Profil**, indem Sie auf die Schaltfläche Profil erstellen klicken und das lokale und Remote-Verzeichnis eingeben.\n\n**Aktivieren/Deaktivieren** Sie Profile mit dem Umschalter auf jeder Karte. Deaktivierte Profile synchronisieren nicht automatisch, behalten aber ihre Konfiguration.\n\n**Profilspezifische Einstellungen** wie Verzögerung, Abrufintervall und rclone-Filter werden beim Bearbeiten eines Profils konfiguriert.\n\n**Sync-Modus** — Zwei-Wege (empfohlen, Standard für neue Profile) überträgt die Änderungen jeder Seite auf die andere und behält beide Versionen einer auf beiden Seiten geänderten Datei. Spiegeln lädt nur lokale Änderungen hoch und holt das Remote im Intervall; die Seite, die zuletzt synchronisiert, gewinnt. Push und Pull bleiben in beiden Modi als bestätigte Übersteuerung in eine Richtung verfügbar.\n\n**Neuabgleich** — Die erste Zwei-Wege-Synchronisierung und eine Synchronisierung, nachdem der Zwei-Wege-Zustand verloren ging, ist ein Neuabgleich: beide Ordner werden zur Vereinigung beider, nichts wird gelöscht. Ein Profil, das einen braucht, zeigt „Neuabgleich nötig“ und wartet auf deine Bestätigung."
+      "content": "Sync-Profile ermöglichen Ihnen die Verwaltung mehrerer unabhängiger Sync-Konfigurationen.\n\n**Jedes Profil** hat sein eigenes lokales Verzeichnis, Remote-Verzeichnis und Sync-Einstellungen. Profile synchronisieren unabhängig voneinander — Sie können jedes separat pushen/pullen.\n\n**Erstellen Sie ein Profil**, indem Sie auf die Schaltfläche Profil erstellen klicken und das lokale und Remote-Verzeichnis eingeben.\n\n**Aktivieren/Deaktivieren** Sie Profile mit dem Umschalter auf jeder Karte, nach einer Bestätigung, die sagt, was sich ändert. Deaktivierte Profile synchronisieren nicht automatisch (eine laufende Synchronisierung wird gestoppt), behalten aber ihre Konfiguration.\n\n**Profilspezifische Einstellungen** wie Verzögerung, Abrufintervall und rclone-Filter werden beim Bearbeiten eines Profils konfiguriert.\n\n**Sync-Modus** — Zwei-Wege (empfohlen, Standard für neue Profile) überträgt die Änderungen jeder Seite auf die andere und behält beide Versionen einer auf beiden Seiten geänderten Datei. Spiegeln lädt nur lokale Änderungen hoch und holt das Remote im Intervall; die Seite, die zuletzt synchronisiert, gewinnt. Push und Pull bleiben in beiden Modi als bestätigte Übersteuerung in eine Richtung verfügbar.\n\n**Neuabgleich** — Die erste Zwei-Wege-Synchronisierung und eine Synchronisierung, nachdem der Zwei-Wege-Zustand verloren ging, ist ein Neuabgleich: beide Ordner werden zur Vereinigung beider, nichts wird gelöscht. Ein Profil, das einen braucht, zeigt „Neuabgleich nötig“ und wartet auf deine Bestätigung."
     },
     "remotes": {
       "title": "Hilfe zu Remotes",
@@ -556,7 +556,16 @@
     "deleteTitle": "Profil „{{name}}“ löschen?",
     "deleteRemoves": "OmniSync vergisst dieses Profil samt Auftragsverlauf, Konflikten und Backup-Zielen. Das kann nicht rückgängig gemacht werden.",
     "deleteKeepsFiles": "Es werden keine Dateien gelöscht: Beide Ordner und bereits erstellte Backups bleiben unverändert.",
-    "deleteConfirm": "Profil löschen"
+    "deleteConfirm": "Profil löschen",
+    "enableTitle": "Profil „{{name}}“ aktivieren?",
+    "enableExplain": "Seine automatischen Synchronisierungen starten: OmniSync überwacht den lokalen Ordner auf Änderungen und gleicht im Abrufintervall mit dem Remote ab. Push, Pull und „Jetzt synchronisieren“ werden verfügbar.",
+    "enableStaysPaused": "Sie haben dieses Profil pausiert: Seine automatischen Synchronisierungen starten, sobald Sie es fortsetzen.",
+    "enableConfirm": "Profil aktivieren",
+    "disableTitle": "Profil „{{name}}“ deaktivieren?",
+    "disableExplain": "Seine automatischen Synchronisierungen enden: OmniSync überwacht den lokalen Ordner nicht mehr und gleicht nicht mehr planmäßig mit dem Remote ab. Push, Pull und „Jetzt synchronisieren“ sind gesperrt, bis Sie es wieder aktivieren.",
+    "disableStopsRunning": "Die laufende Synchronisierung wird sofort gestoppt.",
+    "disableConfirm": "Profil deaktivieren",
+    "toggleKeeps": "Einstellungen, Verlauf und Dateien bleiben unverändert."
   },
   "backups": {
     "title": "Sicherungen",
@@ -1059,6 +1068,17 @@
     "overrideNote": "Dieses Profil synchronisiert in beide Richtungen; dies ist eine einmalige Übersteuerung in eine Richtung.",
     "noPreviewWarning": "Die Vorschau ist fehlgeschlagen, daher ist unbekannt, welche Dateien diese Synchronisierung ersetzen oder löschen würde. Das Löschlimit und der Papierkorb-Ordner gelten weiterhin.",
     "confirmWithoutPreview": "Mir ist klar, dass diese Synchronisierung ohne Vorschau läuft und Dateien ersetzen oder löschen kann"
+  },
+  "stopConfirm": {
+    "title": "Synchronisierung von „{{name}}“ stoppen?",
+    "titleMany_one": "{{count}} laufende Synchronisierung stoppen?",
+    "titleMany_other": "{{count}} laufende Synchronisierungen stoppen?",
+    "explain_one": "Die laufende Synchronisierung endet sofort und wird als gestoppt verbucht. Noch nicht übertragene Änderungen warten auf die nächste Synchronisierung.",
+    "explain_other": "Die laufenden Synchronisierungen enden sofort und werden als gestoppt verbucht. Noch nicht übertragene Änderungen warten auf die nächste Synchronisierung.",
+    "keepsSyncing_one": "Die automatische Synchronisierung dieses Profils läuft danach weiter. Um sie anzuhalten, pausieren Sie das Profil.",
+    "keepsSyncing_other": "Die automatische Synchronisierung dieser Profile läuft danach weiter. Um sie anzuhalten, pausieren Sie die Profile.",
+    "confirm_one": "Synchronisierung stoppen",
+    "confirm_other": "Synchronisierungen stoppen"
   },
   "syncMode": {
     "label": "Sync-Modus",
