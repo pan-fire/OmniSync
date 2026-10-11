@@ -16,7 +16,7 @@ on:
   pull_request:
     paths:
       - backend/requirements*.txt
-      - backend/requirements.lock
+      - backend/requirements-lock.txt
       - frontend/package.json
       - frontend/pnpm-lock.yaml
       - tui/go.mod
@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # The exact pins the image ships (requirements.lock), not a fresh
+      # The exact pins the image ships (requirements-lock.txt), not a fresh
       # resolution of the ranges in requirements.txt.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
@@ -49,7 +49,7 @@ jobs:
       - name: pip-audit (backend)
         run: |
           python -m pip install pip-audit==2.10.1
-          python -m pip_audit --disable-pip --no-deps -r backend/requirements.lock
+          python -m pip_audit --disable-pip --no-deps -r backend/requirements-lock.txt
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:

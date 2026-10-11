@@ -11,10 +11,10 @@ FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609
 
 WORKDIR /build
 
-# Exact pins (see backend/requirements.lock) so a rebuild never picks up
+# Exact pins (see backend/requirements-lock.txt) so a rebuild never picks up
 # an untested dependency release.
-COPY backend/requirements.lock .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.lock
+COPY backend/requirements-lock.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-lock.txt
 
 # ---- Runtime stage ----
 FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016

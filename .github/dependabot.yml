@@ -3,8 +3,10 @@
 # need code changes. Security updates are not grouped and come as soon as an
 # advisory appears.
 #
-# backend/requirements.lock holds the exact pins the image ships; when a
-# backend update changes requirements.txt, regenerate the lock as its header
+# backend/requirements-lock.txt holds the exact pins the image ships, and
+# Dependabot updates them there directly (it reads requirement files named
+# *.txt only, so the lock is not called requirements.lock). When a backend
+# update changes requirements.txt instead, regenerate the lock as its header
 # says, so a transitive pin cannot drift from what was tested.
 version: 2
 

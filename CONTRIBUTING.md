@@ -64,7 +64,7 @@ coding agents (and is a handy checklist for people too).
 
 ## Backend
 
-Python 3.12 in a virtual environment. `backend/requirements.lock` holds the
+Python 3.12 in a virtual environment. `backend/requirements-lock.txt` holds the
 exact runtime pins the image ships; `requirements-dev.txt` adds the test
 and lint tools on top of it.
 
