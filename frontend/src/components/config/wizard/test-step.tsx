@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Dispatch } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n';
@@ -14,31 +14,35 @@ interface TestStepProps {
   dispatch: Dispatch<WizardAction>;
 }
 
+interface Outcome {
+  attempt:    number;
+  remoteName: string;
+  result:     TestRemoteResult | null;
+  error:      string | null;
+}
+
 export function TestStep ({ state, dispatch }: TestStepProps) {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<TestRemoteResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Each attempt (the first on mount, then one per Retry) gets its own
+  // number; only the answer to the current attempt, for the current remote,
+  // is shown.
+  const [attempt, setAttempt] = useState(0);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
-  const runTest = useCallback(async () => {
-    setLoading(true);
-    setResult(null);
-    setError(null);
-    try {
-      const res = await api.testRemote(state.remoteName);
-      setResult(res);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '');
-    } finally {
-      setLoading(false);
-    }
-  }, [state.remoteName]);
-
-  // Run test once on mount
   useEffect(() => {
-    runTest();
-  }, [runTest]);
+    let ignore = false;
+    api.testRemote(state.remoteName)
+      .then((result) => { if (!ignore) setOutcome({ attempt, remoteName: state.remoteName, result, error: null }); })
+      .catch((err: unknown) => {
+        if (!ignore) setOutcome({ attempt, remoteName: state.remoteName, result: null, error: err instanceof Error ? err.message : '' });
+      });
+    return () => { ignore = true; };
+  }, [state.remoteName, attempt]);
 
+  const current = outcome?.attempt === attempt && outcome.remoteName === state.remoteName ? outcome : null;
+  const loading = current === null;
+  const result = current?.result ?? null;
+  const error = current?.error ?? null;
   const success = result?.success === true;
   const failed = (result !== null && !result.success) || error !== null;
   const failMessage = error || result?.error || t('wizard.testStep.unknownError');
@@ -87,7 +91,7 @@ export function TestStep ({ state, dispatch }: TestStepProps) {
             >
               {t('wizard.back')}
             </Button>
-            <Button onClick={runTest}>
+            <Button onClick={() => setAttempt((a) => a + 1)}>
               {t('wizard.retry')}
             </Button>
           </div>

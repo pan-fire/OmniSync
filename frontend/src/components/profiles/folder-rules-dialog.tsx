@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Folder, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PathText } from '@/components/shared/path-text';
 import { useTranslation } from '@/i18n';
+import { useOpenCount } from '@/hooks/use-open-count';
 import { apiFetch } from '@/lib/api';
 import {
   folderState, generateRules, parseRules, setChoice, type FolderChoices, type FolderState,
@@ -49,6 +50,16 @@ function TriStateBox ({ state, label, onToggle }: { state: FolderState, label: s
   );
 }
 
+const load = (absolute: string): Promise<BrowseResponse> =>
+  apiFetch<BrowseResponse>(`/browse/local?path=${encodeURIComponent(absolute)}`);
+
+const toNodes = (resp: BrowseResponse, rootPath: string): Node[] =>
+  resp.entries.map((e) => ({
+    name:     e.name,
+    path:     e.path.slice(rootPath.length).replace(/^\/+/, ''),
+    children: null,
+  }));
+
 /**
  * "Choose folders": the local folder as a tree with checkboxes. Unchecking a
  * folder leaves it (and everything in it) out of the sync; a folder with
@@ -58,39 +69,55 @@ function TriStateBox ({ state, label, onToggle }: { state: FolderState, label: s
  */
 export function FolderRulesDialog ({ open, onOpenChange, localDir, rules, syncMode, onApply }: FolderRulesDialogProps) {
   const { t } = useTranslation();
+  // Each opening (or another folder) starts over: the typed rules are read
+  // again and the tree is loaded afresh.
+  const openCount = useOpenCount(open);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('folderPicker.title')}</DialogTitle>
+          <DialogDescription>{t('folderPicker.explain')}</DialogDescription>
+        </DialogHeader>
+        <FolderRulesBody
+          key={`${openCount}:${localDir}`}
+          onOpenChange={onOpenChange}
+          localDir={localDir}
+          rules={rules}
+          syncMode={syncMode}
+          onApply={onApply}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FolderRulesBody ({ onOpenChange, localDir, rules, syncMode, onApply }: Omit<FolderRulesDialogProps, 'open'>) {
+  const { t } = useTranslation();
   const [root, setRoot] = useState<Node | null>(null);
   const [base, setBase] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['']));
-  const [loading, setLoading] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['']));
+  const [loading, setLoading] = useState<Set<string>>(() => new Set());
+  // A null message: an error without text, shown as the generic one.
+  const [error, setError] = useState<{ message: string | null } | null>(null);
   const parsed = useMemo(() => parseRules(rules.split('\n')), [rules]);
-  const [choices, setChoices] = useState<FolderChoices>({});
-
-  const load = useCallback(async (absolute: string): Promise<BrowseResponse> =>
-    apiFetch<BrowseResponse>(`/browse/local?path=${encodeURIComponent(absolute)}`), []);
-
-  const toNodes = (resp: BrowseResponse, rootPath: string): Node[] =>
-    resp.entries.map((e) => ({
-      name:     e.name,
-      path:     e.path.slice(rootPath.length).replace(/^\/+/, ''),
-      children: null,
-    }));
+  // The typed rules are read once, when the dialog opens (this body mounts).
+  const [choices, setChoices] = useState<FolderChoices>(() => parsed.choices ?? {});
 
   useEffect(() => {
-    if (!open) return;
-    setChoices(parsed.choices ?? {});
-    setExpanded(new Set(['']));
-    setRoot(null);
-    setError(null);
+    let ignore = false;
     load(localDir)
       .then((resp) => {
+        if (ignore) return;
         setBase(resp.current);
         setRoot({ name: resp.current, path: '', children: toNodes(resp, resp.current) });
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : t('common.error')));
-    // Only when the dialog opens: the typed rules are read once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, localDir]);
+      .catch((e: unknown) => {
+        if (!ignore) setError({ message: e instanceof Error ? e.message : null });
+      });
+    return () => { ignore = true; };
+  }, [localDir]);
 
   const replaceNode = (node: Node, path: string, children: Node[]): Node => {
     if (node.path === path) return { ...node, children };
@@ -116,7 +143,7 @@ export function FolderRulesDialog ({ open, onOpenChange, localDir, rules, syncMo
       const resp = await load(`${base}/${node.path}`);
       setRoot((r) => (r ? replaceNode(r, node.path, toNodes(resp, base)) : r));
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('common.error'));
+      setError({ message: e instanceof Error ? e.message : null });
     } finally {
       setLoading((prev) => {
         const s = new Set(prev);
@@ -170,46 +197,40 @@ export function FolderRulesDialog ({ open, onOpenChange, localDir, rules, syncMo
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t('folderPicker.title')}</DialogTitle>
-          <DialogDescription>{t('folderPicker.explain')}</DialogDescription>
-        </DialogHeader>
-        {parsed.choices === null && (
-          <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="folder-rules-replaced">
-            {t('folderPicker.replacesRules')}
-          </p>
+    <>
+      {parsed.choices === null && (
+        <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="folder-rules-replaced">
+          {t('folderPicker.replacesRules')}
+        </p>
+      )}
+      {error && <p className="text-sm text-destructive" role="alert">{error.message || t('common.error')}</p>}
+      <ScrollArea className="h-64 rounded-md border p-2">
+        {root
+          ? <ul role="tree" aria-label={t('folderPicker.title')}>{renderNode(root, 0)}</ul>
+          : !error && <p className="text-sm text-muted-foreground" role="status">{t('common.loading')}</p>}
+      </ScrollArea>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{t('folderPicker.preview')}</p>
+        <pre dir="ltr" className="max-h-32 overflow-auto rounded-md bg-muted p-2 text-xs" data-testid="folder-rules-preview">
+          {result.length > 0 ? result.join('\n') : t('folderPicker.noRules')}
+        </pre>
+        {syncMode === 'two_way' && folderRules.length > 0 && (
+          <p className="text-xs text-muted-foreground">{t('folderPicker.markerKept')}</p>
         )}
-        {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-        <ScrollArea className="h-64 rounded-md border p-2">
-          {root
-            ? <ul role="tree" aria-label={t('folderPicker.title')}>{renderNode(root, 0)}</ul>
-            : !error && <p className="text-sm text-muted-foreground" role="status">{t('common.loading')}</p>}
-        </ScrollArea>
-        <div className="space-y-1">
-          <p className="text-sm font-medium">{t('folderPicker.preview')}</p>
-          <pre dir="ltr" className="max-h-32 overflow-auto rounded-md bg-muted p-2 text-xs" data-testid="folder-rules-preview">
-            {result.length > 0 ? result.join('\n') : t('folderPicker.noRules')}
-          </pre>
-          {syncMode === 'two_way' && folderRules.length > 0 && (
-            <p className="text-xs text-muted-foreground">{t('folderPicker.markerKept')}</p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
-          <Button
-            type="button"
-            onClick={() => {
-              onApply(result.join('\n'));
-              onOpenChange(false);
-            }}
-            disabled={!root}
-          >
-            {t('folderPicker.apply')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+        <Button
+          type="button"
+          onClick={() => {
+            onApply(result.join('\n'));
+            onOpenChange(false);
+          }}
+          disabled={!root}
+        >
+          {t('folderPicker.apply')}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
