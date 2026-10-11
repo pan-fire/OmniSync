@@ -414,27 +414,32 @@ class TestListings:
         with pytest.raises(RcloneAuthError):
             await fake.service().list_top_level("r:x")
 
-    async def test_existing_items_lists_only_the_ruled_paths(self, fake: FakeRclone) -> None:
-        fake.answer(stdout="clash.txt\nsub/\nsub/dir/\nsub/dir/x.txt\n")
-        assert await fake.service().existing_items("r:x", ["+ /clash.txt", "+ /sub/dir/"]) == {
-            "clash.txt", "sub/", "sub/dir/", "sub/dir/x.txt",
-        }
+    async def test_existing_entries_lists_only_the_ruled_paths(self, fake: FakeRclone) -> None:
+        fake.answer(stdout=json.dumps([{"Path": "clash.txt", "IsDir": False}, {"Path": "sub", "IsDir": True}, 3]))
+        assert await fake.service().existing_entries("r:x", ["+ /clash.txt", "+ /sub/dir/**"]) == [
+            {"Path": "clash.txt", "IsDir": False}, {"Path": "sub", "IsDir": True},
+        ]
         (argv,) = fake.calls
-        assert argv[2:5] == ["lsf", "-R", "--filter-from"]
+        assert argv[2:6] == ["lsjson", "-R", "--no-mimetype", "--filter-from"]
         assert after_double_dash(argv) == ["r:x"]
         # No rules: nothing to look for, no rclone call.
-        assert await fake.service().existing_items("r:x", []) == set()
+        assert await fake.service().existing_entries("r:x", []) == []
         assert len(fake.calls) == 1
+        fake.answer(stdout="{}")
+        assert await fake.service().existing_entries("r:x", ["+ /a"]) == []
 
-    async def test_existing_items_of_a_missing_root_and_failures(self, fake: FakeRclone) -> None:
+    async def test_existing_entries_of_a_missing_root_and_failures(self, fake: FakeRclone) -> None:
         fake.answer(rc=3, stderr="ERROR : error listing: directory not found\n")
-        assert await fake.service().existing_items("r:gone", ["+ /a"]) == set()
+        assert await fake.service().existing_entries("r:gone", ["+ /a"]) == []
         fake.answer(rc=1, stderr="Failed: 401 Unauthorized, directory not found\n")
         with pytest.raises(RcloneAuthError):
-            await fake.service().existing_items("r:x", ["+ /a"])
+            await fake.service().existing_entries("r:x", ["+ /a"])
         fake.answer(rc=1, stderr="ERROR : permission denied\n")
         with pytest.raises(RcloneError):
-            await fake.service().existing_items("r:x", ["+ /a"])
+            await fake.service().existing_entries("r:x", ["+ /a"])
+        fake.answer(stdout="{broken")
+        with pytest.raises(RcloneError, match="Failed to parse"):
+            await fake.service().existing_entries("r:x", ["+ /a"])
 
     async def test_lsjson_passes_filter_flags(self, fake: FakeRclone) -> None:
         fake.answer(stdout="[]")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from sqlalchemy import insert
@@ -13,14 +14,20 @@ from backend.db.models import FileChange, SyncError, SyncJob
 from backend.services.rclone import ChangeRecorder, FileChangeRecord, redact_secrets
 from backend.services.sync_engine.base import EngineBase
 from backend.services.sync_engine.common import filter_escape, logger
+from backend.services.sync_engine.filters import profile_filters
 from backend.services.sync_engine.names import (
     LocalNames,
     describe,
     is_utf8,
+    link_exclude_patterns,
     name_warnings,
     only_listed,
     scan_local,
 )
+
+# Remote files named like a local link (or below one) that are checked
+# against the profile's filters; with more, every such link is reported.
+MAX_FILTER_CHECKED = 20_000
 
 
 class ReportingMixin(EngineBase):
@@ -71,36 +78,72 @@ class ReportingMixin(EngineBase):
             listed = {e["Path"] for e in entries if isinstance(e, dict) and "Path" in e}
         return only_listed(found, listed)
 
-    async def _shadowing_links(self, links: list[str]) -> list[str]:
-        """The local links whose path names a file or folder in the remote folder.
+    async def _shadowing_links(self, links: list[str], excludes: Iterable[str] = ()) -> list[str]:
+        """The local links whose path names a file (or a folder with files) in
+        the remote folder that a sync would act on.
 
-        One listing of exactly those paths. A link whose name cannot be put
-        in a filter rule (not UTF-8, a line break) is left out; if the
-        listing fails, every link is reported (better a warning too many).
+        One listing of exactly those paths and what is below them. Of the
+        files found, only those count that the profile's filter rules and
+        filter flags let a sync see and that ``excludes`` (the run's
+        manually flagged files and unresolved conflicts) do not leave out:
+        rclone checks them, with the same rules, on a scratch copy of their
+        names (RcloneService.visible_files). A link whose name cannot be
+        put in a filter rule (not UTF-8, a line break) is left out. If a
+        check fails, every link found so far is reported (better a warning
+        too many).
         """
+        from backend.services.sync_engine.two_way import filter_flags  # two_way imports this module
+
         nameable = [p for p in links if is_utf8(p) and "\n" not in p and "\r" not in p]
         if not nameable:
             return []
-        rules = [rule for p in nameable for rule in (f"+ /{filter_escape(p)}", f"+ /{filter_escape(p)}/")]
+        config = self._profile
         try:
-            items = await self._rclone.existing_items(self._profile.remote_dir, rules)
+            entries = await self._rclone.existing_entries(
+                config.remote_dir, [f"+ {pattern}" for pattern in link_exclude_patterns(nameable)])
         except Exception as exc:
             logger.warning("Profile '%s': could not check the remote folder for names of local symbolic "
-                           "links: %s", self._profile.slug, redact_secrets(str(exc)))
+                           "links: %s", config.slug, redact_secrets(str(exc)))
             return nameable
-        return [p for p in nameable if p in items or f"{p}/" in items]
+        link_set = set(nameable)
 
-    async def _name_warnings(self, link_code: SyncWarningCode,
-                             listed: set[str] | None = None) -> tuple[list[SyncWarning], list[str]]:
+        def link_of(path: str) -> str | None:
+            parts = path.split("/")
+            return next((link for i in range(1, len(parts) + 1) if (link := "/".join(parts[:i])) in link_set), None)
+
+        files = [e for e in entries if not e.get("IsDir") and isinstance(e.get("Path"), str)
+                 and link_of(e["Path"]) is not None]
+        shadowing = sorted({link for e in files if (link := link_of(e["Path"])) is not None})
+        profile = profile_filters(config.rclone_filter, filter_flags(config.rclone_args))
+        rules = [*(f"- /{filter_escape(p.lstrip('/'))}" for p in sorted(set(excludes))), *profile.rules]
+        if not shadowing or not (rules or profile.other_args):
+            return shadowing
+        if len(files) > MAX_FILTER_CHECKED:
+            logger.info("Profile '%s': %d remote files have the name of a local link or are below one; "
+                        "too many to check against the profile's filters, all are reported",
+                        config.slug, len(files))
+            return shadowing
+        try:
+            seen = await self._rclone.visible_files(files, rules, profile.other_args)
+        except Exception as exc:
+            logger.warning("Profile '%s': could not check the remote items named like local symbolic links "
+                           "against the profile's filters: %s", config.slug, redact_secrets(str(exc)))
+            return shadowing
+        return sorted({link for path in seen if (link := link_of(path)) is not None})
+
+    async def _name_warnings(self, link_code: SyncWarningCode, listed: set[str] | None = None,
+                             excludes: Iterable[str] = ()) -> tuple[list[SyncWarning], list[str]]:
         """The warnings about local names for a preview, diff or run, and the local links.
 
         ``link_code``: how links named like a remote item are reported (what
-        the run does with that item). Never raises: a failed check is
-        logged and gives no warnings, as the sync itself does not depend on it.
+        the run does with that item). ``excludes``: the paths the run leaves
+        out besides the profile's filters (manual flags, conflicts). Never
+        raises: a failed check is logged and gives no warnings, as the sync
+        itself does not depend on it.
         """
         try:
             found = await self._local_names(listed)
-            shadowing = await self._shadowing_links(found.symlinks)
+            shadowing = await self._shadowing_links(found.symlinks, excludes)
         except Exception:
             logger.warning("Profile '%s': could not check the local file names", self._profile.slug, exc_info=True)
             return [], []

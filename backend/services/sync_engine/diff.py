@@ -63,7 +63,12 @@ class DiffMixin(ReportingMixin):
         config = self._profile
         max_delete = self.max_delete
         mode = SyncMode(config.sync_mode)
-        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW)
+        excluded = set(await self.get_manual_flags())
+        diff = self._state.cached_diff
+        if diff is not None:
+            excluded.update(f.path for f in diff.files if f.is_conflict)
+        # A push leaves the excluded files out: a link named like one of them is no warning.
+        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW, excludes=excluded)
         two_way = await self._two_way_preview(link_exclude_patterns(links)) if config.two_way else None
         result = await self._rclone.check_diff(
             config.local_dir, config.remote_dir,
@@ -74,10 +79,6 @@ class DiffMixin(ReportingMixin):
             return SyncPreviewResponse(max_delete=max_delete, error=check.error, sync_mode=mode, two_way=two_way,
                                        warnings=warnings)
 
-        excluded = set(await self.get_manual_flags())
-        diff = self._state.cached_diff
-        if diff is not None:
-            excluded.update(f.path for f in diff.files if f.is_conflict)
         local_only = [p for p in check.local_only if p not in excluded]
         remote_only = [p for p in check.remote_only if p not in excluded]
         differ = [p for p in check.differ if p not in excluded]
@@ -301,8 +302,10 @@ class DiffMixin(ReportingMixin):
 
         summary = self._summarize(files)
         # Local names a sync cannot carry as they are, among what it sees.
-        warnings, _links = await self._name_warnings(SyncWarningCode.SYMLINK_SHADOW,
-                                                     listed={e["Path"] for e in local_entries if "Path" in e})
+        warnings, _links = await self._name_warnings(
+            SyncWarningCode.SYMLINK_SHADOW, listed={e["Path"] for e in local_entries if "Path" in e},
+            excludes={f.path for f in files if f.is_conflict} | set(manual_flag_paths),
+        )
         response = DiffResponse(files=files, summary=summary, warnings=warnings)
 
         # Cache result and update pending changes

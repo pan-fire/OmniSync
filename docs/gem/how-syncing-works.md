@@ -286,6 +286,13 @@ like `jpg`) as `\xNN` or `\uNNNN`.
     the remote item is deleted into the remote trash
     (`.omnisync-trash/<timestamp>/`), and the warning says so.
 
+  A link is only reported when the run acts on the remote item of its
+  name: a remote file (or a folder with files) that the profile's filter
+  rules and filter flags (such as `--max-size`) let the sync see, and
+  that is not manually flagged or an unresolved conflict. rclone itself
+  checks those files against the profile's rules; a link it could not
+  check is reported (a warning too many rather than one too few).
+
   A **per-file action** (push, pull, keep both) or a **conflict
   resolution** on a path at or below a local link, such as `ld/report.txt`
   where `ld` is a link to a folder, is refused with a message that names

@@ -350,7 +350,8 @@ class TwoWayMixin(PartialsMixin):
         # Local symbolic links are left alone, with the remote items of the
         # same name: otherwise bisync would copy such a remote file over the
         # link (see names.py).
-        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_KEPT)
+        warnings, links = await self._name_warnings(SyncWarningCode.SYMLINK_KEPT,
+                                                    excludes=await self.get_manual_flags())
         link_excludes = link_exclude_patterns(links)
 
         steps = [True] if resync_now else ([False, True] if plan == "flush" else [False])

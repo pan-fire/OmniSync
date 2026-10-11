@@ -99,16 +99,6 @@ class MirrorMixin(PartialsMixin):
         else:
             source, dest = config.remote_dir, config.local_dir
 
-        # --- Local names rclone cannot sync as they are (names.py) ---
-        # A pull leaves every local symbolic link alone: without these rules
-        # a remote file of the same name would replace the link. A push
-        # deletes such a remote file into the remote trash, as for any file
-        # missing locally, and says so.
-        pull = direction == SyncDirection.PULL
-        warnings, links = await self._name_warnings(
-            SyncWarningCode.SYMLINK_KEPT if pull else SyncWarningCode.SYMLINK_TRASHED)
-        link_rules = link_filter_rules(links) if pull else []
-
         # --- Build exclude filter for manual flags & unresolved conflicts ---
         exclude_paths: set[str] = set()
 
@@ -121,6 +111,17 @@ class MirrorMixin(PartialsMixin):
             for f in self._state.cached_diff.files:
                 if f.is_conflict:
                     exclude_paths.add(f.path)
+
+        # --- Local names rclone cannot sync as they are (names.py) ---
+        # A pull leaves every local symbolic link alone: without these rules
+        # a remote file of the same name would replace the link. A push
+        # deletes such a remote file into the remote trash, as for any file
+        # missing locally, and says so (only for remote files this run
+        # acts on: not excluded by the profile's filters or exclude_paths).
+        pull = direction == SyncDirection.PULL
+        warnings, links = await self._name_warnings(
+            SyncWarningCode.SYMLINK_KEPT if pull else SyncWarningCode.SYMLINK_TRASHED, excludes=exclude_paths)
+        link_rules = link_filter_rules(links) if pull else []
 
         # One filter file: the protective excludes first, then the profile's
         # own rules and filter flags in rclone's order (filters.py). The

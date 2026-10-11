@@ -22,6 +22,7 @@ import tempfile
 import threading
 import time
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,7 @@ from hypothesis import strategies as st
 
 from backend.api.routes.jobs import job_warnings
 from backend.api.schemas import ChangeCategory, FileAction, SelectiveSyncItem, SyncWarning, SyncWarningCode
+from backend.db.models import ManualFlag
 from backend.services.rclone import PARTIAL_NAME, SENTINEL_FILE, TRASH_DIR
 from backend.services.rclone.bisync_names import LONGEST_SUFFIX, NAME_MAX, bisync_names_fit, bisync_session_name
 from backend.services.sync_engine import SyncEngine, bisync_workdir
@@ -519,6 +521,62 @@ async def test_per_file_pull_never_replaces_a_local_symlink(env: Env, tmp_path: 
     assert (result.failed, result.errors[0].error) == (1, local_symlink("clash.txt"))
     assert (env.local / "clash.txt").is_symlink()
     assert (tmp_path / "outside" / "t.txt").read_text() == "target"
+
+
+async def test_a_link_the_profile_filters_out_is_no_warning(env: Env, tmp_path: Path):
+    """The profile excludes ``build/``: a push leaves the remote ``build/out``
+    alone, so neither the preview nor the job may say it is trashed."""
+    write(tmp_path / "outside", "t.txt", "target")
+    (env.local / "build").mkdir()
+    os.symlink(tmp_path / "outside" / "t.txt", env.local / "build" / "out")
+    write(env.local, "a.txt", "a")
+    write(env.remote, "build/out", "remote file the profile excludes")
+    engine = env.engine(rclone_filter=["- /build/**"])
+
+    assert (await engine.preview_sync()).warnings == []
+    job = await env.completed(await engine.push())
+
+    assert job_warnings(job) == []
+    assert (env.remote / "build" / "out").read_text() == "remote file the profile excludes"
+    assert trash(env.remote) == {}
+
+
+async def test_a_manually_flagged_or_size_limited_item_is_no_warning(env: Env, tmp_path: Path):
+    """A manually flagged path and a file over the profile's --max-size are
+    left alone by a push too; a file the push does trash is still named."""
+    for name in ("flagged.txt", "big.bin", "small.txt"):
+        os.symlink("nowhere", env.local / name)
+    write(env.local, "a.txt", "a")
+    write(env.remote, "flagged.txt", "flagged")
+    write(env.remote, "big.bin", "x" * 4096)
+    write(env.remote, "small.txt", "small")
+    async with env.factory() as session:
+        session.add(ManualFlag(profile_id=1, file_path="flagged.txt", created_at=datetime.now(timezone.utc)))
+        await session.commit()
+    engine = env.engine(rclone_args=["--max-size", "1K"])
+
+    job = await env.completed(await engine.push())
+
+    assert job_warnings(job) == [warning(SyncWarningCode.SYMLINK_TRASHED, "small.txt")]
+    assert (env.remote / "flagged.txt").read_text() == "flagged" and (env.remote / "big.bin").exists()
+    assert not (env.remote / "small.txt").exists()
+
+
+async def test_rclone_decides_which_files_a_run_sees(env: Env):
+    """visible_files: the same rules, directory rules and size and age limits as on the real files."""
+    rclone = env.engine()._rclone
+    old = "2020-01-01T00:00:00.123456789Z"
+    files = [
+        {"Path": "keep/a.txt", "Size": 10, "ModTime": "2026-01-01T00:00:00Z"},
+        {"Path": "skip/b.txt", "Size": 10, "ModTime": "2026-01-01T00:00:00Z"},
+        {"Path": "keep/big.bin", "Size": 1 << 40, "ModTime": "2026-01-01T00:00:00Z"},  # sparse: no space
+        {"Path": "keep/old.txt", "Size": 1, "ModTime": old},
+        {"Path": "keep/ctrl\x01.txt", "Size": 1},                  # spelled differently by rclone: counted
+        {"Path": "keep/dir", "IsDir": True},
+        {"Path": "keep/no-time.txt", "Size": -1, "ModTime": "garbage"},
+    ]
+    seen = await rclone.visible_files(files, ["- /skip/**"], ["--max-size", "1M", "--max-age", "2000d"])
+    assert seen == {"keep/a.txt", "keep/ctrl\x01.txt", "keep/no-time.txt"}
 
 
 @pytest.mark.slow

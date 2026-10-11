@@ -222,7 +222,7 @@ def test_completed_event_with_warnings_is_a_warning():
 def rclone_stub() -> AsyncMock:
     rclone = AsyncMock()
     rclone.list_top_level = AsyncMock(return_value=[])
-    rclone.existing_items = AsyncMock(return_value=set())
+    rclone.existing_entries = AsyncMock(return_value=[])
     return rclone
 
 
@@ -270,29 +270,73 @@ async def test_profile_filters_narrow_the_warnings(tmp_path, env: Env):
     assert warnings[0].count == 2
 
 
+def entries(*paths: str) -> list[dict]:
+    """lsjson entries: a path ending in / is a folder."""
+    return [{"Path": p.rstrip("/"), "IsDir": p.endswith("/"), "Size": 1} for p in paths]
+
+
 async def test_links_are_checked_against_the_remote(tmp_path, env: Env):
     rclone = rclone_stub()
-    rclone.existing_items = AsyncMock(return_value={"file.txt", "folder/", "folder/x", "sub/"})
+    rclone.existing_entries = AsyncMock(return_value=entries(
+        "file.txt", "folder/", "folder/x", "empty/", "sub/", "junk/x/"))
     engine = _engine(tmp_path, rclone, env.factory, None, sync_mode="mirror")
     local = tmp_path / "local"
-    for name in ("file.txt", "folder", "alone", "sub/[x]"):
+    for name in ("file.txt", "folder", "alone", "sub/[x]", "empty"):
         (local / name).parent.mkdir(parents=True, exist_ok=True)
         os.symlink("nowhere", local / name)
     os.symlink("nowhere", local / BAD)
 
     warnings, links = await engine._name_warnings(SyncWarningCode.SYMLINK_KEPT)
 
+    # A remote folder counts with files in it: an empty one is no item a sync acts on.
     assert warnings == [SyncWarning(code=SyncWarningCode.SYMLINK_KEPT, count=2, paths=["file.txt", "folder"])]
-    assert links == sorted([BAD, "alone", "file.txt", "folder", "sub/[x]"])
-    (root, rules), _ = rclone.existing_items.call_args
+    assert links == sorted([BAD, "alone", "empty", "file.txt", "folder", "sub/[x]"])
+    (root, rules), _ = rclone.existing_entries.call_args
     assert root == "gdrive:Docs"
-    assert rules == ["+ /alone", "+ /alone/", "+ /file.txt", "+ /file.txt/", "+ /folder", "+ /folder/",
-                     "+ /sub/\\[x\\]", "+ /sub/\\[x\\]/"]
+    assert rules == ["+ /{alone,empty,file.txt,folder}", "+ /{alone,empty,file.txt,folder}/**",
+                     "+ /sub/\\[x\\]", "+ /sub/\\[x\\]/**"]
+    # Without filters, flags or exclusions there is nothing more to check.
+    rclone.visible_files.assert_not_called()
 
     # The remote cannot be checked: every link is reported.
-    rclone.existing_items = AsyncMock(side_effect=RcloneError("unreachable"))
+    rclone.existing_entries = AsyncMock(side_effect=RcloneError("unreachable"))
     warnings, _ = await engine._name_warnings(SyncWarningCode.SYMLINK_KEPT)
-    assert warnings[0].count == 4
+    assert warnings[0].count == 5
+
+
+async def test_links_count_only_for_what_the_run_acts_on(tmp_path, env: Env):
+    """The profile's filters and flags and the run's exclusions decide, as for the run itself."""
+    rclone = rclone_stub()
+    rclone.existing_entries = AsyncMock(return_value=entries("a.txt", "b.txt", "dir/", "dir/x", "dir/y"))
+    rclone.visible_files = AsyncMock(return_value={"dir/y"})
+    engine = _engine(tmp_path, rclone, env.factory, None, sync_mode="mirror",
+                     rclone_filter=["- /a.txt"], rclone_args=["--max-size", "1M", "--include", "*", "--transfers", "4"])
+    for name in ("a.txt", "b.txt", "dir"):
+        os.symlink("nowhere", tmp_path / "local" / name)
+
+    warnings, _ = await engine._name_warnings(SyncWarningCode.SYMLINK_TRASHED, excludes={"/b.txt"})
+
+    assert warnings == [SyncWarning(code=SyncWarningCode.SYMLINK_TRASHED, count=1, paths=["dir"])]
+    (files, rules, flags), _ = rclone.visible_files.call_args
+    assert [f["Path"] for f in files] == ["a.txt", "b.txt", "dir/x", "dir/y"]
+    assert rules == ["- /b.txt", "+ *", "- /a.txt", "- /**"]
+    assert flags == ["--max-size", "1M"]
+
+    # A failed check reports every link found (a warning too many, never one too few).
+    rclone.visible_files = AsyncMock(side_effect=RcloneError("boom"))
+    warnings, _ = await engine._name_warnings(SyncWarningCode.SYMLINK_TRASHED)
+    assert warnings[0].paths == ["a.txt", "b.txt", "dir"]
+
+
+async def test_too_many_files_below_links_are_all_reported(tmp_path, env: Env, monkeypatch):
+    monkeypatch.setattr("backend.services.sync_engine.reporting.MAX_FILTER_CHECKED", 1)
+    rclone = rclone_stub()
+    rclone.existing_entries = AsyncMock(return_value=entries("dir/x", "dir/y"))
+    engine = _engine(tmp_path, rclone, env.factory, None, sync_mode="mirror", rclone_filter=["- *.tmp"])
+    os.symlink("nowhere", tmp_path / "local" / "dir")
+    warnings, _ = await engine._name_warnings(SyncWarningCode.SYMLINK_SHADOW)
+    assert warnings[0].paths == ["dir"]
+    rclone.visible_files.assert_not_called()
 
 
 async def test_only_unnameable_links_need_no_remote_check(tmp_path, env: Env):
@@ -300,7 +344,7 @@ async def test_only_unnameable_links_need_no_remote_check(tmp_path, env: Env):
     engine = _engine(tmp_path, rclone, env.factory, None, sync_mode="mirror")
     os.symlink("nowhere", tmp_path / "local" / BAD)
     assert await engine._name_warnings(SyncWarningCode.SYMLINK_KEPT) == ([], [BAD])
-    rclone.existing_items.assert_not_called()
+    rclone.existing_entries.assert_not_called()
 
 
 async def test_a_check_that_crashes_gives_no_warnings(tmp_path, env: Env, monkeypatch):

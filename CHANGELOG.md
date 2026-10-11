@@ -112,6 +112,10 @@ release notes.
   folder's links: a folder with thousands of links (such as a pnpm
   `node_modules`) neither overflows the command line of a two-way sync
   (rclone could not start: "Argument list too long") nor slows a run down.
+  A link is reported only for remote items the run acts on: not for one
+  the profile's filters or flags, a manual flag or an unresolved conflict
+  leave out (a push used to report such an item as moved to the trash
+  although it was left alone).
 - **A sync whose rclone cannot be started fails like any other.** An error
   starting rclone for a push, pull or two-way sync (such as a command line
   too long for the system) escaped the job's error handling: the job was
