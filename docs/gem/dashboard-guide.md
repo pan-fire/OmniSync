@@ -16,7 +16,9 @@ sync runs.
   **Check for changes**, **Show Diff** (one tab per profile with pending
   changes; once open, the button reads **Refresh diff** and reloads the
   differences while the table stays visible, and **Hide Diff** closes them)
-  and, while a sync runs, **Stop**.
+  and, while a sync runs, **Stop**. **Stop** first asks, naming every
+  profile whose sync is running; confirming stops those syncs, and their
+  automatic syncing goes on afterwards. **Cancel** or Escape stops nothing.
 - **Pause all** pauses automatic syncing (file watcher and interval) of
   every enabled profile until you resume; syncs you start still run.
   **Resume all** lifts those pauses; a profile OmniSync paused itself
@@ -50,6 +52,14 @@ open it and a trash icon to delete it (history included; your files are not
 touched). A two-way profile's card also has **Sync now**, or **Resync**
 when it shows **Resync needed**.
 
+The on/off switch asks before it changes anything. Disabling says that the
+profile's automatic syncs stop (no file watcher, no interval sync, no
+**Push**, **Pull** or **Sync now** until you enable it again) and, if a sync
+is running, that it is stopped now. Enabling says that its automatic syncs
+start again, or that they wait for **Resume Intervals** when you paused
+the profile. Settings, history and files stay either way; **Cancel** or
+Escape leaves the profile as it was.
+
 **Create Profile** opens the form described in the
 [Configuration Guide](configuration.md#profile-settings). The folder icons
 open a picker for local folders (inside your sync folder) and for folders on
@@ -79,8 +89,8 @@ arrived and removes it again, and shows which step failed if one did.
   that says how many files would be deleted or replaced, and warns when the
   sync would stop at the delete limit. A confirmed push or pull also runs
   while the profile is paused. On a two-way profile they are one-way
-  overrides. **Stop** ends a running sync; the profile keeps syncing
-  afterwards.
+  overrides. **Stop** ends a running sync after a confirmation that names
+  the profile; the profile keeps syncing afterwards.
 - **Switch to two-way** appears on a mirror profile: a short explanation
   and a button that switches the profile after a confirmation. Its next
   sync is then a resync.

@@ -130,6 +130,13 @@ describe('SyncControls while a profile syncs', () => {
     mockedApi.getAggregateStatus.mockResolvedValue(aggregate([summary('docs', 'Docs', 'pushing'), summary('photos', 'Photos', 'idle')]));
   });
 
+  /** Clicks Stop and confirms in the dialog. */
+  async function stopAndConfirm (user: ReturnType<typeof userEvent.setup>, confirm = 'Stop sync') {
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: confirm }));
+  }
+
   it('disables push and pull and stops only the running profiles', async () => {
     mockedApi.stopProfileSync.mockResolvedValue(undefined as never);
     const user = userEvent.setup();
@@ -138,12 +145,50 @@ describe('SyncControls while a profile syncs', () => {
     const stop = await screen.findByRole('button', { name: 'Stop' });
     expect(screen.getByRole('button', { name: 'Push' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Pull' })).toBeDisabled();
-    await user.click(stop);
+    await stopAndConfirm(user);
 
     await waitFor(() => expect(mockedApi.stopProfileSync).toHaveBeenCalledTimes(1));
     expect(mockedApi.stopProfileSync).toHaveBeenCalledWith('docs');
     expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(stop).toBeEnabled());
+  });
+
+  // Stop cancels transfers in flight: like the TUI, it asks first and
+  // names the running profile (not the idle one).
+  it('asks before stopping and names the running profile', async () => {
+    const user = userEvent.setup();
+    renderControls();
+
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Stop the sync of "Docs"?' });
+    expect(within(dialog).getByText(/Automatic syncing of this profile goes on afterwards/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Photos/)).not.toBeInTheDocument();
+    expect(mockedApi.stopProfileSync).not.toHaveBeenCalled();
+  });
+
+  it('cancel stops nothing', async () => {
+    const user = userEvent.setup();
+    renderControls();
+
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mockedApi.stopProfileSync).not.toHaveBeenCalled();
+  });
+
+  it('Escape stops nothing', async () => {
+    const user = userEvent.setup();
+    renderControls();
+
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mockedApi.stopProfileSync).not.toHaveBeenCalled();
   });
 
   it('names the profile that could not be stopped', async () => {
@@ -151,7 +196,7 @@ describe('SyncControls while a profile syncs', () => {
     const user = userEvent.setup();
     renderControls();
 
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    await stopAndConfirm(user);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Docs: not running'));
   });
 
@@ -160,8 +205,39 @@ describe('SyncControls while a profile syncs', () => {
     const user = userEvent.setup();
     renderControls();
 
-    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    await stopAndConfirm(user);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Docs: Something went wrong'));
+  });
+});
+
+describe('SyncControls while several profiles sync', () => {
+  beforeEach(() => {
+    mockedApi.getProfiles.mockResolvedValue([
+      makeProfile('docs', 'Docs'), makeProfile('photos', 'Photos'), makeProfile('music', 'Music'),
+    ]);
+    mockedApi.getAggregateStatus.mockResolvedValue(aggregate([
+      summary('docs', 'Docs', 'pushing'), summary('photos', 'Photos', 'syncing'), summary('music', 'Music', 'idle'),
+    ]));
+  });
+
+  // "Stop all": one confirmation lists every running profile, and exactly
+  // those are stopped.
+  it('lists every running profile and stops them all on confirm', async () => {
+    mockedApi.stopProfileSync.mockResolvedValue(undefined as never);
+    const user = userEvent.setup();
+    renderControls();
+
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Stop 2 running syncs?' });
+    const listed = within(within(dialog).getByTestId('stop-sync-profiles')).getAllByRole('listitem');
+    expect(listed.map((li) => li.textContent)).toEqual(['Docs', 'Photos']);
+    expect(mockedApi.stopProfileSync).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Stop syncs' }));
+    await waitFor(() => expect(mockedApi.stopProfileSync).toHaveBeenCalledTimes(2));
+    expect(mockedApi.stopProfileSync).toHaveBeenCalledWith('docs');
+    expect(mockedApi.stopProfileSync).toHaveBeenCalledWith('photos');
+    expect(mockedApi.stopProfileSync).not.toHaveBeenCalledWith('music');
   });
 });
 
