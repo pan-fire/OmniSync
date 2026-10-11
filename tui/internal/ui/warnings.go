@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 
@@ -26,29 +25,6 @@ var warningTexts = map[api.SyncWarningCode]string{
 		"their name; both were left as they are",
 	api.SyncWarningSymlinkTrashed: "remote file(s) or folder(s) moved to the remote trash: a local " +
 		"symbolic link has their name (links are not synced)",
-}
-
-// safeServerLine returns server text as one line of plain text: a control
-// character (C0, DEL, C1, also a newline) or an invalid UTF-8 byte shows as
-// U+FFFD, so a path cannot move the cursor, restyle the view or start a
-// line of its own. (The backend already escapes these in warning paths;
-// this is the view's own guard.)
-func safeServerLine(s string) string {
-	if utf8.ValidString(s) && !strings.ContainsFunc(s, isControlRune) {
-		return s
-	}
-	var b strings.Builder
-	for _, r := range s {
-		if r == utf8.RuneError || isControlRune(r) {
-			r = utf8.RuneError
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-func isControlRune(r rune) bool {
-	return r < 0x20 || (r >= 0x7f && r <= 0x9f)
 }
 
 // jobStatusLabel is a job's status as the views show it.
@@ -79,12 +55,12 @@ func renderWarnings(warnings []api.SyncWarning) string {
 	for _, w := range warnings {
 		text, ok := warningTexts[w.Code]
 		if !ok {
-			text = "file(s) need attention (" + safeServerLine(string(w.Code)) + ")"
+			text = "file(s) need attention (" + safeLine(string(w.Code)) + ")"
 		}
 		b.WriteString(style.Render(fmt.Sprintf("  %s %d %s", theme.Glyphs().Warning, w.Count, text)))
 		b.WriteString("\n")
 		for _, p := range w.Paths {
-			b.WriteString(mutedText("      " + safeServerLine(p)))
+			b.WriteString(mutedText("      " + safeLine(p)))
 			b.WriteString("\n")
 		}
 		if more := w.Count - len(w.Paths); more > 0 {

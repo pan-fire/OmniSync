@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { I18nProvider } from '@/i18n';
 import { ProfileDiffPanel } from '@/components/sync/profile-diff-panel';
 import type { FileDiff, SelectiveSyncItem, SelectiveSyncResponse } from '@/types';
+import type { ProfilePaginatedDiff } from '@/hooks/use-profile-paginated-diff';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -18,8 +19,11 @@ let diffState: {
   isLoadingMore: boolean;
   error:         string | null;
 };
+// Typed as the hook's result, so a field the hook gains fails typecheck here.
 vi.mock('@/hooks/use-profile-paginated-diff', () => ({
-  useProfilePaginatedDiff: () => ({ ...diffState, summary: null, loadMore, reset, removeFiles: vi.fn() }),
+  useProfilePaginatedDiff: (): ProfilePaginatedDiff => ({
+    ...diffState, summary: null, warnings: [], loadMore, reset, removeFiles: vi.fn(),
+  }),
 }));
 
 let outcome: { ok: SelectiveSyncResponse } | { err: Error };
