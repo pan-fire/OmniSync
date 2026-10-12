@@ -12,6 +12,41 @@ release notes.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-12
+
+### Breaking changes and upgrade notes
+
+Upgrading from 0.13.0 needs no action for a Docker install: the installer
+(`install.sh update`) or `docker compose pull && up -d` migrates the database
+on start and keeps a copy of it from before. These changes can still surprise
+you; each says what to do.
+
+- **Database migrations 0012 and 0013 run on start.** 0012 makes the profile
+  required on sync jobs and conflict records and removes any leftover rows
+  without one (none are written since 0.12.0; the count is logged). 0013
+  adds the warnings column to sync jobs. *Action:* none; the pre-migration
+  copy of the database keeps the old rows if you ever need them.
+- **More files can show up as conflicts.** A file that differs and has a
+  readable modification time on one side only is now a conflict instead of
+  "modified" on that side, so a push or pull no longer overwrites it.
+  *Action:* resolve these in **Conflicts** like any other.
+- **Local symbolic links are never written through.** Pulls and two-way
+  syncs leave a local link (and its target) as they are and report the
+  remote item they skipped; per-file actions, conflict resolution, trash
+  and backup restores refuse a path that goes through a link. *Action:*
+  replace a link with the real folder if you want the remote content there.
+- **The web UI and the terminal UI ask before Stop, Stop all and enabling
+  or disabling a profile.** The API and `osync` commands are unchanged.
+  *Action:* none.
+- **API clients:** `GET /profiles/{slug}/trash` answers 503
+  `service_unavailable` (not 502) while rclone is not running, and jobs, the
+  preview and the diff have a new `warnings` list. *Action:* treat 503 as
+  "try again", and ignore or show `warnings`.
+- **Running from source:** `backend/requirements.lock` is now
+  `backend/requirements-lock.txt`, and building `osync` needs Go 1.26 or
+  newer. *Action:* reinstall with `pip install -r
+  backend/requirements-lock.txt`.
+
 ### Added
 
 - **The installer uses a GitHub token when you have one.** With `GH_TOKEN`
@@ -306,7 +341,6 @@ release notes.
   client could send credentials to a server-chosen authorization server).
   Both come in only through the shadcn CLI, and the image does not ship
   them. From Dependabot pull requests #39 and #40.
-
 
 ## [0.13.0] - 2026-10-04
 
@@ -1160,7 +1194,8 @@ never published.
   Python dependencies are installed from an exact lock file.
 - The OAuth token stays on the server and is never returned by the API.
 
-[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/pan-fire/OmniSync/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/pan-fire/OmniSync/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/pan-fire/OmniSync/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/pan-fire/OmniSync/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/pan-fire/OmniSync/releases/tag/v0.11.0
