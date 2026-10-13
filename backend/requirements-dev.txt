@@ -6,7 +6,7 @@ pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 hypothesis>=6.168.5
 # CI runs the suite in parallel (pytest -n).
-pytest-xdist>=3.6
+pytest-xdist>=3.8.0
 # Lint and type checks (CI). Exact pins: a new release can add findings, so
 # upgrades come as reviewed Dependabot pull requests. The [nodejs] extra
 # ships Node with pyright instead of downloading it at first run.
