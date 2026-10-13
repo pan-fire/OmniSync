@@ -10,5 +10,5 @@ pytest-xdist>=3.6
 # Lint and type checks (CI). Exact pins: a new release can add findings, so
 # upgrades come as reviewed Dependabot pull requests. The [nodejs] extra
 # ships Node with pyright instead of downloading it at first run.
-ruff==0.16.10
+ruff==0.17.0
 pyright[nodejs]==1.1.414
