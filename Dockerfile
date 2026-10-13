@@ -7,7 +7,7 @@
 # tag says what it is); Dependabot (docker ecosystem) moves both together.
 
 # ---- Builder stage ----
-FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016 AS builder
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS builder
 
 WORKDIR /build
 
@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --no-deps --prefix=/install -r requirements-lock.
     && PYTHONPATH=/install/lib/python3.12/site-packages python -m pip check
 
 # ---- Runtime stage ----
-FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
