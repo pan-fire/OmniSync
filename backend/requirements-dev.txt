@@ -1,7 +1,7 @@
 # Test and development dependencies, on top of the exact runtime pins the
 # Docker image ships, so tests run against what gets deployed.
 -r requirements-lock.txt
-pytest>=8.0
+pytest>=9.1.1
 pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 hypothesis>=6.168.5
