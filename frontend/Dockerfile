@@ -14,7 +14,7 @@
 # is pulled); Dependabot (docker ecosystem) moves both together.
 
 # ---- Dependencies ----
-FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS deps
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS deps
 
 # Exact pnpm release, same major as CI (.github/workflows/ci.yml).
 ARG PNPM_VERSION=10.34.5
@@ -32,7 +32,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Runtime ----
-FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS runtime
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/pan-fire/OmniSync" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
